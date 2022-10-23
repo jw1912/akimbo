@@ -5,32 +5,29 @@ pub mod hash;
 pub mod eval;
 pub mod search;
 
+use std::io;
+use consts::*;
+use hash::*;
 use position::*;
 use movegen::*;
+use search::*;
 use std::time::Instant;
 
-const _POSITIONS: [&str; 2] = [
-    // Start Position
-    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 
-    // Kiwipete Position
-    "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-];
+const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
 fn main() {
-    for (i, fen) in _POSITIONS.iter().enumerate() {
-        parse_fen(fen);
-        let mut t = 0;
-        let time = Instant::now();
-        for d in 1..(7 - i as u8) {
-            let p = perft(d);
-            t += p;
-            println!("info depth {} nodes {} time {}", d, p, time.elapsed().as_millis());
-        }
-        let f = time.elapsed().as_millis();
-        println!("info time {} nps {}", f, t * 1000 / f as u64)
+    println!("akimbo, created by Jamie Whiting");
+    parse_fen(STARTPOS);
+    tt_resize(1024 * 1024);
+    loop {
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+        let commands: Vec<&str> = input.split(' ').map(|v| v.trim()).collect();
+        if commands[0] == "uci" {uci_run()}
     }
 }
 
-pub fn perft(depth_left: u8) -> u64 {
+fn perft(depth_left: u8) -> u64 {
     if depth_left == 0 { return 1 }
     let mut moves = MoveList::default();
     gen_moves::<All>(&mut moves);
@@ -44,4 +41,90 @@ pub fn perft(depth_left: u8) -> u64 {
         undo_move(ctx);
     }
     positions
+}
+
+fn uci_run() {
+    println!("id name Kimbo {}", VERSION);
+    println!("id author {}", AUTHOR);
+    println!("option name Hash type spin default 128 min 1 max 512");
+    println!("option name Clear Hash type button");
+    println!("option name Move Overhead type spin default 10 min 0 max 500");
+    println!("uciok");
+    loop {
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+        let commands: Vec<&str> = input.split(' ').map(|v| v.trim()).collect();
+        run_commands(commands);
+    }
+}
+
+fn run_commands(commands: Vec<&str>) {
+    match commands[0] {
+        "isready" => println!("readyok"),
+        "ucinewgame" => {
+            parse_fen(STARTPOS);
+            tt_clear();
+        },
+        "go" => parse_go(commands),
+        "position" => parse_position(commands),
+        _ => {},
+    };
+}
+
+fn parse_go( commands: Vec<&str>) {
+    #[derive(PartialEq)]
+    enum Tokens {None, Depth, Perft}
+    let mut token = Tokens::None;
+    let mut perft_depth = 0;
+    for command in commands {
+        match command {
+            "depth" => token = Tokens::Depth,
+            "perft" => token = Tokens::Perft,
+            _ => {
+                match token {
+                    Tokens::None => {},
+                    Tokens::Depth => unsafe{DEPTH = command.parse::<i8>().unwrap_or(1)},
+                    Tokens::Perft => perft_depth = command.parse::<u8>().unwrap_or(1),
+                }
+            },
+        }
+    }
+    match token {
+        Tokens::Perft => {
+            let now = Instant::now();
+            let count = perft(perft_depth);
+            let elapsed = now.elapsed().as_micros();
+            println!("Leaf count: {count} ({:.2} ML/sec)", count as f64 / elapsed as f64);
+        }
+        Tokens::Depth => {
+            let best_move = go();
+            println!("bestmove {}", u16_to_uci(&best_move));
+        } 
+        Tokens::None => {}
+    }
+}
+
+fn parse_position(commands: Vec<&str>) {
+    enum Tokens {Nothing, Fen, Moves}
+    let mut fen = String::from("");
+    let mut moves: Vec<String> = Vec::new();
+    let mut token = Tokens::Nothing;
+    for command in commands {
+        match command {
+            "position" => (),
+            "startpos" => parse_fen(STARTPOS),
+            "fen" => token = Tokens::Fen,
+            "moves" => token = Tokens::Moves,
+            _ => match token {
+                Tokens::Nothing => {},
+                Tokens::Fen => {
+                    fen.push_str(command);
+                    fen.push(' ');
+                }
+                Tokens::Moves => moves.push(command.to_string()),
+            },
+        }
+    }
+    if !fen.is_empty() {parse_fen(&fen)}
+    for m in moves {do_move(uci_to_u16(&m));}
 }

@@ -12,9 +12,8 @@ impl Bound {
 
 #[derive(Clone, Copy, Default)]
 #[repr(align(64))]
-pub struct HashBucket {
-    entries: [u64; 8],
-}
+pub struct HashBucket(pub [u64; 8]);
+
 const BUCKET_SIZE: usize = std::mem::size_of::<HashBucket>();
 #[derive(Default)]
 pub struct HashResult {
@@ -62,7 +61,7 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
     let bucket = &mut TT[idx];
     let mut desired_idx = usize::MAX;
     let mut smallest_depth = i8::MAX;
-    for (entry_idx, &entry) in bucket.entries.iter().enumerate() {
+    for (entry_idx, &entry) in bucket.0.iter().enumerate() {
         let entry_data = tt_load(entry);
         if (entry_data.key == key && depth > entry_data.depth) || entry_data.depth == 0 {
             desired_idx = entry_idx;
@@ -79,7 +78,7 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
     } else if score < -MATE_THRESHOLD {
         score -= ply as i16;
     }
-    bucket.entries[desired_idx] = tt_encode(key, best_move, depth, bound, score);
+    bucket.0[desired_idx] = tt_encode(key, best_move, depth, bound, score);
     }
 }
 
@@ -87,7 +86,7 @@ pub fn tt_probe(zobrist: u64, ply: i8) -> Option<HashResult> {
     let key = (zobrist >> 48) as u16;
     let idx = (zobrist as usize) % unsafe{TT.len()};
     let bucket = unsafe{&TT[idx]};
-    for &data in &bucket.entries {
+    for &data in &bucket.0 {
         if data as u16 == key {
             let mut entry_data = tt_load(data);
             if entry_data.score > MATE_THRESHOLD {
@@ -102,14 +101,11 @@ pub fn tt_probe(zobrist: u64, ply: i8) -> Option<HashResult> {
 }
 
 pub mod zobrist {
-    use lazy_static;
+    use lazy_static::lazy_static;
     use fastrand;
-    use crate::position::POS;
-    use crate::{lsb, pop};
+    use crate::{lsb, pop, position::POS};
 
-    lazy_static::lazy_static!(
-        pub static ref ZVALS: ZobristVals = ZobristVals::init();
-    );
+    lazy_static!(pub static ref ZVALS: ZobristVals = ZobristVals::init(););
 
     pub struct ZobristVals {
         pieces: [[[u64; 64]; 6]; 2],

@@ -5,7 +5,8 @@ use super::hash::*;
 use super::movegen::*;
 use super::eval::*;
 
-static mut DEPTH: i8 = 1;
+pub static mut DEPTH: i8 = 1;
+static mut NODES: u64 = 0;
 
 macro_rules! is_capture {($m:expr) => {$m & 0b0100_0000_0000_0000 > 0}}
 macro_rules! is_mate_score {($score:expr) => {$score >= MATE_THRESHOLD || $score <= -MATE_THRESHOLD}}
@@ -92,11 +93,10 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, depth: i8, ply: i8, pv: &m
     // mate distance pruning
     alpha = max(alpha, -MAX + ply as i16);
     beta = min(beta, MAX - ply as i16 - 1);
-    if alpha >= beta { 
-        return alpha 
-    }
+    if alpha >= beta { return alpha }
     // qsearch at depth 0
     if depth <= 0 || ply == MAX_PLY { return quiesce(alpha, beta) }
+    unsafe{NODES += 1}
     // probing hash table
     let zobrist = zobrist::calc();
     let mut hash_move = 0;
@@ -163,6 +163,7 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, depth: i8, ply: i8, pv: &m
 }
 
 fn quiesce(mut alpha: i16, beta: i16) -> i16 {
+    unsafe{NODES += 1}
     let stand_pat = eval();
     if stand_pat >= beta { return beta }
     if stand_pat < alpha - 850 { return alpha }
@@ -183,6 +184,7 @@ fn quiesce(mut alpha: i16, beta: i16) -> i16 {
 }
 
 pub fn go() -> u16 {
+    unsafe{NODES = 0}
     let mut best_move = 0;
     for d in 0..unsafe{DEPTH} {
         let mut pv = Vec::new();
@@ -193,7 +195,7 @@ pub fn go() -> u16 {
             true => ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2), 
             false => ("cp", score)
         };
-        println!("info depth {} score {} {} pv {}", d + 1, stype, sval, best_move);
+        println!("info depth {} score {} {} nodes {} pv {}", d + 1, stype, sval, unsafe{NODES}, u16_to_uci(&best_move));
         if is_mate_score!(score) { break }
     }
     best_move

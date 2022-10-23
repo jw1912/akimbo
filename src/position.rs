@@ -1,6 +1,10 @@
-use super::{lsb, consts::*, movegen::{bishop_attacks, rook_attacks}};
+use super::{lsb, consts::*, movegen::{bishop_attacks, rook_attacks, gen_moves, All}};
 use std::ptr;
 
+// The position is stored as global state
+pub static mut POS: Position = Position::new();
+
+// MACROS
 macro_rules! bit {($x:expr) => {1 << $x}}
 macro_rules! toggle {
     ($side:expr, $pc:expr, $bit:expr) => {
@@ -9,10 +13,7 @@ macro_rules! toggle {
     };
 }
 
-// The position is stored as global state
-pub static mut POS: Position = Position::new();
-
-// BOARD
+// STRUCTS
 #[derive(Clone, Copy)]
 pub struct Position {
     pub pieces: [u64; 6],
@@ -27,14 +28,12 @@ impl Position {
         Position { pieces: [0;6], sides: [0;2], squares: [0; 64], side_to_move: 0, state: GameState { en_passant_sq: 0, halfmove_clock: 0, castle_rights: 0 }, fullmove_counter: 0 }
     }
 }
-
 #[derive(Clone, Copy, Default)]
 pub struct GameState {
     pub en_passant_sq: u16,
     pub halfmove_clock: u8,
     pub castle_rights: u8,
 }
-// MOVES
 #[derive(Clone, Copy)]
 pub struct MoveState {
     pub state: GameState,
@@ -50,13 +49,7 @@ pub struct MoveList {
 }
 impl Default for MoveList {
     fn default() -> Self {
-        Self {
-            list: unsafe {
-                #[allow(clippy::uninit_assumed_init)]
-                std::mem::MaybeUninit::uninit().assume_init()
-            },
-            len: 0,
-        } 
+        Self {list: unsafe {#[allow(clippy::uninit_assumed_init)] std::mem::MaybeUninit::uninit().assume_init()}, len: 0} 
     }
 }
 impl MoveList {
@@ -68,11 +61,67 @@ impl MoveList {
     #[inline(always)]
     pub fn swap_unchecked(&mut self, i: usize, j: usize) {
         let ptr = self.list.as_mut_ptr();
-        unsafe {
-            ptr::swap(ptr.add(i), ptr.add(j));
-        }
+        unsafe { ptr::swap(ptr.add(i), ptr.add(j)) }
     }
 }
+
+/// UCI MOVE FORMAT
+fn idx_to_sq(idx: u16) -> String {
+    let rank = idx >> 3;
+    let file = idx & 7;
+    let srank = (rank + 1).to_string();
+    let sfile = FILES[file as usize];
+    format!("{sfile}{srank}")
+}
+fn sq_to_idx(sq: &str) -> u16 {
+    let chs: Vec<char> = sq.chars().collect();
+    let file: u16 = match FILES.iter().position(|&ch| ch == chs[0]) {
+        Some(res) => res as u16,
+        None => 0,
+    };
+    let rank = chs[1].to_string().parse::<u16>().unwrap_or(0) - 1;
+    8 * rank + file
+}
+const PROMOS: [&str; 4] = ["n","b","r","q"];
+const PROMO_BIT: u16 = 0b1000_0000_0000_0000;
+pub fn u16_to_uci(m: &u16) -> String {
+    let mut promo = "";
+    if m & PROMO_BIT > 0 {
+        promo = PROMOS[((m >> 12) & 0b11) as usize];
+    }
+    format!("{}{}{} ", idx_to_sq((m >> 6) & 0b111111), idx_to_sq(m & 0b111111), promo)
+}
+const TWELVE: u16 = 0b0000_1111_1111_1111;
+pub fn uci_to_u16(m: &str) -> u16 {
+    let l = m.len();
+    let from = sq_to_idx(&m[0..2]);
+    let to = sq_to_idx(&m[2..4]);
+    let mut no_flags = (from << 6) | to;
+    if l == 5 {
+        no_flags |= match m.chars().nth(4).unwrap() {
+            'n' => 0b1000_0000_0000_0000,
+            'b' => 0b1001_0000_0000_0000,
+            'r' => 0b1010_0000_0000_0000,
+            'q' => 0b1011_0000_0000_0000,
+            _ => 0,
+        }
+    }
+    let mut possible_moves = MoveList::default();
+    gen_moves::<All>(&mut possible_moves);
+    for m_idx in 0..possible_moves.len {
+        let um = possible_moves.list[m_idx];
+        if no_flags & TWELVE == um & TWELVE {
+            if l < 5 {
+                return um;
+            }
+            if no_flags & !TWELVE == um & 0b1011_0000_0000_0000 {
+                return um;
+            }
+        }
+    }
+    panic!("")
+}
+
 
 // FEN
 const FILES: [char; 8] = ['a','b','c','d','e','f','g','h'];

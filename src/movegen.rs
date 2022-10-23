@@ -210,40 +210,32 @@ fn en_passants<const SIDE: usize>(move_list: &mut MoveList, pawns: u64, sq: u16)
 // ROOK + BISHOP ATTACKS
 pub fn rook_attacks(idx: usize, occ: u64) -> u64 {
     let mut norths = NORTH[idx];
-    let mut blocker = norths & occ;
-    let mut sq = lsb!(blocker | MSB) as usize;
+    let mut sq = lsb!(norths & occ | MSB) as usize;
     norths ^= NORTH[sq];
     let mut easts = EAST[idx];
-    blocker = easts & occ;
-    sq = lsb!(blocker | MSB) as usize;
+    sq = lsb!(easts & occ | MSB) as usize;
     easts ^= EAST[sq];
     let mut souths = SOUTH[idx];
-    blocker = souths & occ;
-    sq = msb!(blocker | LSB) as usize;
+    sq = msb!(souths & occ | LSB) as usize;
     souths ^= SOUTH[sq];
     let mut wests = WEST[idx];
-    blocker = wests & occ;
-    sq = msb!(blocker | LSB) as usize;
+    sq = msb!(wests & occ | LSB) as usize;
     wests ^= WEST[sq];
     norths | easts | souths | wests
 }
 
 pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
     let mut nes = NE[idx];
-    let mut blocker = nes & occ;
-    let mut sq = lsb!(blocker | MSB) as usize;
+    let mut sq = lsb!(nes & occ | MSB) as usize;
     nes ^= NE[sq];
     let mut nws = NW[idx];
-    blocker = nws & occ;
-    sq = lsb!(blocker | MSB) as usize;
+    sq = lsb!(nws & occ | MSB) as usize;
     nws ^= NW[sq];
     let mut ses = SE[idx];
-    blocker = ses & occ;
-    sq = msb!(blocker | LSB) as usize;
+    sq = msb!(ses & occ | LSB) as usize;
     ses ^= SE[sq];
     let mut sws = SW[idx];
-    blocker = sws & occ;
-    sq = msb!(blocker | LSB) as usize;
+    sq = msb!(sws & occ | LSB) as usize;
     sws ^= SW[sq];
     nes | nws | ses | sws
 }
