@@ -112,10 +112,9 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv
     if depth <= 0 || ply == MAX_PLY { return quiesce(alpha, beta) }
     unsafe{NODES += 1}
     // probing hash table
-    let zobrist = zobrist::calc();
     let mut hash_move = 0;
     let mut write_to_hash = true;
-    if let Some(res) = tt_probe(zobrist, ply) {
+    if let Some(res) = tt_probe(unsafe{POS.state.zobrist}, ply) {
         write_to_hash = depth > res.depth;
         hash_move = res.best_move;
         if ply > 0 && res.depth >= depth && unsafe{POS.state.halfmove_clock} <= 90 {
@@ -172,7 +171,7 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv
         }
     }
     if count == 0 { return (in_check as i16) * (-MAX + ply as i16) }
-    if write_to_hash { tt_push(zobrist, best_move, depth, bound, best_score, ply) }
+    if write_to_hash { tt_push(unsafe{POS.state.zobrist}, best_move, depth, bound, best_score, ply) }
     best_score
 }
 
@@ -198,10 +197,9 @@ fn quiesce(mut alpha: i16, beta: i16) -> i16 {
 }
 
 pub fn go() -> u16 {
-    unsafe{
+    unsafe {
         NODES = 0;
         STOP = false;
-        println!("info allocated time {} depth {}", TIME, DEPTH);
     }
     let mut best_move = 0;
     let now = Instant::now();
@@ -217,15 +215,14 @@ pub fn go() -> u16 {
             true => ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2), 
             false => ("cp", score)
         };
-        let nps = ((unsafe{NODES} as f64) / ((t as f64) / 1000.0)) as u32;
+        let nps = ((unsafe{NODES} as f64) * 1000.0 / (t as f64)) as u32;
         let pv_str = pv.iter().map(u16_to_uci).collect::<String>();
-        println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d + 1, stype, sval, t, unsafe{NODES}, nps, pv_str);
+        println!("info depth {} score {} {} time {} nodes {} nps {} hashfull {} pv {}", d + 1, stype, sval, t, unsafe{NODES}, nps, hashfull(), pv_str);
         if is_mate_score!(score) { break }
     }
     unsafe {
         DEPTH = i8::MAX;
         TIME = 1000;
     }
-    println!("time {}", now.elapsed().as_millis());
     best_move
 }

@@ -235,5 +235,6 @@ pub fn parse_fen(s: &str) {
     POS.state = GameState {zobrist: 0, phase, mg, eg,en_passant_sq, halfmove_clock, castle_rights};
     POS.fullmove_counter = vec[5].parse::<u16>().unwrap_or(1);
     POS.state.zobrist = zobrist::calc();
+    POS.stack.clear();
     }
 }

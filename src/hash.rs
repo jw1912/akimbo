@@ -1,6 +1,8 @@
 use super::consts::MATE_THRESHOLD;
 
 pub static mut TT: Vec<HashBucket> = Vec::new();
+static mut TT_SIZE: usize = 0;
+pub static mut FILLED: u64 = 0;
 
 pub struct Bound;
 impl Bound {
@@ -24,15 +26,21 @@ pub struct HashResult {
     pub bound: u8,
 }
 
+pub fn hashfull() -> u64 {
+    unsafe {FILLED * 1000 / (8 * TT_SIZE) as u64}
+}
+
 pub fn tt_resize(size: usize) {
-    unsafe {TT = vec![Default::default(); size / BUCKET_SIZE] }
+    unsafe {
+        TT_SIZE = size / BUCKET_SIZE;
+        TT = vec![Default::default(); TT_SIZE] 
+    }
 }
 
 pub fn tt_clear() {
     unsafe {
-        for bucket in TT.iter_mut() {
-            *bucket = Default::default();
-        }
+        TT = vec![Default::default(); TT_SIZE];
+        FILLED = 0;
     }
 }
 
@@ -63,7 +71,12 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
     let mut smallest_depth = i8::MAX;
     for (entry_idx, &entry) in bucket.0.iter().enumerate() {
         let entry_data = tt_load(entry);
-        if (entry_data.key == key && depth > entry_data.depth) || entry_data.depth == 0 {
+        if entry_data.key == key && depth > entry_data.depth {
+            desired_idx = entry_idx;
+            break;
+        }
+        if entry_data.depth == 0 {
+            FILLED += 1;
             desired_idx = entry_idx;
             break;
         }
