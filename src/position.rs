@@ -1,4 +1,6 @@
-use super::{lsb, consts::*, movegen::{bishop_attacks, rook_attacks, gen_moves, All}};
+use crate::eval;
+
+use super::{lsb, pop, consts::*, movegen::{bishop_attacks, rook_attacks, gen_moves, All}, hash::zobrist::{self, ZVALS}};
 use std::ptr;
 
 // The position is stored as global state
@@ -10,6 +12,22 @@ macro_rules! toggle {
     ($side:expr, $pc:expr, $bit:expr) => {
         POS.pieces[$pc] ^= $bit;
         POS.sides[$side] ^= $bit;
+    };
+}
+macro_rules! remove {
+    ($from:expr, $side:expr, $pc:expr) => {
+        let indx = $from ^ (56 * ($side == 0) as usize);
+        POS.state.zobrist ^= ZVALS.pieces[$side][$pc][$from];
+        POS.state.mg -= SIDE_FACTOR[$side] * PST_MG[$pc][indx];
+        POS.state.eg -= SIDE_FACTOR[$side] * PST_EG[$pc][indx];
+    };
+}
+macro_rules! add {
+    ($from:expr, $side:expr, $pc:expr) => {
+        let indx = $from ^ (56 * ($side == 0) as usize);
+        POS.state.zobrist ^= ZVALS.pieces[$side][$pc][$from];
+        POS.state.mg += SIDE_FACTOR[$side] * PST_MG[$pc][indx];
+        POS.state.eg += SIDE_FACTOR[$side] * PST_EG[$pc][indx];
     };
 }
 
@@ -25,11 +43,15 @@ pub struct Position {
 }
 impl Position {
     const fn new() -> Position {
-        Position { pieces: [0;6], sides: [0;2], squares: [0; 64], side_to_move: 0, state: GameState { en_passant_sq: 0, halfmove_clock: 0, castle_rights: 0 }, fullmove_counter: 0, stack: Vec::new() }
+        Position { pieces: [0;6], sides: [0;2], squares: [0; 64], side_to_move: 0, state: GameState { zobrist: 0, phase: 0, mg: 0, eg: 0, en_passant_sq: 0, halfmove_clock: 0, castle_rights: 0 }, fullmove_counter: 0, stack: Vec::new() }
     }
 }
 #[derive(Clone, Copy, Default)]
 pub struct GameState {
+    pub zobrist: u64,
+    pub phase: i16,
+    pub mg: i16,
+    pub eg: i16,
     pub en_passant_sq: u16,
     pub halfmove_clock: u8,
     pub castle_rights: u8,
@@ -159,8 +181,12 @@ pub fn parse_fen(s: &str) {
         8 * rank + file as u16
     };
     let halfmove_clock = vec[4].parse::<u8>().unwrap_or(0);
-    POS.state = GameState {en_passant_sq, halfmove_clock, castle_rights};
+    let (phase, mg, eg) = eval::calc();
+    POS.state = GameState {zobrist: 0, phase, mg, eg,en_passant_sq, halfmove_clock, castle_rights};
     POS.fullmove_counter = vec[5].parse::<u16>().unwrap_or(1);
+    POS.state.zobrist = zobrist::calc();
+    println!("zobrist: {}", POS.state.zobrist);
+    println!("phase: {}, mg: {}, eg: {}", POS.state.phase, POS.state.mg, POS.state.eg);
     }
 }
 
@@ -190,16 +216,23 @@ pub fn do_move(m: u16) -> bool {
     let moved_pc = POS.squares[from];
     let captured_pc = POS.squares[to];
     let flag = m & MoveFlags::ALL;
+    let rights = POS.state.castle_rights;
     // initial updates
     POS.stack.push(MoveState { state: POS.state, m, moved_pc, captured_pc});
     toggle!(POS.side_to_move, moved_pc as usize, f | t);
+    remove!(from, POS.side_to_move, moved_pc as usize);
+    add!(to, POS.side_to_move, moved_pc as usize);
     POS.squares[from] = EMPTY as u8;
     POS.squares[to] = moved_pc;
+    if POS.state.en_passant_sq > 0 {POS.state.zobrist ^= ZVALS.en_passant[(POS.state.en_passant_sq & 7) as usize]}
     POS.state.en_passant_sq = 0;
+    POS.state.zobrist ^= ZVALS.side;
     // captures
     if captured_pc != EMPTY as u8 {
         let cpc = captured_pc as usize;
         toggle!(opp, cpc, t);
+        remove!(to, opp, cpc);
+        POS.state.phase -= PHASE_VALS[cpc];
         if captured_pc == ROOK as u8 {
             POS.state.castle_rights &= CASTLE_RIGHTS[to];
         }
@@ -210,15 +243,20 @@ pub fn do_move(m: u16) -> bool {
                 let pwn = match opp { WHITE => to + 8, BLACK => to - 8, _ => panic!() };
                 let p = bit!(pwn);
                 toggle!(opp, PAWN, p);
+                remove!(pwn, opp, PAWN);
                 POS.squares[pwn] = EMPTY as u8;
             } else if flag == MoveFlags::DBL_PUSH {
                 POS.state.en_passant_sq = match POS.side_to_move {WHITE => to - 8, BLACK => to + 8, _ => panic!("")} as u16;
+                POS.state.zobrist ^= ZVALS.en_passant[to & 7];
             } else if flag >= MoveFlags::KNIGHT_PROMO {
                 let promo_pc = ((flag >> 12) & 3) + 1; 
                 let ppc = promo_pc as usize;
                 POS.pieces[moved_pc as usize] ^= t;
                 POS.pieces[ppc] ^= t;
                 POS.squares[to] = promo_pc as u8;
+                POS.state.phase += PHASE_VALS[ppc];
+                remove!(to, POS.side_to_move, moved_pc as usize);
+                add!(to, POS.side_to_move, ppc);
             }
         } 
         KING => {
@@ -227,12 +265,21 @@ pub fn do_move(m: u16) -> bool {
                 let (c, idx1, idx2) = CASTLE_MOVES[POS.side_to_move][(flag == MoveFlags::KS_CASTLE) as usize];
                 POS.squares.swap(idx1, idx2);
                 toggle!(POS.side_to_move, ROOK, c);
+                remove!(idx1, POS.side_to_move, ROOK);
+                add!(idx2, POS.side_to_move, ROOK);
             }
         } 
         ROOK => {
             POS.state.castle_rights &= CASTLE_RIGHTS[from];
         }
         _ => {}
+    }
+    // castle hashes
+    let mut changed_castle = rights & !POS.state.castle_rights;
+    while changed_castle > 0 {
+        let ls1b = changed_castle & changed_castle.wrapping_neg();
+        POS.state.zobrist ^= ZVALS.castle_hash(rights, ls1b);
+        pop!(changed_castle)
     }
     // final updates
     POS.fullmove_counter += (POS.side_to_move == BLACK) as u16;

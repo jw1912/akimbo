@@ -108,10 +108,10 @@ pub mod zobrist {
     lazy_static!(pub static ref ZVALS: ZobristVals = ZobristVals::init(););
 
     pub struct ZobristVals {
-        pieces: [[[u64; 64]; 6]; 2],
-        castle: [u64; 4],
-        en_passant: [u64; 8],
-        side: u64,
+        pub pieces: [[[u64; 64]; 6]; 2],
+        pub castle: [u64; 4],
+        pub en_passant: [u64; 8],
+        pub side: u64,
     }
 
     impl ZobristVals {
@@ -121,18 +121,8 @@ pub mod zobrist {
         }
         #[inline(always)]
         pub fn castle_hash(&self, current: u8, update: u8) -> u64 {
-            if current & update == 0 {
-                return 0;
-            }
+            if current & update == 0 { return 0 }
             self.castle[lsb!(update as u64) as usize]
-        }
-        #[inline(always)]
-        pub fn en_passant_hash(&self, file: usize) -> u64 {
-            self.en_passant[file]
-        }
-        #[inline(always)]
-        pub fn side_hash(&self) -> u64 {
-            self.side
         }
 
         fn init() -> Self {
@@ -164,7 +154,7 @@ pub mod zobrist {
                 let mut piece = pc & side;
                 while piece > 0 {
                     let idx = lsb!(piece) as usize;
-                    zobrist ^= ZVALS.piece_hash(idx, i, j);
+                    zobrist ^= ZVALS.pieces[i][j][idx];
                     pop!(piece)
                 }
             }
@@ -175,8 +165,8 @@ pub mod zobrist {
             zobrist ^= ZVALS.castle_hash(0b1111, ls1b);
             pop!(castle_rights)
         }
-        if POS.state.en_passant_sq > 0 {zobrist ^= ZVALS.en_passant_hash((POS.state.en_passant_sq & 7) as usize);}
-        if POS.side_to_move == 0 {zobrist ^= ZVALS.side_hash();}
+        if POS.state.en_passant_sq > 0 {zobrist ^= ZVALS.en_passant[(POS.state.en_passant_sq & 7) as usize]}
+        if POS.side_to_move == 0 {zobrist ^= ZVALS.side;}
         zobrist
         }
     }

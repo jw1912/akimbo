@@ -14,6 +14,7 @@ use search::*;
 use std::time::Instant;
 
 const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+const KIWIPETE: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
 
 fn main() {
     println!("akimbo, created by Jamie Whiting");
@@ -44,7 +45,7 @@ fn perft(depth_left: u8) -> u64 {
 }
 
 fn uci_run() {
-    println!("id name aimbo {}", VERSION);
+    println!("id name akimbo {}", VERSION);
     println!("id author {}", AUTHOR);
     println!("uciok");
     loop {
@@ -115,6 +116,7 @@ fn parse_position(commands: Vec<&str>) {
         match command {
             "position" => (),
             "startpos" => parse_fen(STARTPOS),
+            "kiwipete" => parse_fen(KIWIPETE),
             "fen" => token = Tokens::Fen,
             "moves" => token = Tokens::Moves,
             _ => match token {
