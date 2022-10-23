@@ -1,6 +1,6 @@
 use crate::pop;
 
-use super::consts::{TPHASE, PHASE_VALS, PST_MG, PST_EG, SIDE_FACTOR, KING};
+use super::consts::{TPHASE, PHASE_VALS, PST_MG, PST_EG, SIDE_FACTOR, KING, PAWN, BISHOP};
 use super::position::{POS, is_square_attacked};
 use super::lsb;
 
@@ -67,4 +67,27 @@ pub fn is_draw_by_repetition(num: u8) -> bool {
 #[inline(always)]
 pub fn is_draw_by_50() -> bool {
     unsafe{POS.state.halfmove_clock >= 100}
+}
+
+const SQ1: u64 = 0x55AA55AA55AA55AA;
+const SQ2: u64 = 0xAA55AA55AA55AA55;
+pub fn is_draw_by_material() -> bool {
+    unsafe {
+    let pawns = POS.pieces[PAWN];
+    // pawns left? not draw. more than one minor piece on either side? not draw.
+    if pawns == 0 && POS.state.phase <= 2 {
+        // two minor pieces left
+        if POS.state.phase == 2 {
+            let bishops = POS.pieces[BISHOP];
+            // are bishops on opposite or same colour squares
+            if bishops & POS.sides[0] != bishops && bishops & POS.sides[1] != bishops && (bishops & SQ1 == bishops || bishops & SQ2 == bishops) {
+                return true
+            }
+            return false
+        }
+        // 1 or zero minor pieces is a draw
+        return true
+    }
+    false
+    }
 }

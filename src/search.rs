@@ -95,7 +95,7 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv
     // search aborting
     if unsafe{STOP} { return 0 }
     // draw detection
-    if is_draw_by_50() || is_draw_by_repetition(2 + (ply == 0) as u8) { return 0 }
+    if is_draw_by_50() || is_draw_by_repetition(2 + (ply == 0) as u8) || is_draw_by_material() { return 0 }
     // mate distance pruning
     alpha = max(alpha, -MAX + ply as i16);
     beta = min(beta, MAX - ply as i16 - 1);
