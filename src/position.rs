@@ -14,7 +14,6 @@ macro_rules! toggle {
 }
 
 // STRUCTS
-#[derive(Clone, Copy)]
 pub struct Position {
     pub pieces: [u64; 6],
     pub sides: [u64; 2],
@@ -22,10 +21,11 @@ pub struct Position {
     pub side_to_move: usize,
     pub state: GameState,
     pub fullmove_counter: u16,
+    pub stack: Vec<MoveState>,
 }
 impl Position {
     const fn new() -> Position {
-        Position { pieces: [0;6], sides: [0;2], squares: [0; 64], side_to_move: 0, state: GameState { en_passant_sq: 0, halfmove_clock: 0, castle_rights: 0 }, fullmove_counter: 0 }
+        Position { pieces: [0;6], sides: [0;2], squares: [0; 64], side_to_move: 0, state: GameState { en_passant_sq: 0, halfmove_clock: 0, castle_rights: 0 }, fullmove_counter: 0, stack: Vec::new() }
     }
 }
 #[derive(Clone, Copy, Default)]
@@ -40,9 +40,7 @@ pub struct MoveState {
     pub m: u16,
     pub moved_pc: u8,
     pub captured_pc: u8,
-    pub invalid: bool,
 }
-#[derive(Clone, Copy, Debug)]
 pub struct MoveList {
     pub list: [u16; 256],
     pub len: usize,
@@ -181,7 +179,7 @@ pub fn is_square_attacked(idx: usize, side: usize, occ: u64) -> bool {
     }
 }
 
-pub fn do_move(m: u16) -> MoveState {
+pub fn do_move(m: u16) -> bool {
     unsafe {
     let opp = POS.side_to_move ^ 1;
     // move data
@@ -193,7 +191,7 @@ pub fn do_move(m: u16) -> MoveState {
     let captured_pc = POS.squares[to];
     let flag = m & MoveFlags::ALL;
     // initial updates
-    let mut ctx = MoveState { state: POS.state, m, moved_pc, captured_pc , invalid: true};
+    POS.stack.push(MoveState { state: POS.state, m, moved_pc, captured_pc});
     toggle!(POS.side_to_move, moved_pc as usize, f | t);
     POS.squares[from] = EMPTY as u8;
     POS.squares[to] = moved_pc;
@@ -243,17 +241,17 @@ pub fn do_move(m: u16) -> MoveState {
     // is legal?
     let king_idx = lsb!(POS.pieces[KING] & POS.sides[opp ^ 1]) as usize;
     let invalid = is_square_attacked(king_idx, opp ^ 1, POS.sides[0] | POS.sides[1]);
-    if invalid { undo_move(ctx) }
-    ctx.invalid = invalid;
-    ctx
+    if invalid { undo_move() }
+    invalid
     }
 }
 
-pub fn undo_move(state: MoveState) {
+pub fn undo_move() {
     unsafe {
     let opp = POS.side_to_move;
     POS.side_to_move ^= 1;
     // move data
+    let state = POS.stack.pop().unwrap();
     let m = state.m;
     let moved_pc = state.moved_pc;
     let captured_pc = state.captured_pc;

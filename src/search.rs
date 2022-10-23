@@ -1,4 +1,4 @@
-use std::{ptr, mem, cmp::{min, max}};
+use std::{ptr, mem, cmp::{min, max}, time::Instant};
 use super::consts::*;
 use super::position::*;
 use super::hash::*;
@@ -89,11 +89,13 @@ fn get_next_move(moves: &mut MoveList, move_scores: &mut MoveScores) -> Option<(
     Some((m, best_score))
 }
 
-fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, depth: i8, ply: i8, pv: &mut Vec<u16>, in_check: bool) -> i16 {
+fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv: &mut Vec<u16>, in_check: bool) -> i16 {
     // mate distance pruning
     alpha = max(alpha, -MAX + ply as i16);
     beta = min(beta, MAX - ply as i16 - 1);
     if alpha >= beta { return alpha }
+    // check extensions
+    depth += in_check as i8;
     // qsearch at depth 0
     if depth <= 0 || ply == MAX_PLY { return quiesce(alpha, beta) }
     unsafe{NODES += 1}
@@ -124,8 +126,8 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, depth: i8, ply: i8, pv: &m
     let mut bound: u8 = Bound::UPPER;
     let mut count = 0;
     while let Some((m, m_score)) = get_next_move(&mut moves, &mut move_scores) {
-        let ctx = do_move(m);
-        if ctx.invalid { continue }
+        let invalid = do_move(m);
+        if invalid { continue }
         count += 1;
         let mut sub_pv = Vec::new();
         let gives_check = is_in_check();
@@ -140,7 +142,7 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, depth: i8, ply: i8, pv: &m
                 -pvs::<PV>(-beta, -alpha, depth - 1, ply + 1, &mut sub_pv, gives_check)
             } else { null_window_score }
         };
-        undo_move(ctx);
+        undo_move();
         if score > best_score {
             best_score = score;
             best_move = m;
@@ -166,17 +168,17 @@ fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     unsafe{NODES += 1}
     let stand_pat = eval();
     if stand_pat >= beta { return beta }
-    if stand_pat < alpha - 850 { return alpha }
+    if stand_pat < alpha - 900 { return alpha }
     if alpha < stand_pat { alpha = stand_pat }
     let mut captures = MoveList::default();
     let mut scores = MoveScores::default();
     gen_moves::<Captures>(&mut captures);
     score_moves(&captures, &mut scores, 0);
     while let Some((m, _)) = get_next_move(&mut captures, &mut scores) {
-        let ctx = do_move(m);
-        if ctx.invalid { continue }
+        let invalid = do_move(m);
+        if invalid { continue }
         let score = -quiesce(-beta, -alpha);
-        undo_move(ctx);
+        undo_move();
         if score >= beta { return beta }
         if score > alpha { alpha = score }
     }
@@ -186,6 +188,7 @@ fn quiesce(mut alpha: i16, beta: i16) -> i16 {
 pub fn go() -> u16 {
     unsafe{NODES = 0}
     let mut best_move = 0;
+    let now = Instant::now();
     for d in 0..unsafe{DEPTH} {
         let mut pv = Vec::new();
         let in_check = is_in_check();
@@ -195,7 +198,10 @@ pub fn go() -> u16 {
             true => ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2), 
             false => ("cp", score)
         };
-        println!("info depth {} score {} {} nodes {} pv {}", d + 1, stype, sval, unsafe{NODES}, u16_to_uci(&best_move));
+        let t = now.elapsed().as_millis();
+        let nps = ((unsafe{NODES} as f64) / ((t as f64) / 1000.0)) as u32;
+        let pv_str = pv.iter().map(u16_to_uci).collect::<String>();
+        println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d + 1, stype, sval, t, unsafe{NODES}, nps, pv_str);
         if is_mate_score!(score) { break }
     }
     best_move

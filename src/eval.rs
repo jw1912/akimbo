@@ -1,3 +1,5 @@
+use crate::pop;
+
 use super::consts::*;
 use super::position::*;
 use super::lsb;
@@ -14,12 +16,23 @@ pub fn calc() -> (i32, [i16; 2], [i16; 2]) {
     let mut mg = [0; 2];
     let mut eg = [0; 2];
     let mut p = 0;
+    let mut pcs;
+    let mut count;
+    let mut idx;
     for (i, side) in unsafe{POS.sides.iter().enumerate()} {
         for j in 0..6 {
-            let count = (unsafe{POS.pieces[j]} & side).count_ones() as i16;
+            pcs = unsafe{POS.pieces[j]} & side;
+            count = pcs.count_ones() as i16;
             p += PHASE_VALS[j] * count;
             mg[i] += MG_PC_VALS[j] * count;
             eg[i] += EG_PC_VALS[j] * count;
+            while pcs > 0 {
+                idx = lsb!(pcs) as usize;
+                let white = (i == 0) as usize * 56;
+                mg[i] += PST_MG[j][idx ^ white];
+                eg[i] += PST_EG[j][idx ^ white];
+                pop!(pcs);
+            }
         }
     }
     let phase = std::cmp::min(p as i32, TPHASE);

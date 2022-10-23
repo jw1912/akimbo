@@ -18,7 +18,7 @@ const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 fn main() {
     println!("akimbo, created by Jamie Whiting");
     parse_fen(STARTPOS);
-    tt_resize(1024 * 1024);
+    tt_resize(128 * 1024 * 1024);
     loop {
         let mut input = String::new();
         io::stdin().read_line(&mut input).unwrap();
@@ -34,21 +34,18 @@ fn perft(depth_left: u8) -> u64 {
     let mut positions: u64 = 0;
     for m_idx in 0..moves.len {
         let m = moves.list[m_idx];
-        let ctx = do_move(m);
-        if ctx.invalid { continue }
+        let invalid = do_move(m);
+        if invalid { continue }
         let score = perft(depth_left - 1);
         positions += score;
-        undo_move(ctx);
+        undo_move();
     }
     positions
 }
 
 fn uci_run() {
-    println!("id name Kimbo {}", VERSION);
+    println!("id name aimbo {}", VERSION);
     println!("id author {}", AUTHOR);
-    println!("option name Hash type spin default 128 min 1 max 512");
-    println!("option name Clear Hash type button");
-    println!("option name Move Overhead type spin default 10 min 0 max 500");
     println!("uciok");
     loop {
         let mut input = String::new();
@@ -92,9 +89,14 @@ fn parse_go( commands: Vec<&str>) {
     match token {
         Tokens::Perft => {
             let now = Instant::now();
-            let count = perft(perft_depth);
+            let mut total = 0;
+            for d in 0..perft_depth {
+                let count = perft(d + 1);
+                total += count;
+                println!("info depth {} nodes {}", d + 1, count)
+            }
             let elapsed = now.elapsed().as_micros();
-            println!("Leaf count: {count} ({:.2} ML/sec)", count as f64 / elapsed as f64);
+            println!("Leaf count: {total} ({:.2} ML/sec)", total as f64 / elapsed as f64);
         }
         Tokens::Depth => {
             let best_move = go();
