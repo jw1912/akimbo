@@ -1,4 +1,4 @@
-use std::{ptr, mem, cmp::{min, max}, time::{Instant, Duration}};
+use std::{ptr, mem, cmp::{min, max}, time::Instant};
 use super::consts::*;
 use super::position::*;
 use super::hash::*;
@@ -7,7 +7,7 @@ use super::eval::*;
 use super::u16_to_uci;
 
 pub static mut DEPTH: i8 = i8::MAX;
-pub static mut TIME: Duration = Duration::from_millis(1000);
+pub static mut TIME: u128 = 1000;
 static mut NODES: u64 = 0;
 static mut STOP: bool = true;
 macro_rules! is_capture {($m:expr) => {$m & 0b0100_0000_0000_0000 > 0}}
@@ -95,7 +95,7 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv
     // search aborting
     unsafe {
     if STOP { return 0 }
-    if NODES / 2048 == 0 && start_time.elapsed() >= TIME {
+    if NODES & 2047 == 0 && start_time.elapsed().as_millis() >= TIME {
         STOP = true;
         return 0
     }
@@ -201,6 +201,7 @@ pub fn go() -> u16 {
     unsafe{
         NODES = 0;
         STOP = false;
+        println!("info allocated time {} depth {}", TIME, DEPTH);
     }
     let mut best_move = 0;
     let now = Instant::now();
@@ -209,12 +210,13 @@ pub fn go() -> u16 {
         let in_check = is_in_check();
         let score = pvs::<true>(-MAX, MAX, d + 1, 0, &mut pv, in_check, &now);
         if unsafe{STOP} { break }
+        let t = now.elapsed().as_millis();
+        if t >= unsafe{TIME} { break }
         if !pv.is_empty() { best_move = pv[0] }
         let (stype, sval) = match is_mate_score!(score) {
             true => ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2), 
             false => ("cp", score)
         };
-        let t = now.elapsed().as_millis();
         let nps = ((unsafe{NODES} as f64) / ((t as f64) / 1000.0)) as u32;
         let pv_str = pv.iter().map(u16_to_uci).collect::<String>();
         println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d + 1, stype, sval, t, unsafe{NODES}, nps, pv_str);
@@ -222,7 +224,8 @@ pub fn go() -> u16 {
     }
     unsafe {
         DEPTH = i8::MAX;
-        TIME = Duration::from_millis(1000);
+        TIME = 1000;
     }
+    println!("time {}", now.elapsed().as_millis());
     best_move
 }

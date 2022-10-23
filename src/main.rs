@@ -6,7 +6,6 @@ pub mod eval;
 pub mod search;
 
 use std::io::stdin;
-use std::time::Duration;
 use consts::{VERSION, AUTHOR, CastleRights, EMPTY, WHITE, BLACK};
 use hash::{tt_clear, tt_resize, zobrist};
 use position::{POS, MoveList, do_move, undo_move, GameState};
@@ -87,7 +86,7 @@ fn parse_go( commands: Vec<&str>) {
                 match token {
                     Tokens::None => {},
                     Tokens::Depth => unsafe{DEPTH = command.parse::<i8>().unwrap_or(1)},
-                    Tokens::Movetime => unsafe{TIME = Duration::from_millis(command.parse::<i64>().unwrap_or(1000) as u64)}
+                    Tokens::Movetime => unsafe{TIME = command.parse::<i64>().unwrap_or(1000) as u128 - 10}
                     Tokens::Perft => perft_depth = command.parse::<u8>().unwrap_or(1),
                 }
             },
