@@ -45,3 +45,26 @@ pub fn is_in_check() -> bool {
     is_square_attacked(king_idx, POS.side_to_move, POS.sides[0] | POS.sides[1])
     }
 }
+
+pub fn is_draw_by_repetition(num: u8) -> bool {
+    unsafe {
+    let l = POS.stack.len();
+    if l < 6 { return false }
+    let to = l - 1;
+    let mut from = l.wrapping_sub(POS.state.halfmove_clock as usize);
+    if from > 1024 { from = 0 }
+    let mut repetitions_count = 1;
+    for i in (from..to).rev().step_by(2) {
+        if POS.stack[i].state.zobrist == POS.state.zobrist {
+            repetitions_count += 1;
+            if repetitions_count >= num { return true }
+        }
+    }
+    false
+    } 
+}
+
+#[inline(always)]
+pub fn is_draw_by_50() -> bool {
+    unsafe{POS.state.halfmove_clock >= 100}
+}

@@ -4,9 +4,11 @@ use super::position::*;
 use super::hash::*;
 use super::movegen::*;
 use super::eval::*;
+use super::u16_to_uci;
 
 pub static mut DEPTH: i8 = 1;
 static mut NODES: u64 = 0;
+static mut STOP: bool = true;
 
 macro_rules! is_capture {($m:expr) => {$m & 0b0100_0000_0000_0000 > 0}}
 macro_rules! is_mate_score {($score:expr) => {$score >= MATE_THRESHOLD || $score <= -MATE_THRESHOLD}}
@@ -90,6 +92,10 @@ fn get_next_move(moves: &mut MoveList, move_scores: &mut MoveScores) -> Option<(
 }
 
 fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv: &mut Vec<u16>, in_check: bool) -> i16 {
+    // search aborting
+    if unsafe{STOP} { return 0 }
+    // draw detection
+    if is_draw_by_50() || is_draw_by_repetition(2 + (ply == 0) as u8) { return 0 }
     // mate distance pruning
     alpha = max(alpha, -MAX + ply as i16);
     beta = min(beta, MAX - ply as i16 - 1);
@@ -186,13 +192,17 @@ fn quiesce(mut alpha: i16, beta: i16) -> i16 {
 }
 
 pub fn go() -> u16 {
-    unsafe{NODES = 0}
+    unsafe{
+        NODES = 0;
+        STOP = false;
+    }
     let mut best_move = 0;
     let now = Instant::now();
     for d in 0..unsafe{DEPTH} {
         let mut pv = Vec::new();
         let in_check = is_in_check();
         let score = pvs::<true>(-MAX, MAX, d + 1, 0, &mut pv, in_check);
+        if unsafe{STOP} { break }
         if !pv.is_empty() { best_move = pv[0] }
         let (stype, sval) = match is_mate_score!(score) {
             true => ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2), 

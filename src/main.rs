@@ -15,6 +15,7 @@ use std::time::Instant;
 
 const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const KIWIPETE: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+const LASKER: &str = "8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1";
 
 fn main() {
     println!("akimbo, created by Jamie Whiting");
@@ -117,6 +118,7 @@ fn parse_position(commands: Vec<&str>) {
             "position" => (),
             "startpos" => parse_fen(STARTPOS),
             "kiwipete" => parse_fen(KIWIPETE),
+            "lasker" => parse_fen(LASKER),
             "fen" => token = Tokens::Fen,
             "moves" => token = Tokens::Moves,
             _ => match token {
@@ -131,4 +133,109 @@ fn parse_position(commands: Vec<&str>) {
     }
     if !fen.is_empty() {parse_fen(&fen)}
     for m in moves {do_move(uci_to_u16(&m));}
+}
+
+/// UCI MOVE FORMAT
+fn idx_to_sq(idx: u16) -> String {
+    let rank = idx >> 3;
+    let file = idx & 7;
+    let srank = (rank + 1).to_string();
+    let sfile = FILES[file as usize];
+    format!("{sfile}{srank}")
+}
+fn sq_to_idx(sq: &str) -> u16 {
+    let chs: Vec<char> = sq.chars().collect();
+    let file: u16 = match FILES.iter().position(|&ch| ch == chs[0]) {
+        Some(res) => res as u16,
+        None => 0,
+    };
+    let rank = chs[1].to_string().parse::<u16>().unwrap_or(0) - 1;
+    8 * rank + file
+}
+const PROMOS: [&str; 4] = ["n","b","r","q"];
+const PROMO_BIT: u16 = 0b1000_0000_0000_0000;
+pub fn u16_to_uci(m: &u16) -> String {
+    let mut promo = "";
+    if m & PROMO_BIT > 0 {
+        promo = PROMOS[((m >> 12) & 0b11) as usize];
+    }
+    format!("{}{}{} ", idx_to_sq((m >> 6) & 0b111111), idx_to_sq(m & 0b111111), promo)
+}
+const TWELVE: u16 = 0b0000_1111_1111_1111;
+pub fn uci_to_u16(m: &str) -> u16 {
+    let l = m.len();
+    let from = sq_to_idx(&m[0..2]);
+    let to = sq_to_idx(&m[2..4]);
+    let mut no_flags = (from << 6) | to;
+    if l == 5 {
+        no_flags |= match m.chars().nth(4).unwrap() {
+            'n' => 0b1000_0000_0000_0000,
+            'b' => 0b1001_0000_0000_0000,
+            'r' => 0b1010_0000_0000_0000,
+            'q' => 0b1011_0000_0000_0000,
+            _ => 0,
+        }
+    }
+    let mut possible_moves = MoveList::default();
+    gen_moves::<All>(&mut possible_moves);
+    for m_idx in 0..possible_moves.len {
+        let um = possible_moves.list[m_idx];
+        if no_flags & TWELVE == um & TWELVE {
+            if l < 5 {
+                return um;
+            }
+            if no_flags & !TWELVE == um & 0b1011_0000_0000_0000 {
+                return um;
+            }
+        }
+    }
+    panic!("")
+}
+
+
+// FEN
+const FILES: [char; 8] = ['a','b','c','d','e','f','g','h'];
+const PIECES: [char; 12] = ['P','N','B','R','Q','K','p','n','b','r','q','k'];
+pub fn parse_fen(s: &str) {
+    unsafe {
+    let vec: Vec<&str> = s.split_whitespace().collect();
+    POS.pieces = [0;6];
+    POS.squares = [EMPTY as u8; 64];
+    POS.sides = [0; 2];
+    let mut idx: usize = 63;
+    let rows: Vec<&str> = vec[0].split('/').collect();
+    for row in rows {
+        for ch in row.chars().rev() {
+            if ch == '/' { continue }
+            if !ch.is_numeric() {
+                let idx2 = PIECES.iter().position(|&element| element == ch).unwrap_or(6);
+                let (col, pc) = ((idx2 > 5) as usize, idx2 - 6 * ((idx2 > 5) as usize));
+                toggle!(col, pc, 1 << idx);
+                POS.squares[idx] = pc as u8;
+                idx -= (idx > 0) as usize;
+            } else {
+                let len = ch.to_string().parse::<usize>().unwrap_or(8);
+                idx -= (idx >= len) as usize * len;
+            }
+        }
+    }
+    POS.side_to_move = match vec[1] { "w" => WHITE, "b" => BLACK, _ => panic!("") };
+    let mut castle_rights = CastleRights::NONE;
+    for ch in vec[2].chars() {
+        castle_rights |= match ch {'Q' => CastleRights::WHITE_QS, 'K' => CastleRights::WHITE_KS, 'q' => CastleRights::BLACK_QS, 'k' => CastleRights::BLACK_KS, _ => 0,};
+    }
+    let en_passant_sq = if vec[3] == "-" {0} else {
+        let arr: Vec<char> = vec[3].chars().collect();
+        let rank: u16 = arr[1].to_string().parse::<u16>().unwrap_or(0) - 1;
+        let file = FILES.iter().position(|&c| c == arr[0]).unwrap_or(0);
+        8 * rank + file as u16
+    };
+    let halfmove_clock = vec[4].parse::<u8>().unwrap_or(0);
+    let (phase, mg, eg) = eval::calc();
+    POS.state = GameState {zobrist: 0, phase, mg, eg,en_passant_sq, halfmove_clock, castle_rights};
+    POS.fullmove_counter = vec[5].parse::<u16>().unwrap_or(1);
+    POS.state.zobrist = zobrist::calc();
+    println!("zobrist: {}", POS.state.zobrist);
+    println!("phase: {}, mg: {}, eg: {}", POS.state.phase, POS.state.mg, POS.state.eg);
+    }
 }
