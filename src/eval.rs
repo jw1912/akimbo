@@ -4,13 +4,11 @@ use super::consts::{TPHASE, PHASE_VALS, PST_MG, PST_EG, SIDE_FACTOR, KING, PAWN,
 use super::position::{POS, is_square_attacked};
 use super::lsb;
 
-macro_rules! taper {($p:expr, $mg:expr, $eg:expr) => {(($p * $mg as i32 + (TPHASE - $p) * $eg as i32) / TPHASE) as i16}}
-
 #[inline(always)]
 pub fn eval() -> i16 {
     unsafe {
     let phase = std::cmp::min(POS.state.phase as i32, TPHASE);
-    SIDE_FACTOR[POS.side_to_move] * taper!(phase, POS.state.mg, POS.state.eg)
+    SIDE_FACTOR[POS.side_to_move] * ((phase * POS.state.mg as i32 + (TPHASE - phase) * POS.state.eg as i32) / TPHASE) as i16
     }
 }
 

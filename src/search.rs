@@ -10,6 +10,8 @@ pub static mut DEPTH: i8 = i8::MAX;
 pub static mut TIME: u128 = 1000;
 static mut NODES: u64 = 0;
 static mut STOP: bool = true;
+static mut SELDEPTH: i8 = 0;
+
 macro_rules! is_capture {($m:expr) => {$m & 0b0100_0000_0000_0000 > 0}}
 macro_rules! is_mate_score {($score:expr) => {$score >= MATE_THRESHOLD || $score <= -MATE_THRESHOLD}}
 
@@ -99,6 +101,7 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv
         STOP = true;
         return 0
     }
+    SELDEPTH = max(SELDEPTH, ply);
     }
     // draw detection
     if is_draw_by_50() || is_draw_by_repetition(2 + (ply == 0) as u8) || is_draw_by_material() { return 0 }
@@ -179,7 +182,7 @@ fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     unsafe{NODES += 1}
     let stand_pat = eval();
     if stand_pat >= beta { return beta }
-    if stand_pat < alpha - 900 { return alpha }
+    if stand_pat < alpha - 850 { return alpha }
     if alpha < stand_pat { alpha = stand_pat }
     let mut captures = MoveList::default();
     let mut scores = MoveScores::default();
@@ -199,6 +202,7 @@ fn quiesce(mut alpha: i16, beta: i16) -> i16 {
 pub fn go() -> u16 {
     unsafe {
         NODES = 0;
+        SELDEPTH = 0;
         STOP = false;
     }
     let mut best_move = 0;
@@ -217,7 +221,7 @@ pub fn go() -> u16 {
         };
         let nps = ((unsafe{NODES} as f64) * 1000.0 / (t as f64)) as u32;
         let pv_str = pv.iter().map(u16_to_uci).collect::<String>();
-        println!("info depth {} score {} {} time {} nodes {} nps {} hashfull {} pv {}", d + 1, stype, sval, t, unsafe{NODES}, nps, hashfull(), pv_str);
+        println!("info depth {} seldepth {} score {} {} time {} nodes {} nps {} hashfull {} pv {}", d + 1, unsafe{SELDEPTH}, stype, sval, t, unsafe{NODES}, nps, hashfull(), pv_str);
         if is_mate_score!(score) { break }
     }
     unsafe {
