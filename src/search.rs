@@ -1,4 +1,4 @@
-use std::{ptr, mem, cmp::{min, max}, time::Instant};
+use std::{ptr, mem, cmp::{min, max}, time::{Instant, Duration}};
 use super::consts::*;
 use super::position::*;
 use super::hash::*;
@@ -6,10 +6,10 @@ use super::movegen::*;
 use super::eval::*;
 use super::u16_to_uci;
 
-pub static mut DEPTH: i8 = 1;
+pub static mut DEPTH: i8 = i8::MAX;
+pub static mut TIME: Duration = Duration::from_millis(1000);
 static mut NODES: u64 = 0;
 static mut STOP: bool = true;
-
 macro_rules! is_capture {($m:expr) => {$m & 0b0100_0000_0000_0000 > 0}}
 macro_rules! is_mate_score {($score:expr) => {$score >= MATE_THRESHOLD || $score <= -MATE_THRESHOLD}}
 
@@ -91,9 +91,15 @@ fn get_next_move(moves: &mut MoveList, move_scores: &mut MoveScores) -> Option<(
     Some((m, best_score))
 }
 
-fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv: &mut Vec<u16>, in_check: bool) -> i16 {
+fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv: &mut Vec<u16>, in_check: bool, start_time: &Instant) -> i16 {
     // search aborting
-    if unsafe{STOP} { return 0 }
+    unsafe {
+    if STOP { return 0 }
+    if NODES / 2048 == 0 && start_time.elapsed() >= TIME {
+        STOP = true;
+        return 0
+    }
+    }
     // draw detection
     if is_draw_by_50() || is_draw_by_repetition(2 + (ply == 0) as u8) || is_draw_by_material() { return 0 }
     // mate distance pruning
@@ -141,11 +147,11 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv
         let r = (!in_check && !gives_check && count > 1 && m_score <= 300) as i8;
         // score move
         let score = if count == 1 {
-            -pvs::<PV>(-beta, -alpha, depth - 1, ply + 1, &mut sub_pv, gives_check)
+            -pvs::<PV>(-beta, -alpha, depth - 1, ply + 1, &mut sub_pv, gives_check, start_time)
         } else {
-            let null_window_score = -pvs::<false>(-alpha - 1, -alpha, depth - 1 - r, ply + 1, &mut sub_pv, gives_check);
+            let null_window_score = -pvs::<false>(-alpha - 1, -alpha, depth - 1 - r, ply + 1, &mut sub_pv, gives_check, start_time);
             if (null_window_score < beta || r > 0) && null_window_score > alpha {
-                -pvs::<PV>(-beta, -alpha, depth - 1, ply + 1, &mut sub_pv, gives_check)
+                -pvs::<PV>(-beta, -alpha, depth - 1, ply + 1, &mut sub_pv, gives_check, start_time)
             } else { null_window_score }
         };
         undo_move();
@@ -201,7 +207,7 @@ pub fn go() -> u16 {
     for d in 0..unsafe{DEPTH} {
         let mut pv = Vec::new();
         let in_check = is_in_check();
-        let score = pvs::<true>(-MAX, MAX, d + 1, 0, &mut pv, in_check);
+        let score = pvs::<true>(-MAX, MAX, d + 1, 0, &mut pv, in_check, &now);
         if unsafe{STOP} { break }
         if !pv.is_empty() { best_move = pv[0] }
         let (stype, sval) = match is_mate_score!(score) {
@@ -213,6 +219,10 @@ pub fn go() -> u16 {
         let pv_str = pv.iter().map(u16_to_uci).collect::<String>();
         println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d + 1, stype, sval, t, unsafe{NODES}, nps, pv_str);
         if is_mate_score!(score) { break }
+    }
+    unsafe {
+        DEPTH = i8::MAX;
+        TIME = Duration::from_millis(1000);
     }
     best_move
 }

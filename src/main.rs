@@ -6,12 +6,15 @@ pub mod eval;
 pub mod search;
 
 use std::io::stdin;
+use std::time::Duration;
 use consts::{VERSION, AUTHOR, CastleRights, EMPTY, WHITE, BLACK};
 use hash::{tt_clear, tt_resize, zobrist};
 use position::{POS, MoveList, do_move, undo_move, GameState};
 use movegen::{gen_moves, All};
 use search::{DEPTH, go};
 use std::time::Instant;
+
+use crate::search::TIME;
 
 const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const KIWIPETE: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
@@ -72,39 +75,37 @@ fn run_commands(commands: Vec<&str>) {
 
 fn parse_go( commands: Vec<&str>) {
     #[derive(PartialEq)]
-    enum Tokens {None, Depth, Perft}
+    enum Tokens {None, Depth, Perft, Movetime}
     let mut token = Tokens::None;
     let mut perft_depth = 0;
     for command in commands {
         match command {
             "depth" => token = Tokens::Depth,
+            "movetime" => token = Tokens::Movetime,
             "perft" => token = Tokens::Perft,
             _ => {
                 match token {
                     Tokens::None => {},
                     Tokens::Depth => unsafe{DEPTH = command.parse::<i8>().unwrap_or(1)},
+                    Tokens::Movetime => unsafe{TIME = Duration::from_millis(command.parse::<i64>().unwrap_or(1000) as u64)}
                     Tokens::Perft => perft_depth = command.parse::<u8>().unwrap_or(1),
                 }
             },
         }
     }
-    match token {
-        Tokens::Perft => {
-            let now = Instant::now();
-            let mut total = 0;
-            for d in 0..perft_depth {
-                let count = perft(d + 1);
-                total += count;
-                println!("info depth {} nodes {}", d + 1, count)
-            }
-            let elapsed = now.elapsed().as_micros();
-            println!("Leaf count: {total} ({:.2} ML/sec)", total as f64 / elapsed as f64);
+    if token == Tokens::Perft {
+        let now = Instant::now();
+        let mut total = 0;
+        for d in 0..perft_depth {
+            let count = perft(d + 1);
+            total += count;
+            println!("info depth {} nodes {}", d + 1, count)
         }
-        Tokens::Depth => {
-            let best_move = go();
-            println!("bestmove {}", u16_to_uci(&best_move));
-        } 
-        Tokens::None => {}
+        let elapsed = now.elapsed().as_micros();
+        println!("Leaf count: {total} ({:.2} ML/sec)", total as f64 / elapsed as f64);
+    } else {
+        let best_move = go();
+        println!("bestmove {}", u16_to_uci(&best_move)); 
     }
 }
 
