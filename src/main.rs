@@ -5,12 +5,12 @@ pub mod hash;
 pub mod eval;
 pub mod search;
 
-use std::io;
-use consts::*;
-use hash::*;
-use position::*;
-use movegen::*;
-use search::*;
+use std::io::stdin;
+use consts::{VERSION, AUTHOR, CastleRights, EMPTY, WHITE, BLACK};
+use hash::{tt_clear, tt_resize, zobrist};
+use position::{POS, MoveList, do_move, undo_move, GameState};
+use movegen::{gen_moves, All};
+use search::{DEPTH, go};
 use std::time::Instant;
 
 const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -19,11 +19,9 @@ const LASKER: &str = "8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1";
 
 fn main() {
     println!("akimbo, created by Jamie Whiting");
-    parse_fen(STARTPOS);
-    tt_resize(128 * 1024 * 1024);
     loop {
         let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
+        stdin().read_line(&mut input).unwrap();
         let commands: Vec<&str> = input.split(' ').map(|v| v.trim()).collect();
         if commands[0] == "uci" {uci_run()}
     }
@@ -46,12 +44,14 @@ fn perft(depth_left: u8) -> u64 {
 }
 
 fn uci_run() {
+    parse_fen(STARTPOS);
+    tt_resize(128 * 1024 * 1024);
     println!("id name akimbo {}", VERSION);
     println!("id author {}", AUTHOR);
     println!("uciok");
     loop {
         let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
+        stdin().read_line(&mut input).unwrap();
         let commands: Vec<&str> = input.split(' ').map(|v| v.trim()).collect();
         run_commands(commands);
     }
@@ -235,7 +235,5 @@ pub fn parse_fen(s: &str) {
     POS.state = GameState {zobrist: 0, phase, mg, eg,en_passant_sq, halfmove_clock, castle_rights};
     POS.fullmove_counter = vec[5].parse::<u16>().unwrap_or(1);
     POS.state.zobrist = zobrist::calc();
-    println!("zobrist: {}", POS.state.zobrist);
-    println!("phase: {}, mg: {}, eg: {}", POS.state.phase, POS.state.mg, POS.state.eg);
     }
 }

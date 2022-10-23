@@ -1,4 +1,4 @@
-use super::consts::*;
+use super::consts::MATE_THRESHOLD;
 
 pub static mut TT: Vec<HashBucket> = Vec::new();
 

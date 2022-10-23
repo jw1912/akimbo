@@ -1,7 +1,7 @@
 use crate::pop;
 
-use super::consts::*;
-use super::position::*;
+use super::consts::{TPHASE, PHASE_VALS, PST_MG, PST_EG, SIDE_FACTOR, KING};
+use super::position::{POS, is_square_attacked};
 use super::lsb;
 
 macro_rules! taper {($p:expr, $mg:expr, $eg:expr) => {(($p * $mg as i32 + (TPHASE - $p) * $eg as i32) / TPHASE) as i16}}
