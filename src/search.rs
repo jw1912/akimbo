@@ -1,200 +1,275 @@
-use std::{ptr, mem, cmp::{min, max}};
-use super::consts::*;
-use super::position::*;
-use super::hash::*;
-use super::movegen::*;
-use super::eval::*;
+use super::{consts::*, position::Position, tables::{HashTable, KillerTable}, movegen::MoveList,u16_to_uci};
+use std::{cmp::{min, max}, time::Instant};
 
-static mut DEPTH: i8 = 1;
-
-macro_rules! is_capture {($m:expr) => {$m & 0b0100_0000_0000_0000 > 0}}
-macro_rules! is_mate_score {($score:expr) => {$score >= MATE_THRESHOLD || $score <= -MATE_THRESHOLD}}
-
-struct MoveScores {
-    list: [i16; 255],
-    len: usize,
-    start_idx: usize,
-}
-impl Default for MoveScores {
-    fn default() -> Self {
-        Self {
-            list: unsafe {
-                #[allow(clippy::uninit_assumed_init)]
-                mem::MaybeUninit::uninit().assume_init()
-            },
-            len: 0,
-            start_idx: 0,
-        } 
+/// Determines what is done in the node
+struct NodeType(u8);
+impl NodeType {
+    fn encode(pv: bool, check: bool, null: bool) -> Self {
+        Self(4 * u8::from(pv) + 2 * u8::from(check) + u8::from(null))
     }
 }
-impl MoveScores {
-    #[inline(always)]
-    fn push(&mut self, m: i16) {
-        self.list[self.len] = m;
-        self.len += 1;
+
+/// Contains everything needed for a search.
+pub struct SearchContext {
+    pub hash_table: HashTable,
+    killer_table: KillerTable,
+    pub alloc_time: u128,
+    time: Instant,
+    nodes: u64,
+    ply: i16,
+    abort: bool,
+}
+
+impl SearchContext{
+    pub fn new(hash_table: HashTable, killer_table: KillerTable) -> Self {
+        Self { hash_table, killer_table, time: Instant::now(), alloc_time: 1000, nodes: 0, ply: 0, abort: false }
     }
-    #[inline(always)]
-    fn swap_unchecked(&mut self, i: usize, j: usize) {
-        let ptr = self.list.as_mut_ptr();
-        unsafe {
-            ptr::swap(ptr.add(i), ptr.add(j));
+
+    fn reset(&mut self) {
+        self.time = Instant::now();
+        self.nodes = 0;
+        self.ply = 0;
+        self.abort = false;
+    }
+}
+
+impl Position {
+    #[inline]
+    fn lazy_eval(&self) -> i16 {
+        let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
+        SIDE_FACTOR[usize::from(self.c)] * ((phase * self.state.mg as i32 + (TPHASE - phase) * self.state.eg as i32) / TPHASE) as i16
+    }
+
+    fn score_move(&self, m: u16, hash_move: u16, killers: &[u16; 3]) -> u16 {
+        if m == hash_move {
+            HASH_MOVE
+        } else if m & 0b0100_0000_0000_0000 > 0 {
+            self.mvv_lva(m)
+        } else if m & 0b1000_0000_0000_0000 > 0 {
+            PROMOTION
+        } else if killers.contains(&m) {
+            KILLER
+        } else {
+            QUIET
         }
     }
-}
 
-fn mvv_lva( m: u16) -> i16 {
-    let from_idx = (m >> 6) & 0b111111;
-    let to_idx = m & 0b111111;
-    let moved_pc = unsafe{POS.squares[from_idx as usize]} as usize;
-    let captured_pc = unsafe{POS.squares[to_idx as usize]} as usize;
-    MVV_LVA[captured_pc][moved_pc]
-}
+    fn score_moves(&self, moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, ply: i16, kt: &KillerTable) {
+        let killers: [u16; 3] = kt.0[ply as usize];
+        for i in 0..moves.len { move_scores.push(self.score_move(moves.list[i], hash_move, &killers)) }
+    }
 
-fn score_move(m: u16, hash_move: u16) -> i16 {
-    if m == hash_move {
-        HASH_MOVE
-    } else if is_capture!(m) {
-        mvv_lva(m)
-    } else {
-        QUIET
+    fn score_captures(&self, moves: &MoveList, move_scores: &mut MoveList) {
+        for i in 0..moves.len { move_scores.push(self.mvv_lva(moves.list[i])) }
     }
 }
 
-fn score_moves(moves: &MoveList, move_scores: &mut MoveScores, hash_move: u16) {
-    for i in move_scores.start_idx..moves.len {
-        let m = moves.list[i]; 
-        move_scores.push(score_move(m, hash_move));
-    }
-}
-
-fn get_next_move(moves: &mut MoveList, move_scores: &mut MoveScores) -> Option<(u16, i16)> {
-    let m_idx = move_scores.start_idx;
-    if m_idx == move_scores.len {
-        return None
-    }
-    let mut best_idx = 0;
-    let mut best_score = i16::MIN;
-    for i in m_idx..move_scores.len {
-        let score = move_scores.list[i];
-        if score > best_score {
-            best_score = score;
-            best_idx = i;
+/// O(n^2) algorithm to incrementally sort the move list as needed.
+fn pick_move(moves: &mut MoveList, scores: &mut MoveList) -> Option<(u16, u16)> {
+    if scores.len == 0 {return None}
+    let mut idx: usize = 0;
+    let mut best: u16 = 0;
+    let mut score: u16;
+    for i in 0..scores.len {
+        score = scores.list[i];
+        if score > best {
+            best = score;
+            idx = i;
         }
     }
-    let m = moves.list[best_idx];
-    move_scores.swap_unchecked(best_idx, m_idx);
-    moves.swap_unchecked(best_idx, m_idx);
-    move_scores.start_idx += 1;
-    Some((m, best_score))
+    scores.len -= 1;
+    scores.list.swap(idx, scores.len);
+    moves.list.swap(idx, scores.len);
+    Some((moves.list[scores.len], best))
 }
 
-fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, depth: i8, ply: i8, pv: &mut Vec<u16>, in_check: bool) -> i16 {
+/// Main search function:
+/// - Fail-soft negamax (alpha-beta pruning) framework
+/// - Principle variation search
+fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut depth: i8, ctx: &mut SearchContext, pv_line: &mut Vec<u16>) -> i16 {
+    // search aborting
+    if ctx.abort { return 0 }
+    if ctx.nodes & 2047 == 0 && ctx.time.elapsed().as_millis() >= ctx.alloc_time {
+        ctx.abort = true;
+        return 0
+    }
+
+    // draw detection
+    if pos.fifty_draw() || pos.repetition_draw(2 + u8::from(ctx.ply == 0)) || pos.material_draw() { return 0 }
+
+    // extract node info
+    let (pv, in_check, allow_null): (bool, bool, bool) = (nt.0 & 4 > 0, nt.0 & 2 > 0, nt.0 & 1 > 0);
+
     // mate distance pruning
-    alpha = max(alpha, -MAX + ply as i16);
-    beta = min(beta, MAX - ply as i16 - 1);
-    if alpha >= beta { 
-        return alpha 
-    }
+    alpha = max(alpha, -MAX + ctx.ply);
+    beta = min(beta, MAX - ctx.ply - 1);
+    if alpha >= beta { return alpha }
+
+    // check extensions
+    depth += i8::from(in_check);
+
     // qsearch at depth 0
-    if depth <= 0 || ply == MAX_PLY { return quiesce(alpha, beta) }
+    if depth <= 0 { return qsearch(pos, alpha, beta, &mut ctx.nodes) }
+    ctx.nodes += 1;
+
     // probing hash table
-    let zobrist = zobrist::calc();
-    let mut hash_move = 0;
-    let mut write_to_hash = true;
-    if let Some(res) = tt_probe(zobrist, ply) {
+    let mut hash_move: u16 = 0;
+    let mut write_to_hash: bool = true;
+    if let Some(res) = ctx.hash_table.probe(pos.state.zobrist, ctx.ply) {
         write_to_hash = depth > res.depth;
         hash_move = res.best_move;
-        if ply > 0 && res.depth >= depth && unsafe{POS.state.halfmove_clock} <= 90 {
+        // hash score pruning
+        if ctx.ply > 0 && pos.state.halfmove_clock <= 90 && res.depth >= depth &&
             match res.bound {
-                Bound::EXACT => { if !PV { return res.score } },
-                Bound::LOWER => { if res.score >= beta { return beta } },
-                Bound::UPPER => { if res.score <= alpha { return alpha } },
-                _ => ()
-            }
+                Bound::EXACT => !pv, // want nice pv lines
+                Bound::LOWER => res.score >= beta,
+                Bound::UPPER => res.score <= alpha,
+                _ => false
+            } { return res.score }
+    }
+
+    // pruning
+    if !pv && !in_check && beta.abs() < MATE_THRESHOLD {
+        let lazy_eval: i16 = pos.lazy_eval();
+
+        // reverse futility pruning
+        let margin: i16 = lazy_eval - 120 * i16::from(depth);
+        if depth <= 8 && margin >= beta { return margin }
+
+        // null move pruning
+        if allow_null && depth >= 3 && pos.phase >= 6 && lazy_eval >= beta {
+            let copy: (u16, u64) = pos.do_null();
+            let score: i16 = -search(pos, NodeType::encode(false, false, false), -beta, -beta + 1, depth - 3, ctx, &mut Vec::new());
+            pos.undo_null(copy);
+            if score >= beta {return score}
         }
     }
-    // generating and scoring moves
-    let mut moves = MoveList::default();
-    let mut move_scores = MoveScores::default();
-    gen_moves::<All>(&mut moves);
-    score_moves(&moves, &mut move_scores, hash_move);
-    // going through moves
-    let mut best_move = 0;
-    let mut best_score = -MAX;
+
+    // generate and score moves
+    let mut moves: MoveList = MoveList::default();
+    let mut scores: MoveList = MoveList::default();
+    pos.gen_moves::<ALL>(&mut moves);
+    pos.score_moves(&moves, &mut scores, hash_move, ctx.ply, &ctx.killer_table);
+
+    // is the threshold for late move reductions satisfied?
+    let can_lmr: bool = depth >= 2 && ctx.ply > 0 && !in_check;
+
+    ctx.ply += 1;
     let mut bound: u8 = Bound::UPPER;
-    let mut count = 0;
-    while let Some((m, m_score)) = get_next_move(&mut moves, &mut move_scores) {
-        let ctx = do_move(m);
-        if ctx.invalid { continue }
-        count += 1;
-        let mut sub_pv = Vec::new();
-        let gives_check = is_in_check();
-        // LMR
-        let r = (!in_check && !gives_check && count > 1 && m_score <= 300) as i8;
-        // score move
-        let score = if count == 1 {
-            -pvs::<PV>(-beta, -alpha, depth - 1, ply + 1, &mut sub_pv, gives_check)
+    let mut best_move: u16 = 0;
+    let mut best_score: i16 = -MAX;
+    let mut legal_moves: u16 = 0;
+    while let Some((m, m_score)) = pick_move(&mut moves, &mut scores) {
+        if pos.do_move(m) { continue }
+        legal_moves += 1;
+
+        // late move reductions
+        let gives_check: bool = pos.is_in_check();
+        let reduce: i8 = i8::from(can_lmr && !gives_check && legal_moves > 1 && m_score < 300);
+
+        // pvs
+        let mut sub_pv: Vec<u16> = Vec::new();
+        let score: i16 = if legal_moves == 1 {
+            -search(pos, NodeType::encode(pv, gives_check, false), -beta, -alpha, depth - 1, ctx, &mut sub_pv)
         } else {
-            let null_window_score = -pvs::<false>(-alpha - 1, -alpha, depth - 1 - r, ply + 1, &mut sub_pv, gives_check);
-            if (null_window_score < beta || r > 0) && null_window_score > alpha {
-                -pvs::<PV>(-beta, -alpha, depth - 1, ply + 1, &mut sub_pv, gives_check)
-            } else { null_window_score }
+            let zw_score: i16 = -search(pos, NodeType::encode(false, gives_check, true), -alpha - 1, -alpha, depth - 1 - reduce, ctx, &mut sub_pv);
+            if (alpha != beta - 1 || reduce > 0) && zw_score > alpha {
+                -search(pos, NodeType::encode(pv, gives_check, false), -beta, -alpha, depth - 1, ctx, &mut sub_pv)
+            } else { zw_score }
         };
-        undo_move(ctx);
+
+        pos.undo_move();
+
         if score > best_score {
             best_score = score;
             best_move = m;
-            if score > alpha { 
-                bound = Bound::EXACT;
+            if score > alpha {
                 alpha = score;
-                pv.clear();
-                pv.push(m);
-                pv.append(&mut sub_pv);
-                if score >= beta { 
+                bound = Bound::EXACT;
+                // update pv
+                pv_line.clear();
+                pv_line.push(m);
+                pv_line.append(&mut sub_pv);
+                if score >= beta {
                     bound = Bound::LOWER;
-                    break 
+                    // push to killer move table if not a capture
+                    if m & 0b0100_0000_0000_0000 == 0 { ctx.killer_table.push(m, ctx.ply) };
+                    break
                 }
-            } 
+            }
         }
     }
-    if count == 0 { return (in_check as i16) * (-MAX + ply as i16) }
-    if write_to_hash { tt_push(zobrist, best_move, depth, bound, best_score, ply) }
+    ctx.ply -= 1;
+    if legal_moves == 0 { return i16::from(in_check) * (-MAX + ctx.ply) }
+    if write_to_hash && !ctx.abort { ctx.hash_table.push(pos.state.zobrist, best_move, depth, bound, best_score, ctx.ply) }
+
     best_score
 }
 
-fn quiesce(mut alpha: i16, beta: i16) -> i16 {
-    let stand_pat = eval();
-    if stand_pat >= beta { return beta }
-    if stand_pat < alpha - 850 { return alpha }
+/// Quiescence search:
+/// - Fail-soft
+/// - Delta pruning
+fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, nodes: &mut u64) -> i16 {
+    *nodes += 1;
+    let mut stand_pat: i16 = pos.lazy_eval();
+
+    if stand_pat >= beta { return stand_pat }
     if alpha < stand_pat { alpha = stand_pat }
-    let mut captures = MoveList::default();
-    let mut scores = MoveScores::default();
-    gen_moves::<Captures>(&mut captures);
-    score_moves(&captures, &mut scores, 0);
-    while let Some((m, _)) = get_next_move(&mut captures, &mut scores) {
-        let ctx = do_move(m);
-        if ctx.invalid { continue }
-        let score = -quiesce(-beta, -alpha);
-        undo_move(ctx);
-        if score >= beta { return beta }
-        if score > alpha { alpha = score }
+
+    // generate and score moves
+    let mut captures: MoveList = MoveList::default();
+    let mut scores: MoveList = MoveList::default();
+    pos.gen_moves::<CAPTURES>(&mut captures);
+    pos.score_captures(&captures, &mut scores);
+
+    while let Some((m, m_score)) = pick_move(&mut captures, &mut scores) {
+        // delta pruning
+        if stand_pat + m_score as i16 / 5 + 200 < alpha { break }
+
+        if pos.do_move(m) { continue }
+        let score: i16 = -qsearch(pos, -beta, -alpha, nodes);
+        pos.undo_move();
+
+        if score > stand_pat {
+            stand_pat = score;
+            if score > alpha {
+                alpha = score;
+                if score >= beta { return score }
+            }
+        }
     }
-    alpha
+    stand_pat
 }
 
-pub fn go() -> u16 {
-    let mut best_move = 0;
-    for d in 0..unsafe{DEPTH} {
-        let mut pv = Vec::new();
-        let in_check = is_in_check();
-        let score = pvs::<true>(-MAX, MAX, d + 1, 0, &mut pv, in_check);
-        if !pv.is_empty() { best_move = pv[0] }
-        let (stype, sval) = match is_mate_score!(score) {
-            true => ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2), 
-            false => ("cp", score)
+/// Root search function:
+/// - Iterative deepening
+/// - Handles uci output
+pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
+    let mut best_move: u16 = 0;
+    ctx.reset();
+
+    for d in 1..=allocated_depth {
+        let in_check: bool = pos.is_in_check();
+        let mut pv_line: Vec<u16> = Vec::new();
+        let score: i16 = search(pos, NodeType::encode(true, in_check, false), -MAX, MAX, d, ctx, &mut pv_line);
+
+        // end search if out of time
+        let t: u128 = ctx.time.elapsed().as_millis();
+        if t >= ctx.alloc_time || ctx.abort { break }
+
+        best_move = pv_line[0];
+        let (stype, sval): (&str, i16) = if score.abs() >= MATE_THRESHOLD {
+            ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2)
+        } else {
+            ("cp", score)
         };
-        println!("info depth {} score {} {} pv {}", d + 1, stype, sval, best_move);
-        if is_mate_score!(score) { break }
+        let nps: u32 = ((ctx.nodes as f64) * 1000.0 / (t as f64)) as u32;
+        let pv_str: String = pv_line.iter().map(|m| u16_to_uci(pos, *m)).collect::<String>();
+        println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d, stype, sval, t, ctx.nodes, nps, pv_str);
+
+        // stop searching if mate found
+        if score.abs() >= MATE_THRESHOLD { break }
     }
-    best_move
+    println!("bestmove {}", u16_to_uci(pos, best_move));
+    ctx.killer_table.clear();
 }
