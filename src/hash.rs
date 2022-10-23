@@ -1,8 +1,13 @@
+use crate::consts::MAX_PLY;
+
 use super::consts::MATE_THRESHOLD;
 
+pub const KILLERS_PER_PLY: usize = 3;
 pub static mut TT: Vec<HashBucket> = Vec::new();
+pub static mut KT: [[u16; KILLERS_PER_PLY]; MAX_PLY as usize] = [[0; KILLERS_PER_PLY]; MAX_PLY as usize];
 static mut TT_SIZE: usize = 0;
-pub static mut FILLED: u64 = 0;
+static mut FILLED: u64 = 0;
+
 
 pub struct Bound;
 impl Bound {
@@ -182,5 +187,28 @@ pub mod zobrist {
         if POS.side_to_move == 0 {zobrist ^= ZVALS.side;}
         zobrist
         }
+    }
+}
+
+pub fn kt_push(m: u16, ply: i8) {
+    unsafe {
+    let lost_move = KT[ply as usize][KILLERS_PER_PLY - 1];
+    let mut copy_found = false;
+    for idx in (1..KILLERS_PER_PLY).rev() {
+        let entry = KT[ply as usize][idx - 1];
+        if entry == m { copy_found = true }
+        KT[ply as usize][idx] = entry;
+    }
+    KT[ply as usize][0] = if copy_found {lost_move} else {m}
+    }
+}
+
+pub fn kt_age() {
+    unsafe {
+    for i in (2..MAX_PLY as usize).rev() {
+        KT[i] = KT[i - 2];
+    }
+    KT[0] = [0; KILLERS_PER_PLY];
+    KT[1] = [0; KILLERS_PER_PLY];
     }
 }

@@ -13,6 +13,8 @@ static mut STOP: bool = true;
 static mut SELDEPTH: i8 = 0;
 
 macro_rules! is_capture {($m:expr) => {$m & 0b0100_0000_0000_0000 > 0}}
+macro_rules! is_promotion {($m:expr) => {$m & 0b1000_0000_0000_0000 > 0}}
+macro_rules! is_castling {($m:expr) => {$m & 0b1110_0000_0000_0000 == 0b0010_0000_0000_0000}}
 macro_rules! is_mate_score {($score:expr) => {$score >= MATE_THRESHOLD || $score <= -MATE_THRESHOLD}}
 
 struct MoveScores {
@@ -55,20 +57,33 @@ fn mvv_lva( m: u16) -> i16 {
     MVV_LVA[captured_pc][moved_pc]
 }
 
-fn score_move(m: u16, hash_move: u16) -> i16 {
+fn score_move(m: u16, hash_move: u16, killers: [u16; KILLERS_PER_PLY]) -> i16 {
     if m == hash_move {
         HASH_MOVE
     } else if is_capture!(m) {
         mvv_lva(m)
+    } else if is_promotion!(m) {
+        let pc = (m >> 12) & 3;
+        PROMOTIONS[pc as usize]
+    } else if killers.contains(&m) {
+        KILLER
+    } else if is_castling!(m) {
+        CASTLE
     } else {
         QUIET
     }
 }
 
-fn score_moves(moves: &MoveList, move_scores: &mut MoveScores, hash_move: u16) {
+fn score_moves(moves: &MoveList, move_scores: &mut MoveScores, hash_move: u16, ply: i8) {
+    let killers = unsafe {KT[ply as usize]};
     for i in move_scores.start_idx..moves.len {
         let m = moves.list[i]; 
-        move_scores.push(score_move(m, hash_move));
+        move_scores.push(score_move(m, hash_move, killers));
+    }
+}
+fn score_captures(moves: &MoveList, move_scores: &mut MoveScores) {
+    for i in move_scores.start_idx..moves.len {
+        move_scores.push(mvv_lva(moves.list[i]));
     }
 }
 
@@ -93,6 +108,7 @@ fn get_next_move(moves: &mut MoveList, move_scores: &mut MoveScores) -> Option<(
     Some((m, best_score))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv: &mut Vec<u16>, in_check: bool, start_time: &Instant) -> i16 {
     // search aborting
     unsafe {
@@ -133,7 +149,7 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv
     let mut moves = MoveList::default();
     let mut move_scores = MoveScores::default();
     gen_moves::<All>(&mut moves);
-    score_moves(&moves, &mut move_scores, hash_move);
+    score_moves(&moves, &mut move_scores, hash_move, ply);
     // going through moves
     let mut best_move = 0;
     let mut best_score = -MAX;
@@ -146,7 +162,7 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv
         let mut sub_pv = Vec::new();
         let gives_check = is_in_check();
         // LMR
-        let r = (!in_check && !gives_check && count > 1 && m_score <= 300) as i8;
+        let r = (!in_check && !gives_check && count > 1 && m_score < 300) as i8;
         // score move
         let score = if count == 1 {
             -pvs::<PV>(-beta, -alpha, depth - 1, ply + 1, &mut sub_pv, gives_check, start_time)
@@ -167,6 +183,7 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv
                 pv.push(m);
                 pv.append(&mut sub_pv);
                 if score >= beta { 
+                    if m & 0b0100_0000_0000_0000 == 0 { kt_push(m, ply) }
                     bound = Bound::LOWER;
                     break 
                 }
@@ -187,7 +204,7 @@ fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     let mut captures = MoveList::default();
     let mut scores = MoveScores::default();
     gen_moves::<Captures>(&mut captures);
-    score_moves(&captures, &mut scores, 0);
+    score_captures(&captures, &mut scores);
     while let Some((m, _)) = get_next_move(&mut captures, &mut scores) {
         let invalid = do_move(m);
         if invalid { continue }
@@ -199,7 +216,7 @@ fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     alpha
 }
 
-pub fn go() -> u16 {
+pub fn go() {
     unsafe {
         NODES = 0;
         SELDEPTH = 0;
@@ -228,5 +245,7 @@ pub fn go() -> u16 {
         DEPTH = i8::MAX;
         TIME = 1000;
     }
-    best_move
+    println!("bestmove {}", u16_to_uci(&best_move)); 
+    kt_age();
+
 }

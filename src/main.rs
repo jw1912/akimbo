@@ -103,8 +103,7 @@ fn parse_go( commands: Vec<&str>) {
         let elapsed = now.elapsed().as_micros();
         println!("Leaf count: {total} ({:.2} ML/sec)", total as f64 / elapsed as f64);
     } else {
-        let best_move = go();
-        println!("bestmove {}", u16_to_uci(&best_move)); 
+        go();
     }
 }
 
