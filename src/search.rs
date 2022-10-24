@@ -11,6 +11,7 @@ pub static mut TIME: u128 = 1000;
 static mut NODES: u64 = 0;
 static mut STOP: bool = true;
 static mut SELDEPTH: i8 = 0;
+static mut PLY: i8 = 0;
 
 macro_rules! is_capture {($m:expr) => {$m & 0b0100_0000_0000_0000 > 0}}
 macro_rules! is_promotion {($m:expr) => {$m & 0b1000_0000_0000_0000 > 0}}
@@ -109,34 +110,32 @@ fn get_next_move(moves: &mut MoveList, move_scores: &mut MoveScores) -> Option<(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv: &mut Vec<u16>, in_check: bool, start_time: &Instant) -> i16 {
+unsafe fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, pv: &mut Vec<u16>, in_check: bool, start_time: &Instant) -> i16 {
     // search aborting
-    unsafe {
     if STOP { return 0 }
     if NODES & 2047 == 0 && start_time.elapsed().as_millis() >= TIME {
         STOP = true;
         return 0
     }
-    SELDEPTH = max(SELDEPTH, ply);
-    }
+    SELDEPTH = max(SELDEPTH, PLY);
     // draw detection
-    if is_draw_by_50() || is_draw_by_repetition(2 + (ply == 0) as u8) || is_draw_by_material() { return 0 }
+    if is_draw_by_50() || is_draw_by_repetition(2 + (PLY == 0) as u8) || is_draw_by_material() { return 0 }
     // mate distance pruning
-    alpha = max(alpha, -MAX + ply as i16);
-    beta = min(beta, MAX - ply as i16 - 1);
+    alpha = max(alpha, -MAX + PLY as i16);
+    beta = min(beta, MAX - PLY as i16 - 1);
     if alpha >= beta { return alpha }
     // check extensions
     depth += in_check as i8;
     // qsearch at depth 0
-    if depth <= 0 || ply == MAX_PLY { return quiesce(alpha, beta) }
-    unsafe{NODES += 1}
+    if depth <= 0 || PLY == MAX_PLY { return quiesce(alpha, beta) }
+    NODES += 1;
     // probing hash table
     let mut hash_move = 0;
     let mut write_to_hash = true;
-    if let Some(res) = tt_probe(unsafe{POS.state.zobrist}, ply) {
+    if let Some(res) = tt_probe(POS.state.zobrist, PLY) {
         write_to_hash = depth > res.depth;
         hash_move = res.best_move;
-        if ply > 0 && res.depth >= depth && unsafe{POS.state.halfmove_clock} <= 90 {
+        if PLY > 0 && res.depth >= depth && POS.state.halfmove_clock <= 90 {
             match res.bound {
                 Bound::EXACT => { if !PV { return res.score } },
                 Bound::LOWER => { if res.score >= beta { return beta } },
@@ -149,8 +148,9 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv
     let mut moves = MoveList::default();
     let mut move_scores = MoveScores::default();
     gen_moves::<All>(&mut moves);
-    score_moves(&moves, &mut move_scores, hash_move, ply);
+    score_moves(&moves, &mut move_scores, hash_move, PLY);
     // going through moves
+    PLY += 1;
     let mut best_move = 0;
     let mut best_score = -MAX;
     let mut bound: u8 = Bound::UPPER;
@@ -165,11 +165,11 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv
         let r = (!in_check && !gives_check && count > 1 && m_score < 300) as i8;
         // score move
         let score = if count == 1 {
-            -pvs::<PV>(-beta, -alpha, depth - 1, ply + 1, &mut sub_pv, gives_check, start_time)
+            -pvs::<PV>(-beta, -alpha, depth - 1, &mut sub_pv, gives_check, start_time)
         } else {
-            let null_window_score = -pvs::<false>(-alpha - 1, -alpha, depth - 1 - r, ply + 1, &mut sub_pv, gives_check, start_time);
+            let null_window_score = -pvs::<false>(-alpha - 1, -alpha, depth - 1 - r, &mut sub_pv, gives_check, start_time);
             if (null_window_score < beta || r > 0) && null_window_score > alpha {
-                -pvs::<PV>(-beta, -alpha, depth - 1, ply + 1, &mut sub_pv, gives_check, start_time)
+                -pvs::<PV>(-beta, -alpha, depth - 1, &mut sub_pv, gives_check, start_time)
             } else { null_window_score }
         };
         undo_move();
@@ -183,20 +183,21 @@ fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, ply: i8, pv
                 pv.push(m);
                 pv.append(&mut sub_pv);
                 if score >= beta { 
-                    if m & 0b0100_0000_0000_0000 == 0 { kt_push(m, ply) }
+                    if m & 0b0100_0000_0000_0000 == 0 { kt_push(m, PLY - 1) }
                     bound = Bound::LOWER;
                     break 
                 }
             } 
         }
     }
-    if count == 0 { return (in_check as i16) * (-MAX + ply as i16) }
-    if write_to_hash { tt_push(unsafe{POS.state.zobrist}, best_move, depth, bound, best_score, ply) }
+    PLY -= 1;
+    if count == 0 { return (in_check as i16) * (-MAX + PLY as i16) }
+    if write_to_hash { tt_push(POS.state.zobrist, best_move, depth, bound, best_score, PLY) }
     best_score
 }
 
-fn quiesce(mut alpha: i16, beta: i16) -> i16 {
-    unsafe{NODES += 1}
+unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
+    NODES += 1;
     let stand_pat = eval();
     if stand_pat >= beta { return beta }
     if stand_pat < alpha - 850 { return alpha }
@@ -205,14 +206,16 @@ fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     let mut scores = MoveScores::default();
     gen_moves::<Captures>(&mut captures);
     score_captures(&captures, &mut scores);
+    PLY += 1;
     while let Some((m, _)) = get_next_move(&mut captures, &mut scores) {
         let invalid = do_move(m);
         if invalid { continue }
         let score = -quiesce(-beta, -alpha);
         undo_move();
-        if score >= beta { return beta }
         if score > alpha { alpha = score }
+        if score >= beta { break }
     }
+    PLY -= 1;
     alpha
 }
 
@@ -227,7 +230,7 @@ pub fn go() {
     for d in 0..unsafe{DEPTH} {
         let mut pv = Vec::new();
         let in_check = is_in_check();
-        let score = pvs::<true>(-MAX, MAX, d + 1, 0, &mut pv, in_check, &now);
+        let score = unsafe{pvs::<true>(-MAX, MAX, d + 1, &mut pv, in_check, &now)};
         if unsafe{STOP} { break }
         let t = now.elapsed().as_millis();
         if t >= unsafe{TIME} { break }

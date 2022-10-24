@@ -19,6 +19,21 @@ const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 const KIWIPETE: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
 const LASKER: &str = "8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1";
 
+pub const _POSITIONS: [&str; 12] = [
+    STARTPOS, LASKER, KIWIPETE,
+    // Standard low depth mate puzzles
+    "rn5r/pp3kpp/2p1R3/5p2/3P4/2B2N2/PPP3PP/2K4n w - - 1 17",
+    "4r1rk/pp4pp/2n5/8/6Q1/7R/1qPK1P1P/3R4 w - - 0 28",
+    "2r1rbk1/1R3R1N/p3p1p1/3pP3/8/q7/P1Q3PP/7K b - - 0 25",
+    // Positions that catch pruning methods out
+    "8/2krR3/1pp3bp/6p1/PPNp4/3P1PKP/8/8 w - - 0 1",
+    "1Q6/8/8/8/2k2P2/1p6/1B4K1/8 w - - 3 63",
+    "3r2k1/pp3ppp/4p3/8/QP6/P1P5/5KPP/7q w - - 0 27",
+    "1q1r3k/3P1pp1/ppBR1n1p/4Q2P/P4P2/8/5PK1/8 w - - 0 1",
+    "1n3r2/3k2pp/pp1P4/1p4b1/1q3B2/5Q2/PPP2PP1/R4RK1 w - - 0 1",
+    "7K/8/k1P5/7p/8/8/8/8 w - - 0 1"
+];
+
 fn main() {
     println!("akimbo, created by Jamie Whiting");
     loop {
@@ -26,6 +41,21 @@ fn main() {
         stdin().read_line(&mut input).unwrap();
         let commands: Vec<&str> = input.split(' ').map(|v| v.trim()).collect();
         if commands[0] == "uci" {uci_run()}
+    }
+}
+
+fn performance() {
+    unsafe {
+    TIME = 1000;
+    let now = Instant::now();
+    for fen  in _POSITIONS {
+        parse_fen(fen);
+        println!("===Search Report===");
+        println!("fen: {}", fen);
+        go();
+        println!(" ");
+    }
+    println!("Total time: {}ms", now.elapsed().as_millis());
     }
 }
 
@@ -68,6 +98,7 @@ fn run_commands(commands: Vec<&str>) {
         },
         "go" => parse_go(commands),
         "position" => parse_position(commands),
+        "performance" => performance(),
         _ => {},
     };
 }
