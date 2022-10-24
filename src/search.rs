@@ -12,6 +12,7 @@ pub static mut PLY: i8 = 0;
 static mut NODES: u64 = 0;
 static mut STOP: bool = true;
 static mut SELDEPTH: i8 = 0;
+static mut PV_LINE: [u16; MAX_PLY as usize] = [0; MAX_PLY as usize];
 
 macro_rules! is_capture {($m:expr) => {$m & 0b0100_0000_0000_0000 > 0}}
 macro_rules! is_promotion {($m:expr) => {$m & 0b1000_0000_0000_0000 > 0}}
@@ -106,7 +107,7 @@ fn get_next_move(moves: &mut MoveList, move_scores: &mut MoveScores) -> Option<(
     Some((m, best_score))
 }
 
-unsafe fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, pv: &mut Vec<u16>, in_check: bool, start_time: &Instant) -> i16 {
+unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, start_time: &Instant) -> i16 {
     // search aborting
     if STOP { return 0 }
     if NODES & 2047 == 0 && start_time.elapsed().as_millis() >= TIME {
@@ -135,7 +136,7 @@ unsafe fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, pv: 
         hash_move = res.best_move;
         if PLY > 0 && res.depth >= depth && POS.state.halfmove_clock <= 90 {
             match res.bound {
-                Bound::EXACT => { if !PV { return res.score } },
+                Bound::EXACT => { if !pv { return res.score } },
                 Bound::LOWER => { if res.score >= beta { return beta } },
                 Bound::UPPER => { if res.score <= alpha { return alpha } },
                 _ => ()
@@ -157,17 +158,16 @@ unsafe fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, pv: 
         let invalid = do_move(m);
         if invalid { continue }
         count += 1;
-        let mut sub_pv = Vec::new();
         let gives_check = is_in_check();
         // LMR
         let r = (!in_check && !gives_check && count > 1 && m_score < 300) as i8;
         // score move
         let score = if count == 1 {
-            -pvs::<PV>(-beta, -alpha, depth - 1, &mut sub_pv, gives_check, start_time)
+            -pvs(pv, -beta, -alpha, depth - 1, gives_check, start_time)
         } else {
-            let null_window_score = -pvs::<false>(-alpha - 1, -alpha, depth - 1 - r, &mut sub_pv, gives_check, start_time);
+            let null_window_score = -pvs(false, -alpha - 1, -alpha, depth - 1 - r, gives_check, start_time);
             if (null_window_score < beta || r > 0) && null_window_score > alpha {
-                -pvs::<PV>(-beta, -alpha, depth - 1, &mut sub_pv, gives_check, start_time)
+                -pvs(pv, -beta, -alpha, depth - 1, gives_check, start_time)
             } else { null_window_score }
         };
         undo_move();
@@ -177,9 +177,7 @@ unsafe fn pvs<const PV: bool>(mut alpha: i16, mut beta: i16, mut depth: i8, pv: 
             if score > alpha { 
                 bound = Bound::EXACT;
                 alpha = score;
-                pv.clear();
-                pv.push(m);
-                pv.append(&mut sub_pv);
+                if pv { PV_LINE[PLY as usize - 1] = m }
                 if score >= beta {
                     bound = Bound::LOWER;
                     break 
@@ -216,32 +214,29 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
 
 pub fn go() {
     unsafe {
-        NODES = 0;
-        SELDEPTH = 0;
-        STOP = false;
-    }
+    NODES = 0;
+    SELDEPTH = 0;
+    STOP = false;
     let mut best_move = 0;
     let now = Instant::now();
-    for d in 0..unsafe{DEPTH} {
-        let mut pv = Vec::new();
+    for d in 0..DEPTH {
         let in_check = is_in_check();
-        let score = unsafe{pvs::<true>(-MAX, MAX, d + 1, &mut pv, in_check, &now)};
-        if unsafe{STOP} { break }
+        let score = pvs(true, -MAX, MAX, d + 1, in_check, &now);
+        if STOP { break }
         let t = now.elapsed().as_millis();
-        if t >= unsafe{TIME} { break }
-        if !pv.is_empty() { best_move = pv[0] }
+        if t >= TIME { break }
+        best_move = PV_LINE[0];
         let (stype, sval) = match is_mate_score!(score) {
             true => ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2), 
             false => ("cp", score)
         };
-        let nps = ((unsafe{NODES} as f64) * 1000.0 / (t as f64)) as u32;
-        let pv_str = pv.iter().map(u16_to_uci).collect::<String>();
-        println!("info depth {} seldepth {} score {} {} time {} nodes {} nps {} hashfull {} pv {}", d + 1, unsafe{SELDEPTH}, stype, sval, t, unsafe{NODES}, nps, hashfull(), pv_str);
+        let nps = ((NODES as f64) * 1000.0 / (t as f64)) as u32;
+        let pv_str = &PV_LINE[..(d as usize + 1)].iter().map(u16_to_uci).collect::<String>();
+        println!("info depth {} seldepth {} score {} {} time {} nodes {} nps {} hashfull {} pv {}", d + 1, SELDEPTH, stype, sval, t, NODES, nps, hashfull(), pv_str);
         if is_mate_score!(score) { break }
     }
-    unsafe {
-        DEPTH = i8::MAX;
-        TIME = 1000;
-    }
+    DEPTH = i8::MAX;
+    TIME = 1000;
     println!("bestmove {}", u16_to_uci(&best_move));
+    }
 }
