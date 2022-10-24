@@ -6,14 +6,12 @@ pub mod eval;
 pub mod search;
 
 use std::io::stdin;
+use std::time::Instant;
 use consts::{VERSION, AUTHOR, CastleRights, EMPTY, WHITE, BLACK};
 use hash::{tt_clear, tt_resize, zobrist};
 use position::{POS, MoveList, do_move, undo_move, GameState};
 use movegen::{gen_moves, All};
-use search::{DEPTH, go};
-use std::time::Instant;
-
-use crate::search::TIME;
+use search::{DEPTH, TIME, go};
 
 const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const KIWIPETE: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
@@ -56,6 +54,7 @@ fn performance() {
         println!(" ");
     }
     println!("Total time: {}ms", now.elapsed().as_millis());
+    ucinewgame();
     }
 }
 
@@ -92,15 +91,17 @@ fn uci_run() {
 fn run_commands(commands: Vec<&str>) {
     match commands[0] {
         "isready" => println!("readyok"),
-        "ucinewgame" => {
-            parse_fen(STARTPOS);
-            tt_clear();
-        },
+        "ucinewgame" => ucinewgame(),
         "go" => parse_go(commands),
         "position" => parse_position(commands),
         "performance" => performance(),
         _ => {},
     };
+}
+
+fn ucinewgame() {
+    parse_fen(STARTPOS);
+    tt_clear();
 }
 
 fn parse_go( commands: Vec<&str>) {

@@ -1,10 +1,7 @@
-use crate::consts::MAX_PLY;
-
 use super::consts::MATE_THRESHOLD;
+use super::search::PLY;
 
-pub const KILLERS_PER_PLY: usize = 3;
 pub static mut TT: Vec<HashBucket> = Vec::new();
-pub static mut KT: [[u16; KILLERS_PER_PLY]; MAX_PLY as usize] = [[0; KILLERS_PER_PLY]; MAX_PLY as usize];
 static mut TT_SIZE: usize = 0;
 static mut FILLED: u64 = 0;
 
@@ -20,8 +17,8 @@ impl Bound {
 #[derive(Clone, Copy, Default)]
 #[repr(align(64))]
 pub struct HashBucket(pub [u64; 8]);
-
 const BUCKET_SIZE: usize = std::mem::size_of::<HashBucket>();
+
 #[derive(Default)]
 pub struct HashResult {
     pub key: u16,
@@ -67,7 +64,7 @@ fn tt_encode(key: u16, best_move: u16, depth: i8, bound: u8, score: i16) -> u64 
     | ((bound as u64) << 56)
 }
 
-pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i16, ply: i8) {
+pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i16) {
     unsafe {
     let key = (zobrist >> 48) as u16;
     let idx = (zobrist as usize) % TT.len();
@@ -92,15 +89,15 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
         }
     }
     if score > MATE_THRESHOLD {
-        score += ply as i16;
+        score += PLY as i16;
     } else if score < -MATE_THRESHOLD {
-        score -= ply as i16;
+        score -= PLY as i16;
     }
     bucket.0[desired_idx] = tt_encode(key, best_move, depth, bound, score);
     }
 }
 
-pub fn tt_probe(zobrist: u64, ply: i8) -> Option<HashResult> {
+pub fn tt_probe(zobrist: u64) -> Option<HashResult> {
     let key = (zobrist >> 48) as u16;
     let idx = (zobrist as usize) % unsafe{TT.len()};
     let bucket = unsafe{&TT[idx]};
@@ -108,9 +105,9 @@ pub fn tt_probe(zobrist: u64, ply: i8) -> Option<HashResult> {
         if data as u16 == key {
             let mut entry_data = tt_load(data);
             if entry_data.score > MATE_THRESHOLD {
-                entry_data.score -= ply as i16;
+                entry_data.score -= unsafe{PLY} as i16;
             } else if entry_data.score < -MATE_THRESHOLD {
-                entry_data.score += ply as i16;
+                entry_data.score += unsafe{PLY} as i16;
             }
             return Some(entry_data);
         } 
@@ -187,28 +184,5 @@ pub mod zobrist {
         if POS.side_to_move == 0 {zobrist ^= ZVALS.side;}
         zobrist
         }
-    }
-}
-
-pub fn kt_push(m: u16, ply: i8) {
-    unsafe {
-    let lost_move = KT[ply as usize][KILLERS_PER_PLY - 1];
-    let mut copy_found = false;
-    for idx in (1..KILLERS_PER_PLY).rev() {
-        let entry = KT[ply as usize][idx - 1];
-        if entry == m { copy_found = true }
-        KT[ply as usize][idx] = entry;
-    }
-    KT[ply as usize][0] = if copy_found {lost_move} else {m}
-    }
-}
-
-pub fn kt_age() {
-    unsafe {
-    for i in (2..MAX_PLY as usize).rev() {
-        KT[i] = KT[i - 2];
-    }
-    KT[0] = [0; KILLERS_PER_PLY];
-    KT[1] = [0; KILLERS_PER_PLY];
     }
 }
