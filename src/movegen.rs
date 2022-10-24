@@ -61,9 +61,7 @@ unsafe fn pawn_moves_general<const SIDE: usize, U: MoveType>(move_list: &mut Mov
     }
 }
 
-unsafe fn piece_moves_general<const PIECE: usize, U: MoveType>(
-    move_list: &mut MoveList, occupied: u64, friendly: u64,
-) { 
+unsafe fn piece_moves_general<const PIECE: usize, U: MoveType>(move_list: &mut MoveList, occupied: u64, friendly: u64) { 
     let mut from: u16;
     let mut idx: usize;
     let mut attacks: u64;
@@ -79,12 +77,8 @@ unsafe fn piece_moves_general<const PIECE: usize, U: MoveType>(
             KING => KING_ATTACKS[idx],
             _ => panic!("Not a valid usize in fn piece_moves_general: {}", PIECE),
         };
-        if U::TYPE != CAPTURES {
-            encode_moves(move_list, attacks & !occupied, from, MoveFlags::QUIET);
-        }
-        if U::TYPE != QUIETS {
-            encode_moves(move_list, attacks & POS.sides[POS.side_to_move ^ 1], from, MoveFlags::CAPTURE);
-        }
+        if U::TYPE != CAPTURES {encode_moves(move_list, attacks & !occupied, from, MoveFlags::QUIET)}
+        if U::TYPE != QUIETS {encode_moves(move_list, attacks & POS.sides[POS.side_to_move ^ 1], from, MoveFlags::CAPTURE)}
         pop!(attackers)
     }
 }

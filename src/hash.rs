@@ -35,7 +35,8 @@ pub fn hashfull() -> u64 {
 pub fn tt_resize(size: usize) {
     unsafe {
         TT_SIZE = size / BUCKET_SIZE;
-        TT = vec![Default::default(); TT_SIZE] 
+        TT = vec![Default::default(); TT_SIZE];
+        FILLED = 0;
     }
 }
 
