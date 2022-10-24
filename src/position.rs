@@ -143,11 +143,10 @@ pub fn do_move(m: u16) -> bool {
                 POS.state.en_passant_sq = match POS.side_to_move {WHITE => to - 8, BLACK => to + 8, _ => panic!("")} as u16;
                 POS.state.zobrist ^= ZVALS.en_passant[to & 7];
             } else if flag >= MoveFlags::KNIGHT_PROMO {
-                let promo_pc = ((flag >> 12) & 3) + 1; 
-                let ppc = promo_pc as usize;
+                let ppc = (((flag >> 12) & 3) + 1) as usize; 
                 POS.pieces[moved_pc as usize] ^= t;
                 POS.pieces[ppc] ^= t;
-                POS.squares[to] = promo_pc as u8;
+                POS.squares[to] = ppc as u8;
                 POS.state.phase += PHASE_VALS[ppc];
                 remove!(to, POS.side_to_move, moved_pc as usize);
                 add!(to, POS.side_to_move, ppc);
