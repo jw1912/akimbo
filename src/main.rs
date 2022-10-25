@@ -119,7 +119,10 @@ fn parse_go( commands: Vec<&str>) {
             _ => {
                 match token {
                     Tokens::None => {},
-                    Tokens::Depth => unsafe{DEPTH = command.parse::<i8>().unwrap_or(1)},
+                    Tokens::Depth => unsafe{
+                        DEPTH = command.parse::<i8>().unwrap_or(1);
+                        TIME = u128::MAX;
+                    },
                     Tokens::Movetime => unsafe{TIME = command.parse::<i64>().unwrap_or(1000) as u128 - 10}
                     Tokens::Perft => perft_depth = command.parse::<u8>().unwrap_or(1),
                 }
