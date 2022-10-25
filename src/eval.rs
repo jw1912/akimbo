@@ -124,5 +124,5 @@ fn bspans(mut pwns: u64) -> u64 {
 unsafe fn mop_up(winning_side: usize) -> i16 {
     let wk = lsb!(POS.pieces[KING] & POS.sides[winning_side]) as usize;
     let lk = lsb!(POS.pieces[KING] & POS.sides[winning_side ^ 1]) as usize;
-    SIDE_FACTOR[winning_side] * (5 * CMD[lk] + 2 * (14 - MD[lk][wk]))
+    SIDE_FACTOR[winning_side] * MD[lk][wk]
 }

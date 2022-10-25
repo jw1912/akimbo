@@ -162,7 +162,7 @@ const fn manhattan() -> [[i16; 64]; 64] {
     while i < 64 {
         let mut j = 0;
         while j < 64 {
-            res[i as usize][j as usize] = ((i >> 3) - (j>> 3)).abs() + ((i & 7) - (j & 7)).abs();
+            res[i as usize][j as usize] = 5 * CMD[i as usize] + 2 * (14 - ((i >> 3) - (j>> 3)).abs() + ((i & 7) - (j & 7)).abs());
             j += 1;
         }
         i += 1;

@@ -113,9 +113,10 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     }
     // reverse futility and null move pruning
     if !pv && !in_check && beta.abs() < MATE_THRESHOLD {
-        if depth <= 3 && lazy_eval() >= beta + 120 * depth as i16 {
+        let lazy_eval = lazy_eval();
+        if depth <= 8 && lazy_eval >= beta + 120 * depth as i16 {
             return beta
-        } else if allow_null && depth > 3 && POS.state.phase >= 6 && lazy_eval() >= beta {
+        } else if allow_null && depth >= 3 && POS.state.phase >= 2 && lazy_eval >= beta {
             let ctx = do_null();
             let score = -pvs(false, -beta, -beta + 1, depth - 3, false, start_time, false);
             undo_null(ctx);
