@@ -173,18 +173,13 @@ fn parse_position(commands: Vec<&str>) {
 
 /// UCI MOVE FORMAT
 fn idx_to_sq(idx: u16) -> String {
-    let rank = idx >> 3;
-    let file = idx & 7;
-    let srank = (rank + 1).to_string();
-    let sfile = FILES[file as usize];
+    let srank = ((idx >> 3) + 1).to_string();
+    let sfile = FILES[(idx & 7) as usize];
     format!("{sfile}{srank}")
 }
 fn sq_to_idx(sq: &str) -> u16 {
     let chs: Vec<char> = sq.chars().collect();
-    let file: u16 = match FILES.iter().position(|&ch| ch == chs[0]) {
-        Some(res) => res as u16,
-        None => 0,
-    };
+    let file: u16 = FILES.iter().position(|&ch| ch == chs[0]).unwrap_or(0) as u16;
     let rank = chs[1].to_string().parse::<u16>().unwrap_or(0) - 1;
     8 * rank + file
 }
