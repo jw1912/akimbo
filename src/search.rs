@@ -7,9 +7,13 @@ use super::eval::*;
 use super::u16_to_uci;
 
 type MoveScores = MoveList;
+
+// search info
 pub static mut DEPTH: i8 = i8::MAX;
 pub static mut TIME: u128 = 1000;
 pub static mut PLY: i8 = 0;
+
+// UCI info
 static mut NODES: u64 = 0;
 static mut STOP: bool = true;
 static mut SELDEPTH: i8 = 0;
@@ -45,6 +49,7 @@ fn score_moves(moves: &MoveList, move_scores: &mut MoveScores, hash_move: u16, s
         move_scores.push(score_move(m, hash_move, killers));
     }
 }
+
 fn score_captures(moves: &MoveList, move_scores: &mut MoveScores, start_idx: usize) {
     for i in start_idx..moves.len {
         move_scores.push(mvv_lva(moves.list[i]));
@@ -53,9 +58,7 @@ fn score_captures(moves: &MoveList, move_scores: &mut MoveScores, start_idx: usi
 
 fn get_next_move(moves: &mut MoveList, move_scores: &mut MoveScores, start_idx: &mut usize) -> Option<(u16, u16)> {
     let m_idx = *start_idx;
-    if m_idx == move_scores.len {
-        return None
-    }
+    if m_idx == move_scores.len {return None}
     let mut best_idx = m_idx;
     let mut best_score = 0;
     for i in m_idx..move_scores.len {
@@ -108,7 +111,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
             }
         }
     }
-    // reverse futility pruning
+    // reverse futility and null move pruning
     if !pv && !in_check && beta.abs() < MATE_THRESHOLD {
         if depth <= 3 && lazy_eval() >= beta + 120 * depth as i16 {
             return beta

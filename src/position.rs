@@ -164,9 +164,7 @@ pub fn do_move(m: u16) -> bool {
                 add!(idx2, POS.side_to_move, ROOK);
             }
         } 
-        ROOK => {
-            POS.state.castle_rights &= CASTLE_RIGHTS[from];
-        }
+        ROOK => POS.state.castle_rights &= CASTLE_RIGHTS[from],
         _ => {}
     }
     // castle hashes

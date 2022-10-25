@@ -12,7 +12,6 @@ pub const KILLERS_PER_PLY: usize = 3;
 
 pub struct Bound;
 impl Bound {
-    pub const INVALID: u8 = 0;
     pub const LOWER: u8 = 1;
     pub const UPPER: u8 = 2;
     pub const EXACT: u8 = 3;
