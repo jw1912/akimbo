@@ -143,6 +143,10 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
             }
         }
     }
+    // reverse futility pruning
+    if !pv && !in_check && !is_mate_score!(beta) && depth <= 8 && lazy_eval() >= beta + 120 * depth as i16 {
+        return beta
+    }
     // generating and scoring moves
     let mut moves = MoveList::default();
     let mut move_scores = MoveScores::default();

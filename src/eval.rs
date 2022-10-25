@@ -13,6 +13,14 @@ pub fn eval() -> i16 {
     }
 }
 
+#[inline(always)]
+pub fn lazy_eval() -> i16 {
+    unsafe {
+    let phase = std::cmp::min(POS.state.phase as i32, TPHASE);
+    SIDE_FACTOR[POS.side_to_move] * ((phase * POS.state.mg as i32 + (TPHASE - phase) * POS.state.eg as i32) / TPHASE) as i16
+    }
+}
+
 pub fn calc() -> (i16, i16, i16) {
     let mut mg = 0;
     let mut eg = 0;
