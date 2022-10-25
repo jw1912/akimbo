@@ -1,5 +1,5 @@
 use super::consts::*;
-use super::position::{POS, is_square_attacked};
+use super::position::{POS, NULLS, is_square_attacked};
 use super::{lsb, pop};
 
 #[inline(always)]
@@ -56,7 +56,7 @@ pub fn is_in_check() -> bool {
 pub fn is_draw_by_repetition(num: u8) -> bool {
     unsafe {
     let l = POS.stack.len();
-    if l < 6 { return false }
+    if l < 6 || NULLS > 0 { return false }
     let to = l - 1;
     let mut from = l.wrapping_sub(POS.state.halfmove_clock as usize);
     if from > 1024 { from = 0 }
@@ -73,7 +73,7 @@ pub fn is_draw_by_repetition(num: u8) -> bool {
 
 #[inline(always)]
 pub fn is_draw_by_50() -> bool {
-    unsafe{POS.state.halfmove_clock >= 100}
+    unsafe{NULLS > 0 && POS.state.halfmove_clock >= 100}
 }
 
 const SQ1: u64 = 0x55AA55AA55AA55AA;

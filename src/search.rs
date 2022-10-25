@@ -15,8 +15,6 @@ static mut SELDEPTH: i8 = 0;
 static mut PV_LINE: [u16; MAX_PLY as usize] = [0; MAX_PLY as usize];
 
 macro_rules! is_capture {($m:expr) => {$m & 0b0100_0000_0000_0000 > 0}}
-macro_rules! is_promotion {($m:expr) => {$m & 0b1000_0000_0000_0000 > 0}}
-macro_rules! is_castling {($m:expr) => {$m & 0b1110_0000_0000_0000 == 0b0010_0000_0000_0000}}
 macro_rules! is_mate_score {($score:expr) => {$score >= MATE_THRESHOLD || $score <= -MATE_THRESHOLD}}
 
 struct MoveScores {
@@ -64,13 +62,8 @@ fn score_move(m: u16, hash_move: u16, killers: [u16; KILLERS_PER_PLY]) -> i16 {
         HASH_MOVE
     } else if is_capture!(m) {
         mvv_lva(m)
-    } else if is_promotion!(m) {
-        let pc = (m >> 12) & 3;
-        PROMOTIONS[pc as usize]
     } else if killers.contains(&m) {
         KILLER
-    } else if is_castling!(m) {
-        CASTLE
     } else {
         QUIET
     }
@@ -118,7 +111,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         return 0
     }
     // draw detection
-    if NULLS == 0 && (is_draw_by_50() || is_draw_by_repetition(2 + (PLY == 0) as u8) || is_draw_by_material()) { return 0 }
+    if is_draw_by_50() || is_draw_by_repetition(2 + (PLY == 0) as u8) || is_draw_by_material() { return 0 }
     // mate distance pruning
     alpha = max(alpha, -MAX + PLY as i16);
     beta = min(beta, MAX - PLY as i16 - 1);
