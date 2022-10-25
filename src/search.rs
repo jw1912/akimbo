@@ -213,7 +213,7 @@ pub fn go() {
             false => ("cp", score)
         };
         let nps = ((NODES as f64) * 1000.0 / (t as f64)) as u32;
-        let pv_str = &PV_LINE[..(d as usize + 1)].iter().map(u16_to_uci).collect::<String>();
+        let pv_str = PV_LINE[..(d as usize + 1)].iter().map(u16_to_uci).collect::<String>();
         println!("info depth {} seldepth {} score {} {} time {} nodes {} nps {} hashfull {} pv {}", d + 1, SELDEPTH, stype, sval, t, NODES, nps, hashfull(), pv_str);
         if is_mate_score!(score) { break }
     }

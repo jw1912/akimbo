@@ -47,6 +47,7 @@ impl Position {
         Position { pieces: [0;6], sides: [0;2], squares: [0; 64], side_to_move: 0, state: GameState { zobrist: 0, phase: 0, mg: 0, eg: 0, en_passant_sq: 0, halfmove_clock: 0, castle_rights: 0 }, fullmove_counter: 0, stack: Vec::new() }
     }
 }
+
 #[derive(Clone, Copy, Default)]
 pub struct GameState {
     pub zobrist: u64,
@@ -57,6 +58,7 @@ pub struct GameState {
     pub halfmove_clock: u8,
     pub castle_rights: u8,
 }
+
 #[derive(Clone, Copy)]
 pub struct MoveState {
     pub state: GameState,
@@ -64,6 +66,8 @@ pub struct MoveState {
     pub moved_pc: u8,
     pub captured_pc: u8,
 }
+
+// movelist struct stores moves and scores
 pub struct MoveList {
     pub list: [u16; 256],
     pub len: usize,
@@ -87,7 +91,6 @@ impl MoveList {
 }
 
 // MAKING MOVES
-#[inline(always)]
 pub fn is_square_attacked(idx: usize, side: usize, occ: u64) -> bool {
     unsafe {
     let other = side ^ 1;
@@ -237,7 +240,6 @@ pub fn undo_move() {
 }
 
 // NULL MOVES
-
 pub fn do_null() -> (u16, u64) {
     unsafe {
     NULLS += 1;

@@ -7,30 +7,11 @@ pub mod search;
 
 use std::io::stdin;
 use std::time::Instant;
-use consts::{VERSION, AUTHOR, CastleRights, EMPTY, WHITE, BLACK};
+use consts::*;
 use hash::{tt_clear, tt_resize, zobrist, kt_clear};
 use position::{POS, MoveList, do_move, undo_move, GameState};
 use movegen::{gen_moves, All};
 use search::{DEPTH, TIME, go};
-
-const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-const KIWIPETE: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
-const LASKER: &str = "8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1";
-
-pub const _POSITIONS: [&str; 12] = [
-    STARTPOS, LASKER, KIWIPETE,
-    // Standard low depth mate puzzles
-    "rn5r/pp3kpp/2p1R3/5p2/3P4/2B2N2/PPP3PP/2K4n w - - 1 17",
-    "4r1rk/pp4pp/2n5/8/6Q1/7R/1qPK1P1P/3R4 w - - 0 28",
-    "2r1rbk1/1R3R1N/p3p1p1/3pP3/8/q7/P1Q3PP/7K b - - 0 25",
-    // Positions that catch pruning methods out
-    "8/2krR3/1pp3bp/6p1/PPNp4/3P1PKP/8/8 w - - 0 1",
-    "1Q6/8/8/8/2k2P2/1p6/1B4K1/8 w - - 3 63",
-    "3r2k1/pp3ppp/4p3/8/QP6/P1P5/5KPP/7q w - - 0 27",
-    "1q1r3k/3P1pp1/ppBR1n1p/4Q2P/P4P2/8/5PK1/8 w - - 0 1",
-    "1n3r2/3k2pp/pp1P4/1p4b1/1q3B2/5Q2/PPP2PP1/R4RK1 w - - 0 1",
-    "7K/8/k1P5/7p/8/8/8/8 w - - 0 1"
-];
 
 fn main() {
     println!("akimbo, created by Jamie Whiting");
@@ -108,14 +89,20 @@ fn ucinewgame() {
 
 fn parse_go( commands: Vec<&str>) {
     #[derive(PartialEq)]
-    enum Tokens {None, Depth, Perft, Movetime}
+    enum Tokens {None, Depth, Perft, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
     let mut token = Tokens::None;
     let mut perft_depth = 0;
+    let (mut times, mut moves_to_go) = ([0, 0], None);
     for command in commands {
         match command {
             "depth" => token = Tokens::Depth,
             "movetime" => token = Tokens::Movetime,
             "perft" => token = Tokens::Perft,
+            "wtime" => token = Tokens::WTime,
+            "btime" => token = Tokens::BTime,
+            "winc" => token = Tokens::WInc,
+            "binc" => token = Tokens::BInc,
+            "movestogo" => token = Tokens::MovesToGo,
             _ => {
                 match token {
                     Tokens::None => {},
@@ -125,6 +112,10 @@ fn parse_go( commands: Vec<&str>) {
                     },
                     Tokens::Movetime => unsafe{TIME = command.parse::<i64>().unwrap_or(1000) as u128 - 10}
                     Tokens::Perft => perft_depth = command.parse::<u8>().unwrap_or(1),
+                    Tokens::WTime => times[0] = std::cmp::max(command.parse::<i64>().unwrap_or(100), 0) as u128,
+                    Tokens::BTime => times[0] = std::cmp::max(command.parse::<i64>().unwrap_or(100), 0) as u128,
+                    Tokens::MovesToGo => moves_to_go = Some(command.parse::<u8>().unwrap_or(40)),
+                    _ => {},
                 }
             },
         }
@@ -140,6 +131,14 @@ fn parse_go( commands: Vec<&str>) {
         let elapsed = now.elapsed().as_micros();
         println!("Leaf count: {total} ({:.2} ML/sec)", total as f64 / elapsed as f64);
     } else {
+        unsafe {
+        if times != [0, 0] {
+            TIME = if let Some(mtg) = moves_to_go {
+                times[POS.side_to_move] / mtg as u128
+            } else {
+                times[POS.side_to_move] / (2 * (POS.state.phase as u128 + 1))
+            }
+        }}
         go();
     }
 }

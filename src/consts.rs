@@ -30,6 +30,7 @@ impl MoveFlags {
     pub const ROOK_PROMO_CAPTURE: u16 = 14 << 12;
     pub const QUEEN_PROMO_CAPTURE: u16 = 15 << 12;
 }
+
 pub struct CastleRights;
 impl CastleRights {
     pub const ALL: u8 = 15;
@@ -152,7 +153,7 @@ const fn init_in_front() -> [[u64;64];2] {
     in_front
 }
 
-/// King eval stuff
+/// king eval stuff
 pub const CMD: [i16; 64] = [6, 5, 4, 3, 3, 4, 5, 6, 5, 4, 3, 2, 2, 3, 4, 5, 4, 3, 2, 1, 1, 2, 3, 4, 3, 2, 1, 0, 0, 1, 2, 3, 3, 2, 1, 0, 0, 1, 2, 3, 4, 3, 2, 1, 1, 2, 3, 4, 5, 4, 3, 2, 2, 3, 4, 5, 6, 5, 4, 3, 3, 4, 5, 6];
 pub static MD: [[i16; 64]; 64] = manhattan();
 const fn manhattan() -> [[i16; 64]; 64] {
@@ -168,3 +169,20 @@ const fn manhattan() -> [[i16; 64]; 64] {
     }
     res
 }
+
+// fen strings
+pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+pub const KIWIPETE: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
+pub const LASKER: &str = "8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1";
+pub const _POSITIONS: [&str; 12] = [
+    STARTPOS, LASKER, KIWIPETE,
+    "rn5r/pp3kpp/2p1R3/5p2/3P4/2B2N2/PPP3PP/2K4n w - - 1 17",
+    "4r1rk/pp4pp/2n5/8/6Q1/7R/1qPK1P1P/3R4 w - - 0 28",
+    "2r1rbk1/1R3R1N/p3p1p1/3pP3/8/q7/P1Q3PP/7K b - - 0 25",
+    "8/2krR3/1pp3bp/6p1/PPNp4/3P1PKP/8/8 w - - 0 1",
+    "1Q6/8/8/8/2k2P2/1p6/1B4K1/8 w - - 3 63",
+    "3r2k1/pp3ppp/4p3/8/QP6/P1P5/5KPP/7q w - - 0 27",
+    "1q1r3k/3P1pp1/ppBR1n1p/4Q2P/P4P2/8/5PK1/8 w - - 0 1",
+    "1n3r2/3k2pp/pp1P4/1p4b1/1q3B2/5Q2/PPP2PP1/R4RK1 w - - 0 1",
+    "7K/8/k1P5/7p/8/8/8/8 w - - 0 1"
+];
