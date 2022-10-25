@@ -2,7 +2,11 @@ use super::{lsb, pop, consts::*, movegen::{bishop_attacks, rook_attacks}, hash::
 use std::ptr;
 
 // The position is stored as global state
-pub static mut POS: Position = Position::new();
+pub static mut POS: Position = Position { 
+    pieces: [0; 6], sides: [0; 2], squares: [0; 64], side_to_move: 0, 
+    state: GameState { zobrist: 0, phase: 0, mg: 0, eg: 0, en_passant_sq: 0, halfmove_clock: 0, castle_rights: 0 }, 
+    fullmove_counter: 0, stack: Vec::new()
+};
 // count of how many nulls made to reach position
 pub static mut NULLS: u8 = 0;
 
@@ -41,11 +45,6 @@ pub struct Position {
     pub state: GameState,
     pub fullmove_counter: u16,
     pub stack: Vec<MoveState>,
-}
-impl Position {
-    const fn new() -> Position {
-        Position { pieces: [0;6], sides: [0;2], squares: [0; 64], side_to_move: 0, state: GameState { zobrist: 0, phase: 0, mg: 0, eg: 0, en_passant_sq: 0, halfmove_clock: 0, castle_rights: 0 }, fullmove_counter: 0, stack: Vec::new() }
-    }
 }
 
 #[derive(Clone, Copy, Default)]
