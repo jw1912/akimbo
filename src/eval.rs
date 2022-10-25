@@ -1,14 +1,15 @@
-use crate::pop;
-
-use super::consts::{TPHASE, PHASE_VALS, PST_MG, PST_EG, SIDE_FACTOR, KING, PAWN, BISHOP};
+use super::consts::*;
 use super::position::{POS, is_square_attacked};
-use super::lsb;
+use super::{lsb, pop};
 
 #[inline(always)]
 pub fn eval() -> i16 {
     unsafe {
     let phase = std::cmp::min(POS.state.phase as i32, TPHASE);
-    SIDE_FACTOR[POS.side_to_move] * ((phase * POS.state.mg as i32 + (TPHASE - phase) * POS.state.eg as i32) / TPHASE) as i16
+    let passers = passers();
+    let mg = POS.state.mg + passers * PASSERS_MG;
+    let eg = POS.state.eg + passers * PASSERS_EG;
+    SIDE_FACTOR[POS.side_to_move] * ((phase * mg as i32 + (TPHASE - phase) * eg as i32) / TPHASE) as i16
     }
 }
 
@@ -72,20 +73,46 @@ const SQ2: u64 = 0xAA55AA55AA55AA55;
 pub fn is_draw_by_material() -> bool {
     unsafe {
     let pawns = POS.pieces[PAWN];
-    // pawns left? not draw. more than one minor piece on either side? not draw.
     if pawns == 0 && POS.state.phase <= 2 {
-        // two minor pieces left
         if POS.state.phase == 2 {
             let bishops = POS.pieces[BISHOP];
-            // are bishops on opposite or same colour squares
             if bishops & POS.sides[0] != bishops && bishops & POS.sides[1] != bishops && (bishops & SQ1 == bishops || bishops & SQ2 == bishops) {
                 return true
             }
             return false
         }
-        // 1 or zero minor pieces is a draw
         return true
     }
     false
     }
+}
+
+const NOT_A: u64 = 0xfefefefefefefefe;
+const NOT_H: u64 = 0x7f7f7f7f7f7f7f7f;
+
+unsafe fn passers() -> i16 {
+    let wp = POS.pieces[PAWN] & POS.sides[WHITE];
+    let bp = POS.pieces[PAWN] & POS.sides[BLACK];
+    let mut fspans = bspans(bp);
+    fspans |= (fspans & NOT_H) >> 1 | (fspans & NOT_A) << 1;
+    let passers = (wp & !fspans).count_ones();
+    fspans = wspans(wp);
+    fspans |= (fspans & NOT_H) >> 1 | (fspans & NOT_A) << 1;
+    (passers - (bp & !fspans).count_ones()) as i16
+}
+
+#[inline(always)]
+fn wspans(mut pwns: u64) -> u64 {
+    pwns |= pwns << 8;
+    pwns |= pwns << 16;
+    pwns |= pwns << 32;
+    pwns << 8
+}
+
+#[inline(always)]
+fn bspans(mut pwns: u64) -> u64 {
+    pwns |= pwns >> 8;
+    pwns |= pwns >> 16;
+    pwns |= pwns >> 32;
+    pwns >> 8
 }
