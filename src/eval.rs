@@ -2,7 +2,6 @@ use super::consts::*;
 use super::position::{POS, NULLS, is_square_attacked};
 use super::{lsb, pop};
 
-#[inline(always)]
 pub fn eval() -> i16 {
     unsafe {
     let phase = std::cmp::min(POS.state.phase as i32, TPHASE);
@@ -23,28 +22,23 @@ pub fn lazy_eval() -> i16 {
 }
 
 pub fn calc() -> (i16, i16, i16) {
-    let mut mg = 0;
-    let mut eg = 0;
-    let mut p = 0;
-    let mut pcs;
-    let mut count;
-    let mut idx;
+    let mut res = (0,0,0);
     for (i, side) in unsafe{POS.sides.iter().enumerate()} {
         let factor = SIDE_FACTOR[i];
         for j in 0..6 {
-            pcs = unsafe{POS.pieces[j]} & side;
-            count = pcs.count_ones() as i16;
-            p += PHASE_VALS[j] * count;
+            let mut pcs = unsafe{POS.pieces[j]} & side;
+            let count = pcs.count_ones() as i16;
+            res.0 += PHASE_VALS[j] * count;
             while pcs > 0 {
-                idx = lsb!(pcs) as usize;
+                let idx = lsb!(pcs) as usize;
                 let white = (i == 0) as usize * 56;
-                mg += factor * PST_MG[j][idx ^ white];
-                eg += factor * PST_EG[j][idx ^ white];
+                res.1 += factor * PST_MG[j][idx ^ white];
+                res.2 += factor * PST_EG[j][idx ^ white];
                 pop!(pcs);
             }
         }
     }
-    (p, mg, eg)
+    res
 }
 
 pub fn is_in_check() -> bool {
@@ -104,10 +98,10 @@ unsafe fn passers() -> i16 {
     let bp = POS.pieces[PAWN] & POS.sides[BLACK];
     let mut fspans = bspans(bp);
     fspans |= (fspans & NOT_H) >> 1 | (fspans & NOT_A) << 1;
-    let passers = (wp & !fspans).count_ones();
+    let passers = (wp & !fspans).count_ones() as i16;
     fspans = wspans(wp);
     fspans |= (fspans & NOT_H) >> 1 | (fspans & NOT_A) << 1;
-    (passers - (bp & !fspans).count_ones()) as i16
+    passers - (bp & !fspans).count_ones() as i16
 }
 
 #[inline(always)]
