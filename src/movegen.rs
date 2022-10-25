@@ -7,16 +7,9 @@ macro_rules! msb {($x:expr) => {63 ^ $x.leading_zeros() as u16}}
 #[macro_export]
 macro_rules! pop {($x:expr) => {$x &= $x - 1}}
 
-const ALL: u8 = 0;
-const CAPTURES: u8 = 1;
-const QUIETS: u8 = 2;
-pub struct All;
-pub struct Captures;
-pub struct Quiets;
-pub trait MoveType {const TYPE: u8;}
-impl MoveType for All {const TYPE: u8 = ALL;}
-impl MoveType for Captures {const TYPE: u8 = CAPTURES;}
-impl MoveType for Quiets {const TYPE: u8 = QUIETS;}
+pub const ALL: u8 = 0;
+pub const CAPTURES: u8 = 1;
+pub const QUIETS: u8 = 2;
 
 fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16) {
     let f = from << 6;
@@ -29,11 +22,11 @@ fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16
 }
 
 // generate all moves of a given type in a position
-pub fn gen_moves<U: MoveType>(move_list: &mut MoveList) {
+pub fn gen_moves<const U: u8>(move_list: &mut MoveList) {
     unsafe {
     let occupied = POS.sides[0] | POS.sides[1];
     let friendly = POS.sides[POS.side_to_move];
-    if U::TYPE != CAPTURES && POS.state.castle_rights & CastleRights::SIDES[POS.side_to_move] > 0 {
+    if U != CAPTURES && POS.state.castle_rights & CastleRights::SIDES[POS.side_to_move] > 0 {
         castles(move_list, occupied, friendly);
     }
     match POS.side_to_move {
@@ -49,19 +42,19 @@ pub fn gen_moves<U: MoveType>(move_list: &mut MoveList) {
     }
 }
 
-unsafe fn pawn_moves_general<const SIDE: usize, U: MoveType>(move_list: &mut MoveList, occupied: u64) {
+unsafe fn pawn_moves_general<const SIDE: usize, const U: u8>(move_list: &mut MoveList, occupied: u64) {
     let pawns = POS.pieces[PAWN] & POS.sides[SIDE];
-    if U::TYPE != CAPTURES {
+    if U != CAPTURES {
         pawn_pushes_general::<SIDE>(move_list, pawns, occupied);
     }
-    if U::TYPE != QUIETS {
+    if U != QUIETS {
         let opps = POS.sides[SIDE ^ 1];
         pawn_captures_general::<SIDE>(move_list, pawns, opps);
         if POS.state.en_passant_sq > 0 { en_passants::<SIDE>(move_list, pawns, POS.state.en_passant_sq) }
     }
 }
 
-unsafe fn piece_moves_general<const PIECE: usize, U: MoveType>(move_list: &mut MoveList, occupied: u64, friendly: u64) { 
+unsafe fn piece_moves_general<const PIECE: usize, const U: u8>(move_list: &mut MoveList, occupied: u64, friendly: u64) { 
     let mut from: u16;
     let mut idx: usize;
     let mut attacks: u64;
@@ -77,8 +70,8 @@ unsafe fn piece_moves_general<const PIECE: usize, U: MoveType>(move_list: &mut M
             KING => KING_ATTACKS[idx],
             _ => panic!("Not a valid usize in fn piece_moves_general: {}", PIECE),
         };
-        if U::TYPE != CAPTURES {encode_moves(move_list, attacks & !occupied, from, MoveFlags::QUIET)}
-        if U::TYPE != QUIETS {encode_moves(move_list, attacks & POS.sides[POS.side_to_move ^ 1], from, MoveFlags::CAPTURE)}
+        if U != CAPTURES {encode_moves(move_list, attacks & !occupied, from, MoveFlags::QUIET)}
+        if U != QUIETS {encode_moves(move_list, attacks & POS.sides[POS.side_to_move ^ 1], from, MoveFlags::CAPTURE)}
         pop!(attackers)
     }
 }

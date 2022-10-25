@@ -126,7 +126,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     let mut moves = MoveList::default();
     let mut move_scores = MoveScores::default();
     let mut m_idx = 0;
-    gen_moves::<All>(&mut moves);
+    gen_moves::<ALL>(&mut moves);
     score_moves(&moves, &mut move_scores, hash_move, m_idx);
     // going through moves
     PLY += 1;
@@ -181,7 +181,7 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     let mut captures = MoveList::default();
     let mut scores = MoveScores::default();
     let mut m_idx = 0;
-    gen_moves::<Captures>(&mut captures);
+    gen_moves::<CAPTURES>(&mut captures);
     score_captures(&captures, &mut scores, m_idx);
     while let Some((m, _)) = get_next_move(&mut captures, &mut scores, &mut m_idx) {
         let invalid = do_move(m);

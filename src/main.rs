@@ -10,7 +10,7 @@ use std::time::Instant;
 use consts::*;
 use hash::{tt_clear, tt_resize, zobrist, kt_clear};
 use position::{POS, MoveList, do_move, undo_move, GameState};
-use movegen::{gen_moves, All};
+use movegen::{gen_moves, ALL};
 use search::{DEPTH, TIME, go};
 
 fn main() {
@@ -43,7 +43,7 @@ fn performance() {
 fn perft(depth_left: u8) -> u64 {
     if depth_left == 0 { return 1 }
     let mut moves = MoveList::default();
-    gen_moves::<All>(&mut moves);
+    gen_moves::<ALL>(&mut moves);
     let mut positions: u64 = 0;
     for m_idx in 0..moves.len {
         let m = moves.list[m_idx];
@@ -207,7 +207,7 @@ pub fn uci_to_u16(m: &str) -> u16 {
         }
     }
     let mut possible_moves = MoveList::default();
-    gen_moves::<All>(&mut possible_moves);
+    gen_moves::<ALL>(&mut possible_moves);
     for m_idx in 0..possible_moves.len {
         let um = possible_moves.list[m_idx];
         if no_flags & TWELVE == um & TWELVE {
