@@ -135,10 +135,6 @@ pub mod zobrist {
 
     impl ZobristVals {
         #[inline(always)]
-        pub fn piece_hash(&self, idx: usize, side: usize, piece: usize) -> u64 {
-            self.pieces[side][piece][idx]
-        }
-        #[inline(always)]
         pub fn castle_hash(&self, current: u8, update: u8) -> u64 {
             if current & update == 0 { return 0 }
             self.castle[lsb!(update as u64) as usize]

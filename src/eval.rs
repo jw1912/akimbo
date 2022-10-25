@@ -2,6 +2,7 @@ use super::consts::*;
 use super::position::{POS, NULLS, is_square_attacked};
 use super::{lsb, pop};
 
+#[inline(always)]
 pub fn eval() -> i16 {
     unsafe {
     let phase = std::cmp::min(POS.state.phase as i32, TPHASE);

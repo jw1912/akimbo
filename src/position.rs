@@ -90,6 +90,7 @@ impl MoveList {
 }
 
 // MAKING MOVES
+#[inline(always)]
 pub fn is_square_attacked(idx: usize, side: usize, occ: u64) -> bool {
     unsafe {
     let other = side ^ 1;

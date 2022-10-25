@@ -11,6 +11,7 @@ pub const ALL: u8 = 0;
 pub const CAPTURES: u8 = 1;
 pub const QUIETS: u8 = 2;
 
+#[inline(always)]
 fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16) {
     let f = from << 6;
     let mut aidx: u16;
@@ -76,6 +77,7 @@ unsafe fn piece_moves_general<const PIECE: usize, const U: u8>(move_list: &mut M
     }
 }
 
+#[inline(always)]
 unsafe fn castles(move_list: &mut MoveList, occupied: u64, friendly: u64) {
     let king_idx = lsb!(POS.pieces[KING] & friendly) as usize;
     if is_square_attacked(king_idx, POS.side_to_move, occupied) {
@@ -107,6 +109,7 @@ unsafe fn castles(move_list: &mut MoveList, occupied: u64, friendly: u64) {
 }
 
 // PAWN move generation code
+#[inline(always)]
 fn shift<const SIDE: usize, const AMOUNT: u8>(bb: u64) -> u64 {
     match SIDE {
         WHITE => bb >> AMOUNT,
@@ -115,6 +118,7 @@ fn shift<const SIDE: usize, const AMOUNT: u8>(bb: u64) -> u64 {
     }
 }
 
+#[inline(always)]
 fn idx_shift<const SIDE: usize, const AMOUNT: u16>(idx: u16) -> u16 {
     match SIDE {
         WHITE => idx + AMOUNT,
@@ -195,6 +199,7 @@ fn en_passants<const SIDE: usize>(move_list: &mut MoveList, pawns: u64, sq: u16)
 }
 
 // ROOK + BISHOP ATTACKS
+#[inline(always)]
 pub fn rook_attacks(idx: usize, occ: u64) -> u64 {
     let mut norths = NORTH[idx];
     let mut sq = lsb!(norths & occ | MSB) as usize;
@@ -211,6 +216,7 @@ pub fn rook_attacks(idx: usize, occ: u64) -> u64 {
     norths | easts | souths | wests
 }
 
+#[inline(always)]
 pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
     let mut nes = NE[idx];
     let mut sq = lsb!(nes & occ | MSB) as usize;
