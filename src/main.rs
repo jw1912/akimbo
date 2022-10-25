@@ -8,7 +8,7 @@ pub mod search;
 use std::io::stdin;
 use std::time::Instant;
 use consts::{VERSION, AUTHOR, CastleRights, EMPTY, WHITE, BLACK};
-use hash::{tt_clear, tt_resize, zobrist};
+use hash::{tt_clear, tt_resize, zobrist, kt_clear};
 use position::{POS, MoveList, do_move, undo_move, GameState};
 use movegen::{gen_moves, All};
 use search::{DEPTH, TIME, go};
@@ -47,6 +47,7 @@ fn performance() {
     TIME = 1000;
     let now = Instant::now();
     for fen  in _POSITIONS {
+        kt_clear();
         parse_fen(fen);
         println!("===Search Report===");
         println!("fen: {}", fen);
@@ -102,6 +103,7 @@ fn run_commands(commands: Vec<&str>) {
 fn ucinewgame() {
     parse_fen(STARTPOS);
     tt_clear();
+    kt_clear();
 }
 
 fn parse_go( commands: Vec<&str>) {

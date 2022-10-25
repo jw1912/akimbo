@@ -3,6 +3,8 @@ use std::ptr;
 
 // The position is stored as global state
 pub static mut POS: Position = Position::new();
+// count of how many nulls made to reach position
+pub static mut NULLS: u8 = 0;
 
 // MACROS
 macro_rules! bit {($x:expr) => {1 << $x}}
@@ -233,5 +235,29 @@ pub fn undo_move() {
         _ => {}
     }
     POS.fullmove_counter -= (POS.side_to_move == BLACK) as u16;
+    }
+}
+
+// NULL MOVES
+
+pub fn do_null() -> (u16, u64) {
+    unsafe {
+    NULLS += 1;
+    let enp = POS.state.en_passant_sq;
+    let hash = POS.state.zobrist;
+    POS.state.zobrist ^= (enp > 0) as u64 * ZVALS.en_passant[(enp & 7) as usize];
+    POS.state.en_passant_sq = 0;
+    POS.side_to_move ^= 1;
+    POS.state.zobrist ^= ZVALS.side;
+    (enp, hash)
+    }
+}
+
+pub fn undo_null((enp, hash): (u16, u64)) {
+    unsafe {
+    NULLS -= 1;
+    POS.state.zobrist = hash;
+    POS.state.en_passant_sq = enp;
+    POS.side_to_move ^= 1;
     }
 }

@@ -59,7 +59,7 @@ fn mvv_lva( m: u16) -> i16 {
     MVV_LVA[captured_pc][moved_pc]
 }
 
-fn score_move(m: u16, hash_move: u16) -> i16 {
+fn score_move(m: u16, hash_move: u16, killers: [u16; KILLERS_PER_PLY]) -> i16 {
     if m == hash_move {
         HASH_MOVE
     } else if is_capture!(m) {
@@ -67,6 +67,8 @@ fn score_move(m: u16, hash_move: u16) -> i16 {
     } else if is_promotion!(m) {
         let pc = (m >> 12) & 3;
         PROMOTIONS[pc as usize]
+    } else if killers.contains(&m) {
+        KILLER
     } else if is_castling!(m) {
         CASTLE
     } else {
@@ -75,9 +77,10 @@ fn score_move(m: u16, hash_move: u16) -> i16 {
 }
 
 fn score_moves(moves: &MoveList, move_scores: &mut MoveScores, hash_move: u16) {
+    let killers = unsafe{KT[PLY as usize]};
     for i in move_scores.start_idx..moves.len {
         let m = moves.list[i]; 
-        move_scores.push(score_move(m, hash_move));
+        move_scores.push(score_move(m, hash_move, killers));
     }
 }
 fn score_captures(moves: &MoveList, move_scores: &mut MoveScores) {
@@ -107,7 +110,7 @@ fn get_next_move(moves: &mut MoveList, move_scores: &mut MoveScores) -> Option<(
     Some((m, best_score))
 }
 
-unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, start_time: &Instant) -> i16 {
+unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, start_time: &Instant, allow_null: bool) -> i16 {
     // search aborting
     if STOP { return 0 }
     if NODES & 2047 == 0 && start_time.elapsed().as_millis() >= TIME {
@@ -115,7 +118,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         return 0
     }
     // draw detection
-    if is_draw_by_50() || is_draw_by_repetition(2 + (PLY == 0) as u8) || is_draw_by_material() { return 0 }
+    if NULLS == 0 && (is_draw_by_50() || is_draw_by_repetition(2 + (PLY == 0) as u8) || is_draw_by_material()) { return 0 }
     // mate distance pruning
     alpha = max(alpha, -MAX + PLY as i16);
     beta = min(beta, MAX - PLY as i16 - 1);
@@ -144,8 +147,16 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         }
     }
     // reverse futility pruning
-    if !pv && !in_check && !is_mate_score!(beta) && depth <= 8 && lazy_eval() >= beta + 120 * depth as i16 {
-        return beta
+    if !pv && !in_check && !is_mate_score!(beta){ 
+        let lazy_eval = lazy_eval();
+        if depth <= 8 && lazy_eval >= beta + 120 * depth as i16 {
+            return beta
+        } else if allow_null && depth >= 3 && POS.state.phase >= 6 && lazy_eval >= beta {
+            let ctx = do_null();
+            let score = -pvs(false, -beta, -beta + 1, depth - 3, false, start_time, false);
+            undo_null(ctx);
+            if score >= beta { return beta }
+        }
     }
     // generating and scoring moves
     let mut moves = MoveList::default();
@@ -167,11 +178,11 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         let r = (!in_check && !gives_check && count > 1 && m_score < 300) as i8;
         // score move
         let score = if count == 1 {
-            -pvs(pv, -beta, -alpha, depth - 1, gives_check, start_time)
+            -pvs(pv, -beta, -alpha, depth - 1, gives_check, start_time, false)
         } else {
-            let null_window_score = -pvs(false, -alpha - 1, -alpha, depth - 1 - r, gives_check, start_time);
+            let null_window_score = -pvs(false, -alpha - 1, -alpha, depth - 1 - r, gives_check, start_time, true);
             if (null_window_score < beta || r > 0) && null_window_score > alpha {
-                -pvs(pv, -beta, -alpha, depth - 1, gives_check, start_time)
+                -pvs(pv, -beta, -alpha, depth - 1, gives_check, start_time, false)
             } else { null_window_score }
         };
         undo_move();
@@ -183,6 +194,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
                 alpha = score;
                 if pv { PV_LINE[PLY as usize - 1] = m }
                 if score >= beta {
+                    if m & 0b0100_0000_0000_0000 == 0 { kt_push(m) };
                     bound = Bound::LOWER;
                     break 
                 }
@@ -225,7 +237,7 @@ pub fn go() {
     let now = Instant::now();
     for d in 0..DEPTH {
         let in_check = is_in_check();
-        let score = pvs(true, -MAX, MAX, d + 1, in_check, &now);
+        let score = pvs(true, -MAX, MAX, d + 1, in_check, &now, false);
         if STOP { break }
         let t = now.elapsed().as_millis();
         if t >= TIME { break }
@@ -242,5 +254,6 @@ pub fn go() {
     DEPTH = i8::MAX;
     TIME = 1000;
     println!("bestmove {}", u16_to_uci(&best_move));
+    kt_age();
     }
 }

@@ -1,10 +1,14 @@
-use super::consts::MATE_THRESHOLD;
+use super::consts::{MATE_THRESHOLD, MAX_PLY};
 use super::search::PLY;
 
+// HASH TABLE
 pub static mut TT: Vec<HashBucket> = Vec::new();
 static mut TT_SIZE: usize = 0;
 static mut FILLED: u64 = 0;
 
+// KILLER MOVE TABLE
+pub static mut KT: [[u16; KILLERS_PER_PLY]; MAX_PLY as usize] = [[0; KILLERS_PER_PLY]; MAX_PLY as usize];
+pub const KILLERS_PER_PLY: usize = 3;
 
 pub struct Bound;
 impl Bound {
@@ -186,4 +190,35 @@ pub mod zobrist {
         zobrist
         }
     }
+}
+
+pub fn kt_push(m: u16) {
+    unsafe {
+    let ply = PLY as usize - 1;
+    let lost_move = KT[ply][KILLERS_PER_PLY - 1];
+    let mut copy_found = false;
+    for idx in (1..KILLERS_PER_PLY).rev() {
+        let entry = KT[ply][idx - 1];
+        if entry == m { copy_found = true }
+        KT[ply][idx] = entry;
+    }
+    KT[ply as usize][0] = if copy_found {lost_move} else {m}
+    }
+}
+
+pub fn kt_age() {
+    unsafe {
+    for i in (2..MAX_PLY as usize).rev() {
+        KT[i] = KT[i - 2];
+    }
+    KT[0] = [0; KILLERS_PER_PLY];
+    KT[1] = [0; KILLERS_PER_PLY];
+    }
+}
+
+pub fn kt_clear() {
+    unsafe{
+    for ply in &mut KT {
+        *ply = [0; KILLERS_PER_PLY];
+    }}
 }
