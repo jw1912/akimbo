@@ -70,13 +70,13 @@ fn tt_encode(key: u16, best_move: u16, depth: i8, bound: u8, score: i16) -> u64 
 
 pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i16) {
     unsafe {
-    let key = (zobrist >> 48) as u16;
-    let idx = (zobrist as usize) % TT.len();
-    let bucket = &mut TT[idx];
-    let mut desired_idx = usize::MAX;
-    let mut smallest_depth = i8::MAX;
+    let key: u16 = (zobrist >> 48) as u16;
+    let idx: usize = (zobrist as usize) % TT.len();
+    let bucket: &mut HashBucket = &mut TT[idx];
+    let mut desired_idx: usize = usize::MAX;
+    let mut smallest_depth: i8 = i8::MAX;
     for (entry_idx, &entry) in bucket.0.iter().enumerate() {
-        let entry_data = tt_load(entry);
+        let entry_data: HashResult = tt_load(entry);
         if entry_data.key == key && depth > entry_data.depth {
             desired_idx = entry_idx;
             break;
@@ -102,12 +102,12 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
 }
 
 pub fn tt_probe(zobrist: u64) -> Option<HashResult> {
-    let key = (zobrist >> 48) as u16;
-    let idx = (zobrist as usize) % unsafe{TT.len()};
-    let bucket = unsafe{&TT[idx]};
+    let key: u16 = (zobrist >> 48) as u16;
+    let idx: usize = (zobrist as usize) % unsafe{TT.len()};
+    let bucket: &HashBucket = unsafe{&TT[idx]};
     for &data in &bucket.0 {
         if data as u16 == key {
-            let mut entry_data = tt_load(data);
+            let mut entry_data: HashResult = tt_load(data);
             if entry_data.score > MATE_THRESHOLD {
                 entry_data.score -= unsafe{PLY} as i16;
             } else if entry_data.score < -MATE_THRESHOLD {
@@ -142,7 +142,7 @@ pub mod zobrist {
 
         fn init() -> Self {
             fastrand::seed(353012);
-            let mut vals = Self {
+            let mut vals: ZobristVals = Self {
                 pieces: [[[0; 64]; 6]; 2],
                 castle: [0; 4],
                 en_passant: [0; 8],
@@ -163,20 +163,20 @@ pub mod zobrist {
 
     pub fn calc() -> u64 {
         unsafe {
-        let mut zobrist = 0;
+        let mut zobrist: u64 = 0;
         for (i, side) in POS.sides.iter().enumerate() {
             for (j, &pc) in POS.pieces.iter().enumerate() {
-                let mut piece = pc & side;
+                let mut piece: u64 = pc & side;
                 while piece > 0 {
-                    let idx = lsb!(piece) as usize;
+                    let idx: usize = lsb!(piece) as usize;
                     zobrist ^= ZVALS.pieces[i][j][idx];
                     pop!(piece)
                 }
             }
         }
-        let mut castle_rights = POS.state.castle_rights;
+        let mut castle_rights: u8 = POS.state.castle_rights;
         while castle_rights > 0 {
-            let ls1b = castle_rights & castle_rights.wrapping_neg();
+            let ls1b: u8 = castle_rights & castle_rights.wrapping_neg();
             zobrist ^= ZVALS.castle_hash(0b1111, ls1b);
             pop!(castle_rights)
         }
@@ -189,11 +189,11 @@ pub mod zobrist {
 
 pub fn kt_push(m: u16) {
     unsafe {
-    let ply = PLY as usize - 1;
-    let lost_move = KT[ply][KILLERS_PER_PLY - 1];
-    let mut copy_found = false;
+    let ply: usize = PLY as usize - 1;
+    let lost_move: u16 = KT[ply][KILLERS_PER_PLY - 1];
+    let mut copy_found: bool = false;
     for idx in (1..KILLERS_PER_PLY).rev() {
-        let entry = KT[ply][idx - 1];
+        let entry: u16 = KT[ply][idx - 1];
         if entry == m { copy_found = true }
         KT[ply][idx] = entry;
     }

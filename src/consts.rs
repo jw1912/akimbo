@@ -82,7 +82,7 @@ pub const G8: u64 = 0x4000000000000000;
 pub const H8: u64 = 0x8000000000000000;
 pub static CASTLE_RIGHTS: [u8; 64] = castle_rights();
 const fn castle_rights() -> [u8; 64] {
-    let mut rights = [CastleRights::ALL; 64];
+    let mut rights: [u8; 64] = [CastleRights::ALL; 64];
     rights[0] = 0b0111;
     rights[7] = 0b1011;
     rights[56] = 0b1101;
@@ -135,12 +135,12 @@ const DIRECTION: [[u64;64];2] = [
 ];
 
 const fn init_in_front() -> [[u64;64];2] {
-    let mut in_front = [[0;64];2];
-    let mut side = 0;
+    let mut in_front: [[u64;64];2] = [[0;64];2];
+    let mut side: usize = 0;
     while side < 2 {
-        let mut idx = 0;
+        let mut idx: usize = 0;
         while idx < 64 {
-            let file = idx & 7;
+            let file: usize = idx & 7;
             in_front[side][idx] = match file {
                 0 => DIRECTION[side][idx] | DIRECTION[side][idx + 1],
                 7 => DIRECTION[side][idx - 1] | DIRECTION[side][idx],
@@ -157,10 +157,10 @@ const fn init_in_front() -> [[u64;64];2] {
 pub const CMD: [i16; 64] = [6, 5, 4, 3, 3, 4, 5, 6, 5, 4, 3, 2, 2, 3, 4, 5, 4, 3, 2, 1, 1, 2, 3, 4, 3, 2, 1, 0, 0, 1, 2, 3, 3, 2, 1, 0, 0, 1, 2, 3, 4, 3, 2, 1, 1, 2, 3, 4, 5, 4, 3, 2, 2, 3, 4, 5, 6, 5, 4, 3, 3, 4, 5, 6];
 pub static MD: [[i16; 64]; 64] = manhattan();
 const fn manhattan() -> [[i16; 64]; 64] {
-    let mut res = [[0; 64]; 64];
+    let mut res: [[i16; 64]; 64] = [[0; 64]; 64];
     let mut i: i16 = 0;
     while i < 64 {
-        let mut j = 0;
+        let mut j: i16 = 0;
         while j < 64 {
             res[i as usize][j as usize] = 5 * CMD[i as usize] + 2 * (14 - ((i >> 3) - (j>> 3)).abs() + ((i & 7) - (j & 7)).abs());
             j += 1;

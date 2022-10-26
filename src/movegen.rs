@@ -13,7 +13,7 @@ pub const QUIETS: u8 = 2;
 
 #[inline(always)]
 fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16) {
-    let f = from << 6;
+    let f: u16 = from << 6;
     let mut aidx: u16;
     while attacks > 0 {
         aidx = lsb!(attacks);
@@ -25,8 +25,8 @@ fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16
 // generate all moves of a given type in a position
 pub fn gen_moves<const U: u8>(move_list: &mut MoveList) {
     unsafe {
-    let occupied = POS.sides[0] | POS.sides[1];
-    let friendly = POS.sides[POS.side_to_move];
+    let occupied: u64 = POS.sides[0] | POS.sides[1];
+    let friendly: u64 = POS.sides[POS.side_to_move];
     if U != CAPTURES && POS.state.castle_rights & CastleRights::SIDES[POS.side_to_move] > 0 {
         castles(move_list, occupied, friendly);
     }
@@ -44,12 +44,12 @@ pub fn gen_moves<const U: u8>(move_list: &mut MoveList) {
 }
 
 unsafe fn pawn_moves_general<const SIDE: usize, const U: u8>(move_list: &mut MoveList, occupied: u64) {
-    let pawns = POS.pieces[PAWN] & POS.sides[SIDE];
+    let pawns: u64 = POS.pieces[PAWN] & POS.sides[SIDE];
     if U != CAPTURES {
         pawn_pushes_general::<SIDE>(move_list, pawns, occupied);
     }
     if U != QUIETS {
-        let opps = POS.sides[SIDE ^ 1];
+        let opps: u64 = POS.sides[SIDE ^ 1];
         pawn_captures_general::<SIDE>(move_list, pawns, opps);
         if POS.state.en_passant_sq > 0 { en_passants::<SIDE>(move_list, pawns, POS.state.en_passant_sq) }
     }
@@ -79,7 +79,7 @@ unsafe fn piece_moves_general<const PIECE: usize, const U: u8>(move_list: &mut M
 
 #[inline(always)]
 unsafe fn castles(move_list: &mut MoveList, occupied: u64, friendly: u64) {
-    let king_idx = lsb!(POS.pieces[KING] & friendly) as usize;
+    let king_idx: usize = lsb!(POS.pieces[KING] & friendly) as usize;
     if is_square_attacked(king_idx, POS.side_to_move, occupied) {
         return
     }
@@ -130,7 +130,7 @@ fn idx_shift<const SIDE: usize, const AMOUNT: u16>(idx: u16) -> u16 {
 fn pawn_captures_general<const SIDE: usize>(move_list: &mut MoveList, mut attackers: u64, opponents: u64) {
     let mut from: u16;
     let mut attacks: u64;
-    let mut promo_attackers = attackers & PENRANK[SIDE];
+    let mut promo_attackers: u64 = attackers & PENRANK[SIDE];
     attackers &= !PENRANK[SIDE];
     while attackers > 0 {
         from = lsb!(attackers);
@@ -144,7 +144,7 @@ fn pawn_captures_general<const SIDE: usize>(move_list: &mut MoveList, mut attack
         attacks = PAWN_ATTACKS[SIDE][from as usize] & opponents;
         while attacks > 0 {
             cidx = lsb!(attacks);
-            let f = from << 6;
+            let f: u16 = from << 6;
             move_list.push(MoveFlags::KNIGHT_PROMO_CAPTURE | cidx | f);
             move_list.push(MoveFlags::BISHOP_PROMO_CAPTURE | cidx | f);
             move_list.push(MoveFlags::ROOK_PROMO_CAPTURE | cidx | f);
@@ -161,10 +161,10 @@ fn pawn_pushes_general<const SIDE: usize>(
     pawns: u64,
     occupied: u64,
 ) {
-    let empty = !occupied;
-    let mut pushable_pawns = shift::<SIDE, 8>(empty) & pawns;
-    let mut dbl_pushable_pawns = shift::<SIDE, 8>(shift::<SIDE, 8>(empty & DBLRANK[SIDE]) & empty) & pawns;
-    let mut promotable_pawns = pushable_pawns & PENRANK[SIDE];
+    let empty: u64 = !occupied;
+    let mut pushable_pawns: u64 = shift::<SIDE, 8>(empty) & pawns;
+    let mut dbl_pushable_pawns: u64 = shift::<SIDE, 8>(shift::<SIDE, 8>(empty & DBLRANK[SIDE]) & empty) & pawns;
+    let mut promotable_pawns: u64 = pushable_pawns & PENRANK[SIDE];
     pushable_pawns &= !PENRANK[SIDE];
     let mut idx: u16;
     while pushable_pawns > 0 {
@@ -175,8 +175,8 @@ fn pawn_pushes_general<const SIDE: usize>(
     while promotable_pawns > 0 {
         idx = lsb!(promotable_pawns);
         pop!(promotable_pawns);
-        let to = idx_shift::<SIDE, 8>(idx);
-        let f = idx << 6;
+        let to: u16 = idx_shift::<SIDE, 8>(idx);
+        let f: u16 = idx << 6;
         move_list.push(MoveFlags::KNIGHT_PROMO | to | f);
         move_list.push(MoveFlags::BISHOP_PROMO | to | f);
         move_list.push(MoveFlags::ROOK_PROMO | to | f);
@@ -190,9 +190,9 @@ fn pawn_pushes_general<const SIDE: usize>(
 }
 
 fn en_passants<const SIDE: usize>(move_list: &mut MoveList, pawns: u64, sq: u16) {
-    let mut attackers = PAWN_ATTACKS[SIDE ^ 1][sq as usize] & pawns;
+    let mut attackers: u64 = PAWN_ATTACKS[SIDE ^ 1][sq as usize] & pawns;
     while attackers > 0 {
-        let cidx = lsb!(attackers);
+        let cidx: u16 = lsb!(attackers);
         move_list.push( MoveFlags::EN_PASSANT | sq | cidx << 6 );
         pop!(attackers)
     }
@@ -201,16 +201,16 @@ fn en_passants<const SIDE: usize>(move_list: &mut MoveList, pawns: u64, sq: u16)
 // ROOK + BISHOP ATTACKS
 #[inline(always)]
 pub fn rook_attacks(idx: usize, occ: u64) -> u64 {
-    let mut norths = NORTH[idx];
-    let mut sq = lsb!(norths & occ | MSB) as usize;
+    let mut norths: u64 = NORTH[idx];
+    let mut sq: usize = lsb!(norths & occ | MSB) as usize;
     norths ^= NORTH[sq];
-    let mut easts = EAST[idx];
+    let mut easts: u64 = EAST[idx];
     sq = lsb!(easts & occ | MSB) as usize;
     easts ^= EAST[sq];
-    let mut souths = SOUTH[idx];
+    let mut souths: u64 = SOUTH[idx];
     sq = msb!(souths & occ | LSB) as usize;
     souths ^= SOUTH[sq];
-    let mut wests = WEST[idx];
+    let mut wests: u64 = WEST[idx];
     sq = msb!(wests & occ | LSB) as usize;
     wests ^= WEST[sq];
     norths | easts | souths | wests
@@ -218,16 +218,16 @@ pub fn rook_attacks(idx: usize, occ: u64) -> u64 {
 
 #[inline(always)]
 pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
-    let mut nes = NE[idx];
-    let mut sq = lsb!(nes & occ | MSB) as usize;
+    let mut nes: u64 = NE[idx];
+    let mut sq: usize = lsb!(nes & occ | MSB) as usize;
     nes ^= NE[sq];
-    let mut nws = NW[idx];
+    let mut nws: u64 = NW[idx];
     sq = lsb!(nws & occ | MSB) as usize;
     nws ^= NW[sq];
-    let mut ses = SE[idx];
+    let mut ses: u64 = SE[idx];
     sq = msb!(ses & occ | LSB) as usize;
     ses ^= SE[sq];
-    let mut sws = SW[idx];
+    let mut sws: u64 = SW[idx];
     sq = msb!(sws & occ | LSB) as usize;
     sws ^= SW[sq];
     nes | nws | ses | sws
