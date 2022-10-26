@@ -41,7 +41,7 @@ fn score_move(m: u16, hash_move: u16, killers: [u16; KILLERS_PER_PLY]) -> u16 {
 }
 
 fn score_moves(moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, start_idx: usize) {
-    let killers = unsafe{KT[PLY as usize]};
+    let killers: [u16; KILLERS_PER_PLY] = unsafe{KT[PLY as usize]};
     for i in start_idx..moves.len {
         let m: u16 = moves.list[i]; 
         move_scores.push(score_move(m, hash_move, killers));

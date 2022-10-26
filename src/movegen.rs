@@ -59,7 +59,7 @@ unsafe fn piece_moves_general<const PIECE: usize, const U: u8>(move_list: &mut M
     let mut from: u16;
     let mut idx: usize;
     let mut attacks: u64;
-    let mut attackers = POS.pieces[PIECE] & friendly;
+    let mut attackers: u64 = POS.pieces[PIECE] & friendly;
     while attackers > 0 {
         from = lsb!(attackers);
         idx = from as usize;
