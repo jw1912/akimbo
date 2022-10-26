@@ -9,8 +9,7 @@ pub fn static_eval() -> i16 {
     let phase: i32 = std::cmp::min(POS.state.phase as i32, TPHASE);
     let passers: i16 = passers();
     let mg: i16 = POS.state.mg + passers * PASSERS_MG;
-    let mut eg: i16 = POS.state.eg + passers * PASSERS_EG;
-    if eg != 0 {eg += mop_up((eg < 0) as usize)}
+    let eg: i16 = POS.state.eg + passers * PASSERS_EG;
     SIDE_FACTOR[POS.side_to_move] * ((phase * mg as i32 + (TPHASE - phase) * eg as i32) / TPHASE) as i16
     }
 }
@@ -72,10 +71,4 @@ fn bspans(mut pwns: u64) -> u64 {
     pwns |= pwns >> 16;
     pwns |= pwns >> 32;
     pwns >> 8
-}
-
-unsafe fn mop_up(winning_side: usize) -> i16 {
-    let wk: usize = lsb!(POS.pieces[KING] & POS.sides[winning_side]) as usize;
-    let lk: usize = lsb!(POS.pieces[KING] & POS.sides[winning_side ^ 1]) as usize;
-    SIDE_FACTOR[winning_side] * MD[lk][wk]
 }

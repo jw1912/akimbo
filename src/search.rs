@@ -175,7 +175,6 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     
     // going through moves
     PLY += 1;
-    KT[PLY as usize] = [0; KILLERS_PER_PLY];
     let mut best_move: u16 = 0;
     let mut best_score: i16 = -MAX;
     let mut bound: u8 = Bound::UPPER;
@@ -233,10 +232,10 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     if count == 0 { return (in_check as i16) * (-MAX + PLY as i16) }
 
     // write to hash if appropriate
-    if write_to_hash { tt_push(POS.state.zobrist, best_move, depth, bound, best_score) }
+    if write_to_hash { tt_push(POS.state.zobrist, best_move, depth, bound, alpha) }
 
-    // fail-soft
-    best_score
+    // fail-hard
+    alpha
 }
 
 /// Performas a quiescence search to more effectively evluate positions 

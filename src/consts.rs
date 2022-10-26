@@ -128,23 +128,6 @@ pub static PST_EG: [[i16; 64];6] = [
   [-74, -35, -18, -18, -11, 15, 4, -17, -12, 17, 14, 17, 17, 38, 23, 11, 10, 17, 23, 15, 20, 45, 44, 13, -8, 22, 24, 27, 26, 33, 26, 3, -18, -4, 21, 24, 27, 23, 9, -11, -19, -3, 11, 21, 23, 16, 7, -9, -27, -11, 4, 13, 14, 4, -5, -17, -53, -34, -21, -11, -28, -14, -24, -43],
 ]; 
 
-// king eval stuff
-pub const CMD: [i16; 64] = [6, 5, 4, 3, 3, 4, 5, 6, 5, 4, 3, 2, 2, 3, 4, 5, 4, 3, 2, 1, 1, 2, 3, 4, 3, 2, 1, 0, 0, 1, 2, 3, 3, 2, 1, 0, 0, 1, 2, 3, 4, 3, 2, 1, 1, 2, 3, 4, 5, 4, 3, 2, 2, 3, 4, 5, 6, 5, 4, 3, 3, 4, 5, 6];
-pub static MD: [[i16; 64]; 64] = manhattan();
-const fn manhattan() -> [[i16; 64]; 64] {
-    let mut res: [[i16; 64]; 64] = [[0; 64]; 64];
-    let mut i: i16 = 0;
-    while i < 64 {
-        let mut j: i16 = 0;
-        while j < 64 {
-            res[i as usize][j as usize] = 5 * CMD[i as usize] + 2 * (14 - (((i >> 3) - (j>> 3)).abs() + ((i & 7) - (j & 7)).abs()));
-            j += 1;
-        }
-        i += 1;
-    }
-    res
-}
-
 // fen strings
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 pub const KIWIPETE: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
