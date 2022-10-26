@@ -173,9 +173,10 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     best_score
 }
 
-unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
+pub fn quiesce(mut alpha: i16, beta: i16) -> i16 {
+    unsafe {
     NODES += 1;
-    let stand_pat = eval();
+    let stand_pat = static_eval();
     if stand_pat >= beta { return beta }
     if stand_pat < alpha - 850 { return alpha }
     if alpha < stand_pat { alpha = stand_pat }
@@ -192,7 +193,7 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
         if score >= beta { return beta }
         if score > alpha { alpha = score }
     }
-    alpha
+    alpha}
 }
 
 pub fn go() {

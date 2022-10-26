@@ -58,9 +58,11 @@ fn perft(depth_left: u8) -> u64 {
 
 fn uci_run() {
     parse_fen(STARTPOS);
-    tt_resize(128 * 1024 * 1024);
+    tt_resize(1024 * 1024);
     println!("id name akimbo {}", VERSION);
     println!("id author {}", AUTHOR);
+    println!("option name Hash type spin default 128 min 1 max 512");
+    println!("option name Clear Hash type button");
     println!("uciok");
     loop {
         let mut input = String::new();
@@ -76,7 +78,9 @@ fn run_commands(commands: Vec<&str>) {
         "ucinewgame" => ucinewgame(),
         "go" => parse_go(commands),
         "position" => parse_position(commands),
+        "setoption" => parse_setoption(commands),
         "performance" => performance(),
+        "eval" => println!("info quiesce cp {} static_eval cp {} lazy_eval cp {}", search::quiesce(-MAX, MAX), eval::static_eval(), eval::lazy_eval()),
         _ => {},
     };
 }
@@ -170,12 +174,16 @@ fn parse_position(commands: Vec<&str>) {
     for m in moves {do_move(uci_to_u16(&m));}
 }
 
-/// UCI MOVE FORMAT
-fn idx_to_sq(idx: u16) -> String {
-    let srank = ((idx >> 3) + 1).to_string();
-    let sfile = FILES[(idx & 7) as usize];
-    format!("{sfile}{srank}")
+fn parse_setoption(commands: Vec<&str>) {
+    match commands[..4] {
+        ["setoption", "name", "Hash", "value"] => tt_resize(commands[4].parse::<usize>().unwrap_or(1) * 1024 * 1024),
+        ["setoption", "name", "Clear", "Hash"] => tt_clear(),
+        _ => {},
+    }
 }
+
+// UCI MOVE FORMAT
+macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", FILES[($idx & 7) as usize], ($idx >> 3) + 1)}}
 fn sq_to_idx(sq: &str) -> u16 {
     let chs: Vec<char> = sq.chars().collect();
     let file: u16 = FILES.iter().position(|&ch| ch == chs[0]).unwrap_or(0) as u16;
@@ -186,10 +194,8 @@ const PROMOS: [&str; 4] = ["n","b","r","q"];
 const PROMO_BIT: u16 = 0b1000_0000_0000_0000;
 pub fn u16_to_uci(m: &u16) -> String {
     let mut promo = "";
-    if m & PROMO_BIT > 0 {
-        promo = PROMOS[((m >> 12) & 0b11) as usize];
-    }
-    format!("{}{}{} ", idx_to_sq((m >> 6) & 0b111111), idx_to_sq(m & 0b111111), promo)
+    if m & PROMO_BIT > 0 {promo = PROMOS[((m >> 12) & 0b11) as usize]}
+    format!("{}{}{} ", idx_to_sq!((m >> 6) & 0b111111), idx_to_sq!(m & 0b111111), promo)
 }
 const TWELVE: u16 = 0b0000_1111_1111_1111;
 pub fn uci_to_u16(m: &str) -> u16 {
