@@ -1,8 +1,17 @@
+//! akimbo, a UCI compatible chess engine written in Rust.
+#![warn(missing_docs)]
+
+/// Contains all constant and static **immutable** values used in the engine.
 pub mod consts;
+/// Contains all methods that mutate the global POS (apart from parsing positions).
 pub mod position;
+/// Conatins pseudo-legal, staged move generation code.
 pub mod movegen;
+/// Contains all tables (hash, killer move, etc).
 pub mod hash;
+/// Contains the evaluation code for static positions and detecting draws.
 pub mod eval;
+/// Contains the main engine code for searching positions.
 pub mod search;
 
 use std::io::stdin;
@@ -13,6 +22,7 @@ use position::{POS, MoveList, do_move, undo_move, GameState};
 use movegen::{gen_moves, ALL};
 use search::{DEPTH, TIME, go};
 
+/// Main loop waits until receiving the "uci" command.
 fn main() {
     println!("akimbo, created by Jamie Whiting");
     loop {
@@ -23,6 +33,8 @@ fn main() {
     }
 }
 
+/// Runs a fixed time (1 second) search on a small collection of FENs,
+/// used to check for any glaring bugs introduced by new search techniques.
 fn performance() {
     unsafe {
     TIME = 1000;
@@ -40,6 +52,7 @@ fn performance() {
     }
 }
 
+/// Runs a perft on the current position to a given depth.
 fn perft(depth_left: u8) -> u64 {
     if depth_left == 0 { return 1 }
     let mut moves = MoveList::default();
@@ -56,6 +69,7 @@ fn perft(depth_left: u8) -> u64 {
     positions
 }
 
+/// Main uci loop, taking in input from the command line.
 fn uci_run() {
     parse_fen(STARTPOS);
     tt_resize(1024 * 1024);
@@ -68,11 +82,12 @@ fn uci_run() {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
         let commands: Vec<&str> = input.split(' ').map(|v| v.trim()).collect();
-        run_commands(commands);
+        parse_commands(commands);
     }
 }
 
-fn run_commands(commands: Vec<&str>) {
+/// Parses the uci commands received.
+fn parse_commands(commands: Vec<&str>) {
     match commands[0] {
         "isready" => println!("readyok"),
         "ucinewgame" => ucinewgame(),
@@ -85,12 +100,14 @@ fn run_commands(commands: Vec<&str>) {
     };
 }
 
+/// Resets position to starting position, clears hash and killer move tables.
 fn ucinewgame() {
     parse_fen(STARTPOS);
     tt_clear();
     kt_clear();
 }
 
+/// Parses "go ..." and runs the requested search based on this.
 fn parse_go( commands: Vec<&str>) {
     #[derive(PartialEq)]
     enum Tokens {None, Depth, Perft, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
@@ -147,6 +164,7 @@ fn parse_go( commands: Vec<&str>) {
     }
 }
 
+/// Parses "position ...".
 fn parse_position(commands: Vec<&str>) {
     enum Tokens {Nothing, Fen, Moves}
     let mut fen = String::from("");
@@ -174,6 +192,7 @@ fn parse_position(commands: Vec<&str>) {
     for m in moves {do_move(uci_to_u16(&m));}
 }
 
+/// Parses "setoption name ...".
 fn parse_setoption(commands: Vec<&str>) {
     match commands[..4] {
         ["setoption", "name", "Hash", "value"] => tt_resize(commands[4].parse::<usize>().unwrap_or(1) * 1024 * 1024),
@@ -182,22 +201,24 @@ fn parse_setoption(commands: Vec<&str>) {
     }
 }
 
-// UCI MOVE FORMAT
 macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", FILES[($idx & 7) as usize], ($idx >> 3) + 1)}}
+
+/// Converts e.g. "a6" to index 5.
 fn sq_to_idx(sq: &str) -> u16 {
     let chs: Vec<char> = sq.chars().collect();
     let file: u16 = FILES.iter().position(|&ch| ch == chs[0]).unwrap_or(0) as u16;
     let rank: u16 = chs[1].to_string().parse::<u16>().unwrap_or(0) - 1;
     8 * rank + file
 }
-const PROMOS: [&str; 4] = ["n","b","r","q"];
-const PROMO_BIT: u16 = 0b1000_0000_0000_0000;
+
+/// Converts a u16 representation of a move to UCI format.
 pub fn u16_to_uci(m: &u16) -> String {
     let mut promo: &str = "";
     if m & PROMO_BIT > 0 {promo = PROMOS[((m >> 12) & 0b11) as usize]}
     format!("{}{}{} ", idx_to_sq!((m >> 6) & 0b111111), idx_to_sq!(m & 0b111111), promo)
 }
-const TWELVE: u16 = 0b0000_1111_1111_1111;
+
+/// Converts standard UCI move notation to the usual u16 format used by the engine.
 pub fn uci_to_u16(m: &str) -> u16 {
     let l: usize = m.len();
     let from: u16 = sq_to_idx(&m[0..2]);
@@ -228,10 +249,7 @@ pub fn uci_to_u16(m: &str) -> u16 {
     panic!("")
 }
 
-
-// FEN
-const FILES: [char; 8] = ['a','b','c','d','e','f','g','h'];
-const PIECES: [char; 12] = ['P','N','B','R','Q','K','p','n','b','r','q','k'];
+/// Parses a FEN string and sets the global POS to it.
 pub fn parse_fen(s: &str) {
     unsafe {
     let vec: Vec<&str> = s.split_whitespace().collect();

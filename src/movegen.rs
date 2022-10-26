@@ -1,16 +1,21 @@
 use super::{consts::*, position::{POS, is_square_attacked, MoveList}};
 
-// macros
+/// Inlines a reverse bitscan.
 #[macro_export]
 macro_rules! lsb {($x:expr) => {$x.trailing_zeros() as u16}}
 macro_rules! msb {($x:expr) => {63 ^ $x.leading_zeros() as u16}}
+/// Inlines popping the least significant bit from a number.
 #[macro_export]
 macro_rules! pop {($x:expr) => {$x &= $x - 1}}
 
+/// Generate all moves.
 pub const ALL: u8 = 0;
+/// Generate captures only.
 pub const CAPTURES: u8 = 1;
+/// Generate quiet moves only.
 pub const QUIETS: u8 = 2;
 
+/// Encodes a set of attacks with a given move flag and from-square.
 #[inline(always)]
 fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16) {
     let f: u16 = from << 6;
@@ -22,7 +27,7 @@ fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16
     }
 }
 
-// generate all moves of a given type in a position
+/// Generates all moves of a given type in the current position.
 pub fn gen_moves<const U: u8>(move_list: &mut MoveList) {
     unsafe {
     let occupied: u64 = POS.sides[0] | POS.sides[1];
@@ -198,7 +203,7 @@ fn en_passants<const SIDE: usize>(move_list: &mut MoveList, pawns: u64, sq: u16)
     }
 }
 
-// ROOK + BISHOP ATTACKS
+/// Calculates rook attacks from a given square and occupancy.
 #[inline(always)]
 pub fn rook_attacks(idx: usize, occ: u64) -> u64 {
     let mut norths: u64 = NORTH[idx];
@@ -216,6 +221,7 @@ pub fn rook_attacks(idx: usize, occ: u64) -> u64 {
     norths | easts | souths | wests
 }
 
+/// Calculates bishop attacks from a given square and occupancy.
 #[inline(always)]
 pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
     let mut nes: u64 = NE[idx];

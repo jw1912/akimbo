@@ -1,40 +1,59 @@
 use super::consts::{MATE_THRESHOLD, MAX_PLY};
 use super::search::PLY;
 
-// HASH TABLE
+/// HASH TABLE
 pub static mut TT: Vec<HashBucket> = Vec::new();
+/// Number of **buckets** in the transposition table
 static mut TT_SIZE: usize = 0;
+/// Number of **entries** filled
 static mut FILLED: u64 = 0;
 
-// KILLER MOVE TABLE
+/// Killer Move Table
 pub static mut KT: [[u16; KILLERS_PER_PLY]; MAX_PLY as usize] = [[0; KILLERS_PER_PLY]; MAX_PLY as usize];
+/// Testing shows 3 killers per ply is most beneficial
 pub const KILLERS_PER_PLY: usize = 3;
 
+/// The type of bound determined by the hash entry when it was searched.
 pub struct Bound;
 impl Bound {
+    /// Best score >= beta.
     pub const LOWER: u8 = 1;
+    /// Best score < alpha.
     pub const UPPER: u8 = 2;
+    /// Best score between alpha and beta.
     pub const EXACT: u8 = 3;
 }
 
+/// A 64 byte-alligned bucket that can hold up to 8 entries
+/// with the same hash key modulo the number of buckets in 
+/// the hash table.
 #[derive(Clone, Copy, Default)]
 #[repr(align(64))]
 pub struct HashBucket(pub [u64; 8]);
 const BUCKET_SIZE: usize = std::mem::size_of::<HashBucket>();
 
+/// Split of the encoded entries into their constituent parts.
 #[derive(Default)]
 pub struct HashResult {
+    /// Last 16 bits of the zobrist hash for the position.
     pub key: u16,
+    /// Hash move.
     pub best_move: u16,
+    /// Hash score.
     pub score: i16,
+    /// Depth of search that determined this entry.
     pub depth: i8,
+    /// Bound type.
     pub bound: u8,
 }
 
+/// The proportion of the hash table that is filled, 
+/// measured in permill.
 pub fn hashfull() -> u64 {
     unsafe {FILLED * 1000 / (8 * TT_SIZE) as u64}
 }
 
+/// Resizes the hash table to given size **in bytes**.
 pub fn tt_resize(size: usize) {
     unsafe {
         TT_SIZE = size / BUCKET_SIZE;
@@ -43,6 +62,7 @@ pub fn tt_resize(size: usize) {
     }
 }
 
+/// Clears the hash table.
 pub fn tt_clear() {
     unsafe {
         TT = vec![Default::default(); TT_SIZE];
@@ -50,6 +70,7 @@ pub fn tt_clear() {
     }
 }
 
+/// Loads HashResult from a given hash entry.
 fn tt_load(data: u64) -> HashResult {
     HashResult {
         key: data as u16,
@@ -60,6 +81,7 @@ fn tt_load(data: u64) -> HashResult {
     }
 }
 
+/// Encode a search result into a hash entry.
 fn tt_encode(key: u16, best_move: u16, depth: i8, bound: u8, score: i16) -> u64 {
     (key as u64)
     | ((best_move as u64) << 16)
@@ -68,6 +90,11 @@ fn tt_encode(key: u16, best_move: u16, depth: i8, bound: u8, score: i16) -> u64 
     | ((bound as u64) << 56)
 }
 
+/// Push a search result to the hash table.
+/// #### Replacement Scheme
+/// 1. Prioritise replacing entries for the same position (key) that have lower depth.
+/// 2. Fill empty entries in bucket.
+/// 3. Replace lowest depth entry in bucket.
 pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i16) {
     unsafe {
     let key: u16 = (zobrist >> 48) as u16;
@@ -101,6 +128,7 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
     }
 }
 
+/// Probe the hash table to find an entry with given zobrist key.
 pub fn tt_probe(zobrist: u64) -> Option<HashResult> {
     let key: u16 = (zobrist >> 48) as u16;
     let idx: usize = (zobrist as usize) % unsafe{TT.len()};
@@ -119,21 +147,31 @@ pub fn tt_probe(zobrist: u64) -> Option<HashResult> {
     None
 }
 
+/// Methods and initialisation of zobrist hashing values.
 pub mod zobrist {
     use lazy_static::lazy_static;
     use fastrand;
     use crate::{lsb, pop, position::POS};
 
-    lazy_static!(pub static ref ZVALS: ZobristVals = ZobristVals::init(););
+    lazy_static!(
+        /// Zobrist hashing values, initialised on first call.
+        pub static ref ZVALS: ZobristVals = ZobristVals::init();
+    );
 
+    /// Container for zobrist hashing values.
     pub struct ZobristVals {
+        /// Hash value for each piece on each square.
         pub pieces: [[[u64; 64]; 6]; 2],
+        /// Castle hash values
         pub castle: [u64; 4],
+        /// En passant hash value based on file.
         pub en_passant: [u64; 8],
+        /// Side to move hash value
         pub side: u64,
     }
 
     impl ZobristVals {
+        /// Calculates mask for updating castle hash.
         #[inline(always)]
         pub fn castle_hash(&self, current: u8, update: u8) -> u64 {
             if current & update == 0 { return 0 }
@@ -161,6 +199,7 @@ pub mod zobrist {
         }
     }
 
+    /// Calculate the zobrist hash value for the current position, from scratch.
     pub fn calc() -> u64 {
         unsafe {
         let mut zobrist: u64 = 0;
@@ -187,6 +226,7 @@ pub mod zobrist {
     }
 }
 
+/// Push a move to the killer moves table.
 pub fn kt_push(m: u16) {
     unsafe {
     let ply: usize = PLY as usize - 1;
@@ -201,6 +241,8 @@ pub fn kt_push(m: u16) {
     }
 }
 
+/// Shift all entries in the killer moves table up by 2 ply, so that when searching during
+/// games previous search's killer moves may help.
 pub fn kt_age() {
     unsafe {
     for i in (2..MAX_PLY as usize).rev() {
@@ -211,6 +253,7 @@ pub fn kt_age() {
     }
 }
 
+/// Clear the killer moves table.
 pub fn kt_clear() {
     unsafe{
     for ply in &mut KT {

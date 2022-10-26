@@ -6,9 +6,11 @@ use super::movegen::*;
 use super::eval::*;
 use super::u16_to_uci;
 
-// search info
+/// Maximum depth to search.
 pub static mut DEPTH: i8 = i8::MAX;
+/// Maximum time allocated to search.
 pub static mut TIME: u128 = 1000;
+/// Maximum ply reachable.
 pub static mut PLY: i8 = 0;
 
 // UCI info
@@ -171,6 +173,8 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     best_score
 }
 
+/// Performas a quiescence search to more effectively evluate positions 
+/// (particularly exchanges at the horizon).
 pub fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     unsafe {
     NODES += 1;
@@ -194,6 +198,8 @@ pub fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     alpha}
 }
 
+/// Runs main iterative deepening loop for the search, 
+/// and outputs relevant information while doing so.
 pub fn go() {
     unsafe {
     NODES = 0;
@@ -213,7 +219,7 @@ pub fn go() {
             false => ("cp", score)
         };
         let nps: u32 = ((NODES as f64) * 1000.0 / (t as f64)) as u32;
-        let pv_str = PV_LINE[..(d as usize + 1)].iter().map(u16_to_uci).collect::<String>();
+        let pv_str: String = PV_LINE[..(d as usize + 1)].iter().map(u16_to_uci).collect();
         println!("info depth {} seldepth {} score {} {} time {} nodes {} nps {} hashfull {} pv {}", d + 1, SELDEPTH, stype, sval, t, NODES, nps, hashfull(), pv_str);
         if is_mate_score!(score) { break }
     }

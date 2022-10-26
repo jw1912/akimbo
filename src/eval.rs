@@ -2,6 +2,7 @@ use super::consts::*;
 use super::position::{POS, NULLS, is_square_attacked};
 use super::{lsb, pop};
 
+/// Returns a full static evaluation of the current position.
 #[inline(always)]
 pub fn static_eval() -> i16 {
     unsafe {
@@ -14,6 +15,7 @@ pub fn static_eval() -> i16 {
     }
 }
 
+/// Returns a piece-square table only evaluation of the current position.
 #[inline(always)]
 pub fn lazy_eval() -> i16 {
     unsafe {
@@ -22,6 +24,8 @@ pub fn lazy_eval() -> i16 {
     }
 }
 
+/// Calculates the midgame and endgame piece-square table evaluations and the game 
+/// phase of the current position from scratch.
 pub fn calc() -> (i16, i16, i16) {
     let mut res: (i16, i16, i16) = (0,0,0);
     for (i, side) in unsafe{POS.sides.iter().enumerate()} {
@@ -42,6 +46,7 @@ pub fn calc() -> (i16, i16, i16) {
     res
 }
 
+/// Is the current side to move in check?
 pub fn is_in_check() -> bool {
     unsafe {
     let king_idx: usize = lsb!(POS.pieces[KING] & POS.sides[POS.side_to_move]) as usize;
@@ -49,6 +54,8 @@ pub fn is_in_check() -> bool {
     }
 }
 
+/// Checks for an n-fold repetition by going through the state stack and
+/// comparing zobrist keys.
 pub fn is_draw_by_repetition(num: u8) -> bool {
     unsafe {
     let l: usize = POS.stack.len();
@@ -67,13 +74,16 @@ pub fn is_draw_by_repetition(num: u8) -> bool {
     } 
 }
 
+/// Has the position reached a draw by the fifty-move rule.
 #[inline(always)]
 pub fn is_draw_by_50() -> bool {
     unsafe{NULLS > 0 && POS.state.halfmove_clock >= 100}
 }
 
-const SQ1: u64 = 0x55AA55AA55AA55AA;
-const SQ2: u64 = 0xAA55AA55AA55AA55;
+/// Is there a FIDE draw by insufficient material?
+///  - KvK
+///  - KvKN or KvKB
+///  - KBvKB and both bishops the same colour
 pub fn is_draw_by_material() -> bool {
     unsafe {
     let pawns: u64 = POS.pieces[PAWN];
@@ -91,9 +101,7 @@ pub fn is_draw_by_material() -> bool {
     }
 }
 
-const NOT_A: u64 = 0xfefefefefefefefe;
-const NOT_H: u64 = 0x7f7f7f7f7f7f7f7f;
-
+/// Calculates the net passed pawns from white's perspective.
 unsafe fn passers() -> i16 {
     let wp: u64 = POS.pieces[PAWN] & POS.sides[WHITE];
     let bp: u64 = POS.pieces[PAWN] & POS.sides[BLACK];

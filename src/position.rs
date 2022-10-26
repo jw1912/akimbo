@@ -1,17 +1,16 @@
 use super::{lsb, pop, consts::*, movegen::{bishop_attacks, rook_attacks}, hash::zobrist::ZVALS};
 use std::ptr;
 
-// The position is stored as global state
+/// The position is stored as global state.
 pub static mut POS: Position = Position { 
     pieces: [0; 6], sides: [0; 2], squares: [0; 64], side_to_move: 0, 
     state: GameState { zobrist: 0, phase: 0, mg: 0, eg: 0, en_passant_sq: 0, halfmove_clock: 0, castle_rights: 0 }, 
     fullmove_counter: 0, stack: Vec::new()
 };
-// count of how many nulls made to reach position
+/// Count of how many null moves were made during reaching the current position.
 pub static mut NULLS: u8 = 0;
 
-// MACROS
-macro_rules! bit {($x:expr) => {1 << $x}}
+/// Removes/adds a piece to the position bitboards.
 #[macro_export]
 macro_rules! toggle {
     ($side:expr, $pc:expr, $bit:expr) => {
@@ -35,40 +34,63 @@ macro_rules! add {
         POS.state.eg += SIDE_FACTOR[$side] * PST_EG[$pc][indx];
     };
 }
+macro_rules! bit {($x:expr) => {1 << $x}}
 
-// STRUCTS
+/// Contains all relevant information for the current board state.
 pub struct Position {
+    /// Array of bitboards, one for each piece type.
     pub pieces: [u64; 6],
+    /// Occupancy bitboards for each side.
     pub sides: [u64; 2],
+    /// List of the pieces on each square.
     pub squares: [u8; 64],
+    /// Side that is about to move.
     pub side_to_move: usize,
+    /// Current state that will be pushed to the state stack.
     pub state: GameState,
+    /// Number of full moves played to reach the current position.
     pub fullmove_counter: u16,
+    /// State stack (history) of the position.
     pub stack: Vec<MoveState>,
 }
 
+/// Holds state of the position, to be copied during move-making.
 #[derive(Clone, Copy, Default)]
 pub struct GameState {
+    /// Zobrist hash key for the position.
     pub zobrist: u64,
+    /// Current game-phase heuristic.
     pub phase: i16,
+    /// Current midgame piece-square table eval.
     pub mg: i16,
+    /// Current endgame piece-square table eval.
     pub eg: i16,
+    /// Target square for en passant (0 if not available).
     pub en_passant_sq: u16,
+    /// Number of half-moves without a capture or pawn push.
     pub halfmove_clock: u8,
+    /// Castling rights for each side.
     pub castle_rights: u8,
 }
 
+/// Holds all relevant move information that needs to be retrieved on unmake.
 #[derive(Clone, Copy)]
 pub struct MoveState {
+    /// Game state.
     pub state: GameState,
+    /// Last move.
     pub m: u16,
+    /// Piece last moved.
     pub moved_pc: u8,
+    /// Piece last captured.
     pub captured_pc: u8,
 }
 
-// movelist struct stores moves and scores
+/// Stack allocated list, to holds moves and move scores.
 pub struct MoveList {
+    /// List, 256 moves available.
     pub list: [u16; 256],
+    /// Length (used capacity) of the list.
     pub len: usize,
 }
 impl Default for MoveList {
@@ -77,11 +99,13 @@ impl Default for MoveList {
     }
 }
 impl MoveList {
+    /// Pushes an item to the move list.
     #[inline(always)]
     pub fn push(&mut self, m: u16) {
         self.list[self.len] = m;
         self.len += 1;
     }
+    /// Swaps two items in the move list.
     #[inline(always)]
     pub fn swap_unchecked(&mut self, i: usize, j: usize) {
         let ptr: *mut u16 = self.list.as_mut_ptr();
@@ -89,7 +113,7 @@ impl MoveList {
     }
 }
 
-// MAKING MOVES
+/// Is the given square under attack by the opposing side?
 #[inline(always)]
 pub fn is_square_attacked(idx: usize, side: usize, occ: u64) -> bool {
     unsafe {
@@ -104,6 +128,7 @@ pub fn is_square_attacked(idx: usize, side: usize, occ: u64) -> bool {
     }
 }
 
+/// Makes a given move.
 pub fn do_move(m: u16) -> bool {
     unsafe {
     let opp: usize = POS.side_to_move ^ 1;
@@ -189,6 +214,7 @@ pub fn do_move(m: u16) -> bool {
     }
 }
 
+/// Undoes the last move played.
 pub fn undo_move() {
     unsafe {
     let opp: usize = POS.side_to_move;
@@ -239,7 +265,7 @@ pub fn undo_move() {
     }
 }
 
-// NULL MOVES
+/// Makes a null move.
 pub fn do_null() -> (u16, u64) {
     unsafe {
     NULLS += 1;
@@ -253,6 +279,7 @@ pub fn do_null() -> (u16, u64) {
     }
 }
 
+/// Undoes a null move.
 pub fn undo_null((enp, hash): (u16, u64)) {
     unsafe {
     NULLS -= 1;
