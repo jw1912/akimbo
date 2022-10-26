@@ -163,7 +163,6 @@ fn pawn_captures_general<const SIDE: usize>(move_list: &mut MoveList, mut attack
     }
 }
 
-/// finds all unpinned-pawn pushes
 fn pawn_pushes_general<const SIDE: usize>(
     move_list: &mut MoveList,
     pawns: u64,

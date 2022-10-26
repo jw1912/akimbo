@@ -3,7 +3,7 @@
 #![deny(missing_docs)]
 
 /// Contains all constant and static **immutable** values used in the engine.
-mod consts;
+pub mod consts;
 /// Contains all methods that mutate the global POS (apart from parsing positions).
 pub mod position;
 /// Conatins pseudo-legal move generation code.
@@ -36,10 +36,11 @@ fn main() {
 
 /// Runs a fixed time (1 second) search on a small collection of FENs,
 /// used to check for any glaring bugs introduced by new search techniques.
-fn performance() {
-    unsafe {TIME = 1000}
+fn performance(commands: Vec<&str>) {
+    let time: u128 = if commands.len() >= 2 {commands[1].parse::<u128>().unwrap_or(1000)} else {1000};
     let now = Instant::now();
     for fen in _POSITIONS {
+        unsafe {TIME = time;}
         kt_clear();
         parse_fen(fen);
         println!("===Search Report===");
@@ -93,7 +94,7 @@ fn parse_commands(commands: Vec<&str>) {
         "go" => parse_go(commands),
         "position" => parse_position(commands),
         "setoption" => parse_setoption(commands),
-        "performance" => performance(),
+        "performance" => performance(commands),
         _ => {},
     };
 }

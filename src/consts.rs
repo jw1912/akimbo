@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 // engine details
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
