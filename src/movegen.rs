@@ -35,35 +35,31 @@ pub fn gen_moves<const U: u8>(move_list: &mut MoveList) {
     unsafe {
     let occupied: u64 = POS.sides[0] | POS.sides[1];
     let friendly: u64 = POS.sides[POS.side_to_move];
-    if U != CAPTURES && POS.state.castle_rights & CastleRights::SIDES[POS.side_to_move] > 0 {
-        castles(move_list, occupied, friendly);
-    }
-    match POS.side_to_move {
-        0 => pawn_moves_general::<{ WHITE }, U>(move_list, occupied),
-        1 => pawn_moves_general::<{ BLACK }, U>(move_list, occupied),
-        _ => panic!("Invalid side to move!"),
-    }
-    piece_moves_general::<{ KNIGHT }, U>(move_list, occupied, friendly);
-    piece_moves_general::<{ BISHOP }, U>(move_list, occupied, friendly);
-    piece_moves_general::<{ ROOK   }, U>(move_list, occupied, friendly);
-    piece_moves_general::<{ QUEEN  }, U>(move_list, occupied, friendly);
-    piece_moves_general::<{ KING   }, U>(move_list, occupied, friendly);
-    }
-}
-
-unsafe fn pawn_moves_general<const SIDE: usize, const U: u8>(move_list: &mut MoveList, occupied: u64) {
-    let pawns: u64 = POS.pieces[PAWN] & POS.sides[SIDE];
+    let pawns: u64 = POS.pieces[PAWN] & POS.sides[POS.side_to_move];
     if U != CAPTURES {
-        pawn_pushes_general::<SIDE>(move_list, pawns, occupied);
+        match POS.side_to_move {
+            0 => pawn_pushes::<{ WHITE }>(move_list, occupied, pawns),
+            1 => pawn_pushes::<{ BLACK }>(move_list, occupied, pawns),
+            _ => panic!("Invalid side to move!"),
+        }
+        if POS.state.castle_rights & CastleRights::SIDES[POS.side_to_move] > 0 {
+            castles(move_list, occupied, friendly);
+        }
     }
     if U != QUIETS {
-        let opps: u64 = POS.sides[SIDE ^ 1];
-        pawn_captures_general::<SIDE>(move_list, pawns, opps);
-        if POS.state.en_passant_sq > 0 { en_passants::<SIDE>(move_list, pawns, POS.state.en_passant_sq) }
+        let opps: u64 = POS.sides[POS.side_to_move ^ 1];
+        pawn_captures(move_list, pawns, opps);
+        if POS.state.en_passant_sq > 0 {en_passants(move_list, pawns, POS.state.en_passant_sq)}
+    }
+    piece_moves::<{ KNIGHT }, U>(move_list, occupied, friendly);
+    piece_moves::<{ BISHOP }, U>(move_list, occupied, friendly);
+    piece_moves::<{ ROOK   }, U>(move_list, occupied, friendly);
+    piece_moves::<{ QUEEN  }, U>(move_list, occupied, friendly);
+    piece_moves::<{ KING   }, U>(move_list, occupied, friendly);
     }
 }
 
-unsafe fn piece_moves_general<const PIECE: usize, const U: u8>(move_list: &mut MoveList, occupied: u64, friendly: u64) { 
+unsafe fn piece_moves<const PIECE: usize, const U: u8>(move_list: &mut MoveList, occupied: u64, friendly: u64) { 
     let mut from: u16;
     let mut idx: usize;
     let mut attacks: u64;
@@ -135,21 +131,22 @@ fn idx_shift<const SIDE: usize, const AMOUNT: u16>(idx: u16) -> u16 {
     }
 }
 
-fn pawn_captures_general<const SIDE: usize>(move_list: &mut MoveList, mut attackers: u64, opponents: u64) {
+#[inline(always)]
+unsafe fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents: u64) {
     let mut from: u16;
     let mut attacks: u64;
-    let mut promo_attackers: u64 = attackers & PENRANK[SIDE];
-    attackers &= !PENRANK[SIDE];
+    let mut promo_attackers: u64 = attackers & PENRANK[POS.side_to_move];
+    attackers &= !PENRANK[POS.side_to_move];
     while attackers > 0 {
         from = lsb!(attackers);
-        attacks = PAWN_ATTACKS[SIDE][from as usize] & opponents;
+        attacks = PAWN_ATTACKS[POS.side_to_move][from as usize] & opponents;
         encode_moves(move_list, attacks, from, MoveFlags::CAPTURE);
         pop!(attackers)
     }
     let mut cidx: u16;
     while promo_attackers > 0 {
         from = lsb!(promo_attackers);
-        attacks = PAWN_ATTACKS[SIDE][from as usize] & opponents;
+        attacks = PAWN_ATTACKS[POS.side_to_move][from as usize] & opponents;
         while attacks > 0 {
             cidx = lsb!(attacks);
             let f: u16 = from << 6;
@@ -163,11 +160,7 @@ fn pawn_captures_general<const SIDE: usize>(move_list: &mut MoveList, mut attack
     }
 }
 
-fn pawn_pushes_general<const SIDE: usize>(
-    move_list: &mut MoveList,
-    pawns: u64,
-    occupied: u64,
-) {
+fn pawn_pushes<const SIDE: usize>(move_list: &mut MoveList,occupied: u64,pawns: u64) {
     let empty: u64 = !occupied;
     let mut pushable_pawns: u64 = shift::<SIDE, 8>(empty) & pawns;
     let mut dbl_pushable_pawns: u64 = shift::<SIDE, 8>(shift::<SIDE, 8>(empty & DBLRANK[SIDE]) & empty) & pawns;
@@ -196,8 +189,9 @@ fn pawn_pushes_general<const SIDE: usize>(
     }
 }
 
-fn en_passants<const SIDE: usize>(move_list: &mut MoveList, pawns: u64, sq: u16) {
-    let mut attackers: u64 = PAWN_ATTACKS[SIDE ^ 1][sq as usize] & pawns;
+#[inline(always)]
+unsafe fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16) {
+    let mut attackers: u64 = PAWN_ATTACKS[POS.side_to_move ^ 1][sq as usize] & pawns;
     while attackers > 0 {
         let cidx: u16 = lsb!(attackers);
         move_list.push( MoveFlags::EN_PASSANT | sq | cidx << 6 );
@@ -207,36 +201,47 @@ fn en_passants<const SIDE: usize>(move_list: &mut MoveList, pawns: u64, sq: u16)
 
 /// Calculates rook attacks from a given square and occupancy.
 #[inline(always)]
-pub fn rook_attacks(idx: usize, occ: u64) -> u64 {
-    let mut norths: u64 = NORTH[idx];
-    let mut sq: usize = lsb!(norths & occ | MSB) as usize;
-    norths ^= NORTH[sq];
+pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
+    let masks: Mask = MASKS[idx];
+
+    let mut forward: u64 = occupied & masks.file;
+    let mut reverse: u64 = forward.swap_bytes();
+    forward -= masks.bitmask;
+    reverse -= masks.bitmask.swap_bytes();
+    forward ^= reverse.swap_bytes();
+    forward &= masks.file;
+
+    // classical approach to backwards moves
     let mut easts: u64 = EAST[idx];
-    sq = lsb!(easts & occ | MSB) as usize;
+    let mut blocker: u64 = easts & occupied;
+    let mut sq = lsb!(blocker | MSB) as usize;
     easts ^= EAST[sq];
-    let mut souths: u64 = SOUTH[idx];
-    sq = msb!(souths & occ | LSB) as usize;
-    souths ^= SOUTH[sq];
-    let mut wests: u64 = WEST[idx];
-    sq = msb!(wests & occ | LSB) as usize;
+    let mut wests = WEST[idx];
+    blocker = wests & occupied;
+    sq = msb!(blocker | LSB) as usize;
     wests ^= WEST[sq];
-    norths | easts | souths | wests
+
+    forward | easts | wests
 }
 
 /// Calculates bishop attacks from a given square and occupancy.
 #[inline(always)]
 pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
-    let mut nes: u64 = NE[idx];
-    let mut sq: usize = lsb!(nes & occ | MSB) as usize;
-    nes ^= NE[sq];
-    let mut nws: u64 = NW[idx];
-    sq = lsb!(nws & occ | MSB) as usize;
-    nws ^= NW[sq];
-    let mut ses: u64 = SE[idx];
-    sq = msb!(ses & occ | LSB) as usize;
-    ses ^= SE[sq];
-    let mut sws: u64 = SW[idx];
-    sq = msb!(sws & occ | LSB) as usize;
-    sws ^= SW[sq];
-    nes | nws | ses | sws
+    let masks = MASKS[idx];
+
+    let mut forward = occ & masks.diag;
+    let mut reverse = forward.swap_bytes();
+    forward -= masks.bitmask;
+    reverse -= masks.bitmask.swap_bytes();
+    forward ^= reverse.swap_bytes();
+    forward &= masks.diag;
+
+    let mut forward2 = occ & masks.antidiag;
+    let mut reverse2 = forward2.swap_bytes();
+    forward2 -= masks.bitmask;
+    reverse2 -= masks.bitmask.swap_bytes();
+    forward2 ^= reverse2.swap_bytes();
+    forward2 &= masks.antidiag;
+
+    forward | forward2
 }

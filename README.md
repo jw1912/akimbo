@@ -12,9 +12,10 @@ If you have cargo installed, run `cargo build --release`.
 #### Move Generation
 - Bitboards
 - Pseudo-legal
-- Classical sliding attacks
+- Hyperbola quintessence sliding attacks
 
 #### Search
+- Fail-hard
 - Principle variation search
 - Quiescence search
 - Iterative deepening
@@ -30,7 +31,6 @@ If you have cargo installed, run `cargo build --release`.
 - Tapered from midgame to endgame
 - Piece-square tables
 - Passed pawn bonus
-- Mop-up evaluation (for ladder mates, etc)
 
 #### Pruning/Reductions
 - Mate distance pruning
