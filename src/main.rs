@@ -121,7 +121,7 @@ fn parse_go( commands: Vec<&str>) {
     #[derive(PartialEq)]
     enum Tokens {None, Depth, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
     let mut token: Tokens = Tokens::None;
-    let (mut times, mut moves_to_go): ([u128; 2], Option<u16>) = ([0, 0], None);
+    let (mut times, mut moves_to_go): ([u64; 2], Option<u16>) = ([0, 0], None);
     for command in commands {
         match command {
             "depth" => token = Tokens::Depth,
@@ -139,8 +139,8 @@ fn parse_go( commands: Vec<&str>) {
                         TIME = u128::MAX;
                     },
                     Tokens::Movetime => unsafe{TIME = command.parse::<i64>().unwrap_or(1000) as u128 - 10}
-                    Tokens::WTime => times[0] = std::cmp::max(command.parse::<i64>().unwrap_or(100), 0) as u128,
-                    Tokens::BTime => times[0] = std::cmp::max(command.parse::<i64>().unwrap_or(100), 0) as u128,
+                    Tokens::WTime => times[0] = std::cmp::max(command.parse::<i64>().unwrap_or(100), 0) as u64,
+                    Tokens::BTime => times[1] = std::cmp::max(command.parse::<i64>().unwrap_or(100), 0) as u64,
                     Tokens::MovesToGo => moves_to_go = Some(command.parse::<u16>().unwrap_or(40)),
                     _ => {},
                 }
@@ -148,12 +148,12 @@ fn parse_go( commands: Vec<&str>) {
         }
     }
     unsafe {
-    if times != [0, 0] {
+    if times[POS.side_to_move] != 0 {
         TIME = if let Some(mtg) = moves_to_go {
-            times[POS.side_to_move] / mtg as u128
+            times[POS.side_to_move] as u128 / mtg as u128
         } else {
-            times[POS.side_to_move] / (2 * (POS.state.phase as u128 + 1))
-        }
+            times[POS.side_to_move] as u128 / (2 * (POS.state.phase as u128 + 1))
+        } - 10;
     }}
     go();
 }
