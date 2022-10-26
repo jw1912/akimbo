@@ -137,6 +137,15 @@ pub fn is_square_attacked(idx: usize, side: usize, occ: u64) -> bool {
     }
 }
 
+/// Is the current side to move in check?
+#[inline(always)]
+pub fn is_in_check() -> bool {
+    unsafe {
+    let king_idx: usize = lsb!(POS.pieces[KING] & POS.sides[POS.side_to_move]) as usize;
+    is_square_attacked(king_idx, POS.side_to_move, POS.sides[0] | POS.sides[1])
+    }
+}
+
 /// Makes a given move.
 pub fn do_move(m: u16) -> bool {
     unsafe {
@@ -311,5 +320,52 @@ pub fn undo_null((enp, hash): (u16, u64)) {
     POS.state.zobrist = hash;
     POS.state.en_passant_sq = enp;
     POS.side_to_move ^= 1;
+    }
+}
+
+/// Checks for an n-fold repetition by going through the state stack and
+/// comparing zobrist keys.
+pub fn is_draw_by_repetition(num: u8) -> bool {
+    unsafe {
+    let l: usize = POS.stack.len();
+    if l < 6 || NULLS > 0 { return false }
+    let to: usize = l - 1;
+    let mut from: usize = l.wrapping_sub(POS.state.halfmove_clock as usize);
+    if from > 1024 { from = 0 }
+    let mut repetitions_count = 1;
+    for i in (from..to).rev().step_by(2) {
+        if POS.stack[i].state.zobrist == POS.state.zobrist {
+            repetitions_count += 1;
+            if repetitions_count >= num { return true }
+        }
+    }
+    false
+    } 
+}
+
+/// Has the position reached a draw by the fifty-move rule.
+#[inline(always)]
+pub fn is_draw_by_50() -> bool {
+    unsafe{NULLS > 0 && POS.state.halfmove_clock >= 100}
+}
+
+/// Is there a FIDE draw by insufficient material?
+///  - KvK
+///  - KvKN or KvKB
+///  - KBvKB and both bishops the same colour
+pub fn is_draw_by_material() -> bool {
+    unsafe {
+    let pawns: u64 = POS.pieces[PAWN];
+    if pawns == 0 && POS.state.phase <= 2 {
+        if POS.state.phase == 2 {
+            let bishops: u64 = POS.pieces[BISHOP];
+            if bishops & POS.sides[0] != bishops && bishops & POS.sides[1] != bishops && (bishops & SQ1 == bishops || bishops & SQ2 == bishops) {
+                return true
+            }
+            return false
+        }
+        return true
+    }
+    false
     }
 }

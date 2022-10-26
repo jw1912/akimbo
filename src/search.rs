@@ -3,7 +3,7 @@ use super::consts::*;
 use super::position::*;
 use super::hash::*;
 use super::movegen::*;
-use super::eval::*;
+use super::eval::{static_eval, lazy_eval};
 use super::u16_to_uci;
 
 /// Maximum depth to search.
@@ -122,18 +122,24 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         return quiesce(alpha, beta) 
     }
 
-    // not a quiescent node so count it
+    // count the node
     NODES += 1;
 
     // probing hash table
     let mut hash_move: u16 = 0;
     let mut write_to_hash: bool = true;
     if let Some(res) = tt_probe(POS.state.zobrist) {
+        // write to hash only if this search is of greater depth than the hash entry
         write_to_hash = depth > res.depth;
+
+        // hash move for move ordering (immeediate cutoff ~60% of the time there is one)
         hash_move = res.best_move;
+
+        // hash score pruning
+        // not at root, with shallower hash entries or near 50 move draws
         if PLY > 0 && res.depth >= depth && POS.state.halfmove_clock <= 90 {
             match res.bound {
-                Bound::EXACT => { if !pv { return res.score } },
+                Bound::EXACT => { if !pv { return res.score } }, // want nice pv lines
                 Bound::LOWER => { if res.score >= beta { return beta } },
                 Bound::UPPER => { if res.score <= alpha { return alpha } },
                 _ => ()
@@ -175,6 +181,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     let mut count: u16 = 0;
     while let Some((m, m_score)) = get_next_move(&mut moves, &mut move_scores, &mut m_idx) {
         let invalid: bool = do_move(m);
+
         // is move legal?
         if invalid { continue }
         count += 1;
@@ -182,7 +189,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         // does the move give check?
         let gives_check = is_in_check();
 
-        // LMR
+        // late move reductions
         let r: i8 = (!in_check && !gives_check && count > 1 && m_score < 300) as i8;
 
         // score move
@@ -201,14 +208,20 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         if score > best_score {
             best_score = score;
             best_move = m;
+
             // raise alpha
-            if score > alpha { 
+            if score > alpha {
                 bound = Bound::EXACT;
                 alpha = score;
+
+                // write to pv in pv nodes
                 if pv { PV_LINE[PLY as usize - 1] = m }
+
                 // beta prune
                 if score >= beta {
+                    // push to killer move table if not a capture
                     if m & 0b0100_0000_0000_0000 == 0 { kt_push(m) };
+                    
                     bound = Bound::LOWER;
                     break 
                 }
@@ -246,9 +259,9 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     let mut captures = MoveList::default();
     let mut scores = MoveList::default();
     gen_moves::<CAPTURES>(&mut captures);
+    score_captures(&captures, &mut scores, m_idx);
 
     // go through moves
-    score_captures(&captures, &mut scores, m_idx);
     while let Some((m, _)) = get_next_move(&mut captures, &mut scores, &mut m_idx) {
         let invalid: bool = do_move(m);
         // is move legal?
@@ -289,9 +302,9 @@ pub fn go() {
         // get score
         let score: i16 = pvs(true, -MAX, MAX, d + 1, in_check, &now, false);
 
-        // end search if stop signla received
-        if STOP { break }
+        // end search if out of time
         let t: u128 = now.elapsed().as_millis();
+        if t >= TIME { break }
 
         // update best move
         best_move = PV_LINE[0];

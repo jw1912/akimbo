@@ -6,9 +6,9 @@
 mod consts;
 /// Contains all methods that mutate the global POS (apart from parsing positions).
 pub mod position;
-/// Conatins pseudo-legal, staged move generation code.
+/// Conatins pseudo-legal move generation code.
 pub mod movegen;
-/// Contains all tables (hash, killer move, etc).
+/// Contains hash and killer move tables.
 pub mod hash;
 /// Contains the evaluation code for static positions and detecting draws.
 pub mod eval;
@@ -37,10 +37,9 @@ fn main() {
 /// Runs a fixed time (1 second) search on a small collection of FENs,
 /// used to check for any glaring bugs introduced by new search techniques.
 fn performance() {
-    unsafe {
-    TIME = 1000;
+    unsafe {TIME = 1000}
     let now = Instant::now();
-    for fen  in _POSITIONS {
+    for fen in _POSITIONS {
         kt_clear();
         parse_fen(fen);
         println!("===Search Report===");
@@ -50,7 +49,6 @@ fn performance() {
     }
     println!("Total time: {}ms", now.elapsed().as_millis());
     ucinewgame();
-    }
 }
 
 /// Runs a perft on the current position to a given depth.
@@ -180,10 +178,7 @@ fn parse_position(commands: Vec<&str>) {
             "moves" => token = Tokens::Moves,
             _ => match token {
                 Tokens::Nothing => {},
-                Tokens::Fen => {
-                    fen.push_str(command);
-                    fen.push(' ');
-                }
+                Tokens::Fen => {fen.push_str(format!("{command} ").as_str());}
                 Tokens::Moves => moves.push(command.to_string()),
             },
         }
@@ -253,11 +248,13 @@ pub fn uci_to_u16(m: &str) -> u16 {
 pub fn parse_fen(s: &str) {
     unsafe {
     let vec: Vec<&str> = s.split_whitespace().collect();
-    POS.pieces = [0;6];
+    POS.pieces = [0; 6];
     POS.squares = [EMPTY as u8; 64];
     POS.sides = [0; 2];
     let mut idx: usize = 63;
     let rows: Vec<&str> = vec[0].split('/').collect();
+
+    // main part of fen -> bitboards
     for row in rows {
         for ch in row.chars().rev() {
             if ch == '/' { continue }
@@ -273,7 +270,10 @@ pub fn parse_fen(s: &str) {
             }
         }
     }
+
     POS.side_to_move = match vec[1] { "w" => WHITE, "b" => BLACK, _ => panic!("") };
+
+    // calculate state
     let mut castle_rights: u8 = CastleRights::NONE;
     for ch in vec[2].chars() {
         castle_rights |= match ch {'Q' => CastleRights::WHITE_QS, 'K' => CastleRights::WHITE_KS, 'q' => CastleRights::BLACK_QS, 'k' => CastleRights::BLACK_KS, _ => 0,};
@@ -286,6 +286,8 @@ pub fn parse_fen(s: &str) {
     };
     let halfmove_clock = vec[4].parse::<u8>().unwrap_or(0);
     let (phase, mg, eg): (i16, i16, i16) = eval::calc();
+
+    // set state
     POS.state = GameState {zobrist: 0, phase, mg, eg,en_passant_sq, halfmove_clock, castle_rights};
     POS.fullmove_counter = vec[5].parse::<u16>().unwrap_or(1);
     POS.state.zobrist = zobrist::calc();

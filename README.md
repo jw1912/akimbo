@@ -12,10 +12,10 @@ If you have cargo installed, run `cargo build --release`.
 #### Move Generation
 - Bitboards
 - Pseudo-legal
-- Classical sliding attack generation
+- Classical sliding attacks
 
 #### Search
-- Principle variation (negamax) search
+- Principle variation search
 - Quiescence search
 - Iterative deepening
 - Check extensions
