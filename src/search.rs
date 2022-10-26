@@ -13,15 +13,19 @@ pub static mut TIME: u128 = 1000;
 /// Maximum ply reachable.
 pub static mut PLY: i8 = 0;
 
-// UCI info
+/// Number of nodes searched.
 static mut NODES: u64 = 0;
+/// Stop token for search.
 static mut STOP: bool = true;
+/// Highest depth reached in PVS.
 static mut SELDEPTH: i8 = 0;
+/// Principle variation (best) line.
 static mut PV_LINE: [u16; MAX_PLY as usize] = [0; MAX_PLY as usize];
 
 macro_rules! is_capture {($m:expr) => {$m & 0b0100_0000_0000_0000 > 0}}
 macro_rules! is_mate_score {($score:expr) => {$score.abs() >= MATE_THRESHOLD}}
 
+/// Assigns scores first by the most valuable victim, then within that orders by least valuable attacker
 fn mvv_lva(m: u16) -> u16 {
     let from_idx: u16 = (m >> 6) & 0b111111;
     let to_idx: u16 = m & 0b111111;
@@ -30,6 +34,11 @@ fn mvv_lva(m: u16) -> u16 {
     MVV_LVA[captured_pc][moved_pc]
 }
 
+/// Scores a move.
+/// 1. Hash move
+/// 2. Cpatures, sorted by MVV-LVA
+/// 3. Killer moves
+/// 4. Quiet moves
 fn score_move(m: u16, hash_move: u16, killers: [u16; KILLERS_PER_PLY]) -> u16 {
     if m == hash_move {
         HASH_MOVE
@@ -42,6 +51,7 @@ fn score_move(m: u16, hash_move: u16, killers: [u16; KILLERS_PER_PLY]) -> u16 {
     }
 }
 
+/// Goes through all moves in a movelist and scores them.
 fn score_moves(moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, start_idx: usize) {
     let killers: [u16; KILLERS_PER_PLY] = unsafe{KT[PLY as usize]};
     for i in start_idx..moves.len {
@@ -50,15 +60,22 @@ fn score_moves(moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, sta
     }
 }
 
+/// Scores moves with the assumption they are all captures.
 fn score_captures(moves: &MoveList, move_scores: &mut MoveList, start_idx: usize) {
     for i in start_idx..moves.len {
         move_scores.push(mvv_lva(moves.list[i]));
     }
 }
 
+/// O(n^2) algorithm to incrementally sort the move list as needed
+/// will be useful when implementing staged move generation.
 fn get_next_move(moves: &mut MoveList, move_scores: &mut MoveList, start_idx: &mut usize) -> Option<(u16, u16)> {
     let m_idx: usize = *start_idx;
+
+    // no moves left
     if m_idx == move_scores.len {return None}
+
+    // go through remaining moves
     let mut best_idx: usize = m_idx;
     let mut best_score: u16 = 0;
     for i in m_idx..move_scores.len {
@@ -68,13 +85,19 @@ fn get_next_move(moves: &mut MoveList, move_scores: &mut MoveList, start_idx: &m
             best_idx = i;
         }
     }
+
+    // best move
     let m: u16 = moves.list[best_idx];
+
+    // swap first remaining move with best move found and increment starting point
     move_scores.swap_unchecked(best_idx, m_idx);
     moves.swap_unchecked(best_idx, m_idx);
     *start_idx += 1;
+
     Some((m, best_score))
 }
 
+/// Main principle variation (negamax) search.
 unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, start_time: &Instant, allow_null: bool) -> i16 {
     // search aborting
     if STOP { return 0 }
@@ -82,12 +105,15 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         STOP = true;
         return 0
     }
+
     // draw detection
     if is_draw_by_50() || is_draw_by_repetition(2 + (PLY == 0) as u8) || is_draw_by_material() { return 0 }
+
     // mate distance pruning
     alpha = max(alpha, -MAX + PLY as i16);
     beta = min(beta, MAX - PLY as i16 - 1);
     if alpha >= beta { return alpha }
+
     // check extensions
     depth += in_check as i8;
     // qsearch at depth 0
@@ -95,7 +121,10 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         SELDEPTH = max(SELDEPTH, PLY);
         return quiesce(alpha, beta) 
     }
+
+    // not a quiescent node so count it
     NODES += 1;
+
     // probing hash table
     let mut hash_move: u16 = 0;
     let mut write_to_hash: bool = true;
@@ -111,24 +140,33 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
             }
         }
     }
-    // reverse futility and null move pruning
+
+    // pruning
     if !pv && !in_check && beta.abs() < MATE_THRESHOLD {
+        // pst only eval of position
         let lazy_eval: i16 = lazy_eval();
+
+        // reverse futility pruning
         if depth <= 8 && lazy_eval >= beta + 120 * depth as i16 {
             return beta
-        } else if allow_null && depth >= 3 && POS.state.phase >= 2 && lazy_eval >= beta {
+        } 
+
+        // null move pruning
+        if allow_null && depth >= 3 && POS.state.phase >= 2 && lazy_eval >= beta {
             let ctx: (u16, u64) = do_null();
             let score: i16 = -pvs(false, -beta, -beta + 1, depth - 3, false, start_time, false);
             undo_null(ctx);
             if score >= beta {return beta}
         }
     }
+
     // generating and scoring moves
+    let mut m_idx: usize = 0;
     let mut moves = MoveList::default();
     let mut move_scores = MoveList::default();
-    let mut m_idx: usize = 0;
     gen_moves::<ALL>(&mut moves);
     score_moves(&moves, &mut move_scores, hash_move, m_idx);
+    
     // going through moves
     PLY += 1;
     let mut best_move: u16 = 0;
@@ -137,11 +175,16 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     let mut count: u16 = 0;
     while let Some((m, m_score)) = get_next_move(&mut moves, &mut move_scores, &mut m_idx) {
         let invalid: bool = do_move(m);
+        // is move legal?
         if invalid { continue }
         count += 1;
+
+        // does the move give check?
         let gives_check = is_in_check();
+
         // LMR
         let r: i8 = (!in_check && !gives_check && count > 1 && m_score < 300) as i8;
+
         // score move
         let score: i16 = if count == 1 {
             -pvs(pv, -beta, -alpha, depth - 1, gives_check, start_time, false)
@@ -151,14 +194,19 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
                 -pvs(pv, -beta, -alpha, depth - 1, gives_check, start_time, false)
             } else { null_window_score }
         };
+
         undo_move();
+
+        // alpha-beta pruning
         if score > best_score {
             best_score = score;
             best_move = m;
+            // raise alpha
             if score > alpha { 
                 bound = Bound::EXACT;
                 alpha = score;
                 if pv { PV_LINE[PLY as usize - 1] = m }
+                // beta prune
                 if score >= beta {
                     if m & 0b0100_0000_0000_0000 == 0 { kt_push(m) };
                     bound = Bound::LOWER;
@@ -168,52 +216,87 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         }
     }
     PLY -= 1;
+
+    // check for (stale)mate
     if count == 0 { return (in_check as i16) * (-MAX + PLY as i16) }
+
+    // write to hash if appropriate
     if write_to_hash { tt_push(POS.state.zobrist, best_move, depth, bound, best_score) }
+
+    // fail-soft
     best_score
 }
 
 /// Performas a quiescence search to more effectively evluate positions 
 /// (particularly exchanges at the horizon).
-pub fn quiesce(mut alpha: i16, beta: i16) -> i16 {
-    unsafe {
+unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
+    // count all quiescent nodes
     NODES += 1;
+
+    // static eval as an initial guess
     let stand_pat = static_eval();
+
+    // alpha-beta, delta pruning
     if stand_pat >= beta { return beta }
     if stand_pat < alpha - 850 { return alpha }
     if alpha < stand_pat { alpha = stand_pat }
+
+    // generate and score moves
+    let mut m_idx: usize = 0;
     let mut captures = MoveList::default();
     let mut scores = MoveList::default();
-    let mut m_idx: usize = 0;
     gen_moves::<CAPTURES>(&mut captures);
+
+    // go through moves
     score_captures(&captures, &mut scores, m_idx);
     while let Some((m, _)) = get_next_move(&mut captures, &mut scores, &mut m_idx) {
         let invalid: bool = do_move(m);
+        // is move legal?
         if invalid { continue }
+
+        // get score
         let score: i16 = -quiesce(-beta, -alpha);
+
         undo_move();
-        if score >= beta { return beta }
-        if score > alpha { alpha = score }
+        
+        // alpha-beta pruning
+        if score > alpha {
+            alpha = score;
+            if score >= beta { return beta }
+        }
     }
-    alpha}
+
+    // fail-hard
+    alpha
 }
 
 /// Runs main iterative deepening loop for the search, 
 /// and outputs relevant information while doing so.
 pub fn go() {
     unsafe {
+    // initilialise values
     NODES = 0;
     SELDEPTH = 0;
     STOP = false;
     let mut best_move: u16 = 0;
     let now = Instant::now();
+
+    // iterative deepening loop
     for d in 0..DEPTH {
+        // determine if in check
         let in_check: bool = is_in_check();
+
+        // get score
         let score: i16 = pvs(true, -MAX, MAX, d + 1, in_check, &now, false);
+
+        // end search if stop signla received
         if STOP { break }
         let t: u128 = now.elapsed().as_millis();
-        if t >= TIME { break }
+
+        // update best move
         best_move = PV_LINE[0];
+
+        // uci output for the gui
         let (stype, sval): (&str, i16) = match is_mate_score!(score) {
             true => ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2), 
             false => ("cp", score)
@@ -221,6 +304,8 @@ pub fn go() {
         let nps: u32 = ((NODES as f64) * 1000.0 / (t as f64)) as u32;
         let pv_str: String = PV_LINE[..(d as usize + 1)].iter().map(u16_to_uci).collect();
         println!("info depth {} seldepth {} score {} {} time {} nodes {} nps {} hashfull {} pv {}", d + 1, SELDEPTH, stype, sval, t, NODES, nps, hashfull(), pv_str);
+
+        // stop searching if mate found
         if is_mate_score!(score) { break }
     }
     DEPTH = i8::MAX;

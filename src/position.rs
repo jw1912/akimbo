@@ -18,6 +18,8 @@ macro_rules! toggle {
         POS.sides[$side] ^= $bit;
     };
 }
+
+/// Removes a piece from the incrementalally updated fields.
 macro_rules! remove {
     ($from:expr, $side:expr, $pc:expr) => {
         let indx = $from ^ (56 * ($side == 0) as usize);
@@ -26,6 +28,8 @@ macro_rules! remove {
         POS.state.eg -= SIDE_FACTOR[$side] * PST_EG[$pc][indx];
     };
 }
+
+/// Adds a piece from the incrementalally updated fields.
 macro_rules! add {
     ($from:expr, $side:expr, $pc:expr) => {
         let indx = $from ^ (56 * ($side == 0) as usize);
@@ -34,6 +38,8 @@ macro_rules! add {
         POS.state.eg += SIDE_FACTOR[$side] * PST_EG[$pc][indx];
     };
 }
+
+/// Index of a square -> bitboard with just that square.
 macro_rules! bit {($x:expr) => {1 << $x}}
 
 /// Contains all relevant information for the current board state.
@@ -93,11 +99,13 @@ pub struct MoveList {
     /// Length (used capacity) of the list.
     pub len: usize,
 }
+
 impl Default for MoveList {
     fn default() -> Self {
         Self {list: unsafe {#[allow(clippy::uninit_assumed_init)] std::mem::MaybeUninit::uninit().assume_init()}, len: 0} 
     }
 }
+
 impl MoveList {
     /// Pushes an item to the move list.
     #[inline(always)]
@@ -105,6 +113,7 @@ impl MoveList {
         self.list[self.len] = m;
         self.len += 1;
     }
+
     /// Swaps two items in the move list.
     #[inline(always)]
     pub fn swap_unchecked(&mut self, i: usize, j: usize) {
@@ -132,6 +141,7 @@ pub fn is_square_attacked(idx: usize, side: usize, occ: u64) -> bool {
 pub fn do_move(m: u16) -> bool {
     unsafe {
     let opp: usize = POS.side_to_move ^ 1;
+
     // move data
     let from: usize = ((m >> 6) & 63) as usize;
     let to: usize = (m & 63) as usize;
@@ -141,6 +151,7 @@ pub fn do_move(m: u16) -> bool {
     let captured_pc: u8 = POS.squares[to];
     let flag: u16 = m & MoveFlags::ALL;
     let rights: u8 = POS.state.castle_rights;
+
     // initial updates
     POS.stack.push(MoveState { state: POS.state, m, moved_pc, captured_pc});
     toggle!(POS.side_to_move, moved_pc as usize, f | t);
@@ -151,6 +162,7 @@ pub fn do_move(m: u16) -> bool {
     if POS.state.en_passant_sq > 0 {POS.state.zobrist ^= ZVALS.en_passant[(POS.state.en_passant_sq & 7) as usize]}
     POS.state.en_passant_sq = 0;
     POS.state.zobrist ^= ZVALS.side;
+
     // captures
     if captured_pc != EMPTY as u8 {
         let cpc: usize = captured_pc as usize;
@@ -161,6 +173,8 @@ pub fn do_move(m: u16) -> bool {
             POS.state.castle_rights &= CASTLE_RIGHTS[to];
         }
     }
+
+    // piece-specific updates
     match moved_pc as usize { 
         PAWN =>  {
             if flag == MoveFlags::EN_PASSANT {
@@ -195,6 +209,7 @@ pub fn do_move(m: u16) -> bool {
         ROOK => POS.state.castle_rights &= CASTLE_RIGHTS[from],
         _ => {}
     }
+
     // castle hashes
     let mut changed_castle: u8 = rights & !POS.state.castle_rights;
     while changed_castle > 0 {
@@ -202,10 +217,12 @@ pub fn do_move(m: u16) -> bool {
         POS.state.zobrist ^= ZVALS.castle_hash(rights, ls1b);
         pop!(changed_castle)
     }
+
     // final updates
     POS.fullmove_counter += (POS.side_to_move == BLACK) as u16;
     POS.state.halfmove_clock = (moved_pc > PAWN as u8 && flag != MoveFlags::CAPTURE) as u8 * (POS.state.halfmove_clock + 1);
     POS.side_to_move ^= 1;
+
     // is legal?
     let king_idx: usize = lsb!(POS.pieces[KING] & POS.sides[opp ^ 1]) as usize;
     let invalid: bool = is_square_attacked(king_idx, opp ^ 1, POS.sides[0] | POS.sides[1]);
@@ -219,26 +236,32 @@ pub fn undo_move() {
     unsafe {
     let opp: usize = POS.side_to_move;
     POS.side_to_move ^= 1;
-    // move data
+
+    // restore state
     let state: MoveState = POS.stack.pop().unwrap();
-    let m: u16 = state.m;
+
+    // move data
     let moved_pc: u8 = state.moved_pc;
     let captured_pc: u8 = state.captured_pc;
-    let from: usize = ((m >> 6) & 63) as usize;
-    let to: usize = (m & 63) as usize;
+    let from: usize = ((state.m >> 6) & 63) as usize;
+    let to: usize = (state.m & 63) as usize;
     let f: u64 = bit!(from);
     let t: u64 = bit!(to);
-    let flag: u16 = m & MoveFlags::ALL;
+    let flag: u16 = state.m & MoveFlags::ALL;
+
     // initial updates
     POS.state = state.state;
     toggle!(POS.side_to_move, moved_pc as usize, f | t);
     POS.squares[from] = moved_pc;
     POS.squares[to] = captured_pc;
+
     // captures
     if captured_pc != EMPTY as u8 {
         POS.pieces[captured_pc as usize] ^= t;
         POS.sides[opp] ^= t;
     }
+
+    // piece-specific updates
     match moved_pc as usize { 
         PAWN =>  {
             if flag == MoveFlags::EN_PASSANT {
@@ -261,6 +284,8 @@ pub fn undo_move() {
         } 
         _ => {}
     }
+
+    // fnal updates
     POS.fullmove_counter -= (POS.side_to_move == BLACK) as u16;
     }
 }

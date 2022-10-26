@@ -96,7 +96,6 @@ fn parse_commands(commands: Vec<&str>) {
         "position" => parse_position(commands),
         "setoption" => parse_setoption(commands),
         "performance" => performance(),
-        "eval" => println!("info quiesce cp {} static_eval cp {} lazy_eval cp {}", search::quiesce(-MAX, MAX), eval::static_eval(), eval::lazy_eval()),
         _ => {},
     };
 }

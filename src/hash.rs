@@ -178,6 +178,7 @@ pub mod zobrist {
             self.castle[lsb!(update as u64) as usize]
         }
 
+        /// Initialises ZVALS.
         fn init() -> Self {
             fastrand::seed(353012);
             let mut vals: ZobristVals = Self {

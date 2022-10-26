@@ -1,10 +1,13 @@
 use super::{consts::*, position::{POS, is_square_attacked, MoveList}};
 
-/// Inlines a reverse bitscan.
+/// Reverse bitscan.
 #[macro_export]
 macro_rules! lsb {($x:expr) => {$x.trailing_zeros() as u16}}
+
+/// Forward bitscan.
 macro_rules! msb {($x:expr) => {63 ^ $x.leading_zeros() as u16}}
-/// Inlines popping the least significant bit from a number.
+
+/// Popping the least significant bit from a number.
 #[macro_export]
 macro_rules! pop {($x:expr) => {$x &= $x - 1}}
 
