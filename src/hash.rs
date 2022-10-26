@@ -242,18 +242,6 @@ pub fn kt_push(m: u16) {
     }
 }
 
-/// Shift all entries in the killer moves table up by 2 ply, so that when searching during
-/// games previous search's killer moves may help.
-pub fn kt_age() {
-    unsafe {
-    for i in (2..MAX_PLY as usize).rev() {
-        KT[i] = KT[i - 2];
-    }
-    KT[0] = [0; KILLERS_PER_PLY];
-    KT[1] = [0; KILLERS_PER_PLY];
-    }
-}
-
 /// Clear the killer moves table.
 pub fn kt_clear() {
     unsafe{

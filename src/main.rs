@@ -3,7 +3,7 @@
 #![deny(missing_docs)]
 
 /// Contains all constant and static **immutable** values used in the engine.
-pub mod consts;
+mod consts;
 /// Contains all methods that mutate the global POS (apart from parsing positions).
 pub mod position;
 /// Conatins pseudo-legal move generation code.

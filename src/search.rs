@@ -137,7 +137,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
 
         // hash score pruning
         // not at root, with shallower hash entries or near 50 move draws
-        if PLY > 0 && res.depth >= depth && POS.state.halfmove_clock <= 90 {
+        if PLY > 0 && POS.state.halfmove_clock <= 90 && res.depth >= depth {
             match res.bound {
                 Bound::EXACT => { if !pv { return res.score } }, // want nice pv lines
                 Bound::LOWER => { if res.score >= beta { return beta } },
@@ -155,10 +155,10 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         // reverse futility pruning
         if depth <= 8 && lazy_eval >= beta + 120 * depth as i16 {
             return beta
-        } 
+        }
 
         // null move pruning
-        if allow_null && depth >= 3 && POS.state.phase >= 2 && lazy_eval >= beta {
+        if allow_null && depth >= 3 && POS.state.phase >= 6 && lazy_eval >= beta {
             let ctx: (u16, u64) = do_null();
             let score: i16 = -pvs(false, -beta, -beta + 1, depth - 3, false, start_time, false);
             undo_null(ctx);
@@ -175,13 +175,13 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     
     // going through moves
     PLY += 1;
+    KT[PLY as usize] = [0; KILLERS_PER_PLY];
     let mut best_move: u16 = 0;
     let mut best_score: i16 = -MAX;
     let mut bound: u8 = Bound::UPPER;
     let mut count: u16 = 0;
     while let Some((m, m_score)) = get_next_move(&mut moves, &mut move_scores, &mut m_idx) {
         let invalid: bool = do_move(m);
-
         // is move legal?
         if invalid { continue }
         count += 1;
@@ -221,7 +221,6 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
                 if score >= beta {
                     // push to killer move table if not a capture
                     if m & 0b0100_0000_0000_0000 == 0 { kt_push(m) };
-                    
                     bound = Bound::LOWER;
                     break 
                 }
@@ -324,6 +323,6 @@ pub fn go() {
     DEPTH = i8::MAX;
     TIME = 1000;
     println!("bestmove {}", u16_to_uci(&best_move));
-    kt_age();
+    kt_clear();
     }
 }
