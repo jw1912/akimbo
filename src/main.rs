@@ -18,6 +18,7 @@ pub mod search;
 use std::io::stdin;
 use std::time::Instant;
 use consts::*;
+use eval::{lazy_eval, static_eval};
 use hash::{tt_clear, tt_resize, zobrist, kt_clear};
 use position::{POS, MoveList, do_move, undo_move, GameState};
 use movegen::{gen_moves, ALL};
@@ -98,6 +99,7 @@ fn parse_commands(commands: Vec<&str>) {
         "setoption" => parse_setoption(commands),
         "perft" => parse_perft(commands),
         "performance" => performance(commands),
+        "eval" => unsafe{println!("phase: {}, mg: {}, eg: {}, lazy_eval: {}, static_eval: {}", POS.state.phase, POS.state.mg, POS.state.eg, lazy_eval(), static_eval())},
         _ => {},
     };
 }
