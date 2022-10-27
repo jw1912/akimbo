@@ -202,7 +202,8 @@ unsafe fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16) {
 /// Calculates rook attacks from a given square and occupancy.
 #[inline(always)]
 pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
-    let masks: Mask = MASKS[idx];
+    //let masks: Mask = MASKS[idx];
+    let masks: Rmask = RMASKS[idx];
 
     // forward moves
     let mut forward: u64 = occupied & masks.file;
@@ -213,13 +214,13 @@ pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
     forward &= masks.file;
 
     // subtracting rook from blocking piece
-    let mut blockers: u64 = EAST[idx] & occupied;
+    let mut blockers: u64 = masks.easts & occupied;
     let closest: u64 = blockers & blockers.wrapping_neg();
     let mut easts: u64 = (closest.wrapping_sub(masks.bitmask)) ^ masks.bitmask ^ closest;
     easts *= (closest > 0) as u64;
 
     // classical approach
-    let mut wests: u64 = WEST[idx];
+    let mut wests: u64 = masks.wests;
     blockers = wests & occupied;
     let sq: usize = msb!(blockers | LSB) as usize;
     wests ^= WEST[sq];
