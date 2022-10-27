@@ -160,7 +160,7 @@ unsafe fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents:
     }
 }
 
-fn pawn_pushes<const SIDE: usize>(move_list: &mut MoveList,occupied: u64,pawns: u64) {
+fn pawn_pushes<const SIDE: usize>(move_list: &mut MoveList, occupied: u64, pawns: u64) {
     let empty: u64 = !occupied;
     let mut pushable_pawns: u64 = shift::<SIDE, 8>(empty) & pawns;
     let mut dbl_pushable_pawns: u64 = shift::<SIDE, 8>(shift::<SIDE, 8>(empty & DBLRANK[SIDE]) & empty) & pawns;
@@ -204,6 +204,7 @@ unsafe fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16) {
 pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
     let masks: Mask = MASKS[idx];
 
+    // forward moves
     let mut forward: u64 = occupied & masks.file;
     let mut reverse: u64 = forward.swap_bytes();
     forward -= masks.bitmask;
@@ -211,14 +212,16 @@ pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
     forward ^= reverse.swap_bytes();
     forward &= masks.file;
 
-    // classical approach to backwards moves
-    let mut easts: u64 = EAST[idx];
-    let mut blocker: u64 = easts & occupied;
-    let mut sq = lsb!(blocker | MSB) as usize;
-    easts ^= EAST[sq];
-    let mut wests = WEST[idx];
-    blocker = wests & occupied;
-    sq = msb!(blocker | LSB) as usize;
+    // subtracting rook from blocking piece
+    let mut blockers: u64 = EAST[idx] & occupied;
+    let closest: u64 = blockers & blockers.wrapping_neg();
+    let mut easts: u64 = (closest.wrapping_sub(masks.bitmask)) ^ masks.bitmask ^ closest;
+    easts *= (closest > 0) as u64;
+
+    // classical approach
+    let mut wests: u64 = WEST[idx];
+    blockers = wests & occupied;
+    let sq: usize = msb!(blockers | LSB) as usize;
     wests ^= WEST[sq];
 
     forward | easts | wests
@@ -227,17 +230,19 @@ pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
 /// Calculates bishop attacks from a given square and occupancy.
 #[inline(always)]
 pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
-    let masks = MASKS[idx];
+    let masks: Mask = MASKS[idx];
 
-    let mut forward = occ & masks.diag;
-    let mut reverse = forward.swap_bytes();
+    // forward moves
+    let mut forward: u64 = occ & masks.diag;
+    let mut reverse: u64 = forward.swap_bytes();
     forward -= masks.bitmask;
     reverse -= masks.bitmask.swap_bytes();
     forward ^= reverse.swap_bytes();
     forward &= masks.diag;
 
-    let mut forward2 = occ & masks.antidiag;
-    let mut reverse2 = forward2.swap_bytes();
+    // backward moves
+    let mut forward2: u64 = occ & masks.antidiag;
+    let mut reverse2: u64 = forward2.swap_bytes();
     forward2 -= masks.bitmask;
     reverse2 -= masks.bitmask.swap_bytes();
     forward2 ^= reverse2.swap_bytes();

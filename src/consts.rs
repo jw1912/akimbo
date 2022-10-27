@@ -47,7 +47,6 @@ impl CastleRights {
 }
 
 // movegen
-pub const MSB: u64 = 0x80_00_00_00_00_00_00_00;
 pub const LSB: u64 = 1;
 pub const PENRANK: [u64; 2] = [0x00FF000000000000, 0x000000000000FF00];
 pub const DBLRANK: [u64; 2] = [0x00000000FF000000, 0x000000FF00000000];
