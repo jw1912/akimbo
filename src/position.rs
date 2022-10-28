@@ -7,6 +7,7 @@ pub static mut POS: Position = Position {
     state: GameState { zobrist: 0, phase: 0, mg: 0, eg: 0, en_passant_sq: 0, halfmove_clock: 0, castle_rights: 0 }, 
     fullmove_counter: 0, stack: Vec::new()
 };
+
 /// Count of how many null moves were made during reaching the current position.
 pub static mut NULLS: u8 = 0;
 

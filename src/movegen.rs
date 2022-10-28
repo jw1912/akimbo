@@ -1,10 +1,10 @@
 use super::{consts::*, position::{POS, is_square_attacked, MoveList}};
 
-/// Reverse bitscan.
+/// Forward bitscan.
 #[macro_export]
 macro_rules! lsb {($x:expr) => {$x.trailing_zeros() as u16}}
 
-/// Forward bitscan.
+/// Reverse bitscan.
 macro_rules! msb {($x:expr) => {63 ^ $x.leading_zeros() as u16}}
 
 /// Popping the least significant bit from a number.
@@ -202,7 +202,6 @@ unsafe fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16) {
 /// Calculates rook attacks from a given square and occupancy.
 #[inline(always)]
 pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
-    //let masks: Mask = MASKS[idx];
     let masks: Rmask = RMASKS[idx];
 
     // forward moves
@@ -219,7 +218,7 @@ pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
     let mut easts: u64 = (closest.wrapping_sub(masks.bitmask)) ^ masks.bitmask ^ closest;
     easts *= (closest > 0) as u64;
 
-    // classical approach
+    // classical approach -- OPTIMISE (lookup in WEST and msb scan)
     let mut wests: u64 = masks.wests;
     blockers = wests & occupied;
     let sq: usize = msb!(blockers | LSB) as usize;

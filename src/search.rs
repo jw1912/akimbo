@@ -36,7 +36,7 @@ fn mvv_lva(m: u16) -> u16 {
 
 /// Scores a move.
 /// 1. Hash move
-/// 2. Cpatures, sorted by MVV-LVA
+/// 2. Captures, sorted by MVV-LVA
 /// 3. Killer moves
 /// 4. Quiet moves
 fn score_move(m: u16, hash_move: u16, killers: [u16; KILLERS_PER_PLY]) -> u16 {
