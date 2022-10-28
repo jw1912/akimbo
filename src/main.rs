@@ -99,9 +99,17 @@ fn parse_commands(commands: Vec<&str>) {
         "setoption" => parse_setoption(commands),
         "perft" => parse_perft(commands),
         "performance" => performance(commands),
-        "eval" => unsafe{println!("phase: {}, mg: {}, eg: {}, lazy_eval: {}, static_eval: {}", POS.state.phase, POS.state.mg, POS.state.eg, lazy_eval(), static_eval())},
+        "eval" => output_eval(),
         _ => {},
     };
+}
+
+fn output_eval() {
+    unsafe{
+        let side = SIDE_FACTOR[POS.side_to_move];
+        println!("phase: {}, mg: {}, eg: {}, lazy_eval: {}, static_eval: {} (white pov)", 
+        POS.state.phase, POS.state.mg, POS.state.eg, side * lazy_eval(), side * static_eval())
+    }
 }
 
 /// Resets position to starting position, clears hash and killer move tables.
