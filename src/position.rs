@@ -30,7 +30,7 @@ macro_rules! remove {
     };
 }
 
-/// Adds a piece from the incrementalally updated fields.
+/// Adds a piece to the incrementalally updated fields.
 macro_rules! add {
     ($from:expr, $side:expr, $pc:expr) => {
         let indx = $from ^ (56 * ($side == 0) as usize);
