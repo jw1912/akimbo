@@ -82,56 +82,6 @@ unsafe fn piece_moves<const PIECE: usize, const U: u8>(move_list: &mut MoveList,
 }
 
 #[inline(always)]
-unsafe fn castles(move_list: &mut MoveList, occupied: u64, friendly: u64) {
-    let king_idx: usize = lsb!(POS.pieces[KING] & friendly) as usize;
-    if is_square_attacked(king_idx, POS.side_to_move, occupied) {
-        return
-    }
-    match POS.side_to_move {
-        WHITE => {
-            if POS.state.castle_rights & CastleRights::WHITE_QS > 0 && occupied & (B1 | C1 | D1) == 0
-                && !is_square_attacked(3, WHITE, occupied) {
-                move_list.push(MoveFlags::QS_CASTLE | 2 | 4 << 6)
-            }
-            if POS.state.castle_rights & CastleRights::WHITE_KS > 0 && occupied & (F1 | G1) == 0
-                && !is_square_attacked(5, WHITE, occupied) {
-                move_list.push(MoveFlags::KS_CASTLE | 6 | 4 << 6)
-            }
-        }
-        BLACK => {
-            if POS.state.castle_rights & CastleRights::BLACK_QS > 0 && occupied & (B8 | C8 | D8) == 0
-                && !is_square_attacked(59, BLACK, occupied) {
-                move_list.push(MoveFlags::QS_CASTLE | 58 | 60 << 6)
-            }
-            if POS.state.castle_rights & CastleRights::BLACK_KS > 0 && occupied & (F8 | G8) == 0
-                && !is_square_attacked(61, BLACK, occupied) {
-                move_list.push(MoveFlags::KS_CASTLE | 62 | 60 << 6)
-            }
-        }
-        _ => panic!("Invalid side for castling!"),
-    }
-}
-
-// PAWN move generation code
-#[inline(always)]
-fn shift<const SIDE: usize, const AMOUNT: u8>(bb: u64) -> u64 {
-    match SIDE {
-        WHITE => bb >> AMOUNT,
-        BLACK => bb << AMOUNT,
-        _ => panic!("Invalid side in fn shift!"),
-    }
-}
-
-#[inline(always)]
-fn idx_shift<const SIDE: usize, const AMOUNT: u16>(idx: u16) -> u16 {
-    match SIDE {
-        WHITE => idx + AMOUNT,
-        BLACK => idx - AMOUNT,
-        _ => panic!("Invalid side in fn shift!"),
-    }
-}
-
-#[inline(always)]
 unsafe fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents: u64) {
     let mut from: u16;
     let mut attacks: u64;
@@ -157,35 +107,6 @@ unsafe fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents:
             pop!(attacks)
         }
         pop!(promo_attackers)
-    }
-}
-
-fn pawn_pushes<const SIDE: usize>(move_list: &mut MoveList, occupied: u64, pawns: u64) {
-    let empty: u64 = !occupied;
-    let mut pushable_pawns: u64 = shift::<SIDE, 8>(empty) & pawns;
-    let mut dbl_pushable_pawns: u64 = shift::<SIDE, 8>(shift::<SIDE, 8>(empty & DBLRANK[SIDE]) & empty) & pawns;
-    let mut promotable_pawns: u64 = pushable_pawns & PENRANK[SIDE];
-    pushable_pawns &= !PENRANK[SIDE];
-    let mut idx: u16;
-    while pushable_pawns > 0 {
-        idx = lsb!(pushable_pawns);
-        pop!(pushable_pawns);
-        move_list.push(idx_shift::<SIDE, 8>(idx) | idx << 6);
-    }
-    while promotable_pawns > 0 {
-        idx = lsb!(promotable_pawns);
-        pop!(promotable_pawns);
-        let to: u16 = idx_shift::<SIDE, 8>(idx);
-        let f: u16 = idx << 6;
-        move_list.push(MoveFlags::KNIGHT_PROMO | to | f);
-        move_list.push(MoveFlags::BISHOP_PROMO | to | f);
-        move_list.push(MoveFlags::ROOK_PROMO | to | f);
-        move_list.push(MoveFlags::QUEEN_PROMO | to | f);
-    }
-    while dbl_pushable_pawns > 0 {
-        idx = lsb!(dbl_pushable_pawns);
-        pop!(dbl_pushable_pawns);
-        move_list.push(MoveFlags::DBL_PUSH | idx_shift::<SIDE, 16>(idx) | idx << 6);
     }
 }
 
@@ -249,4 +170,89 @@ pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
     forward2 &= masks.antidiag;
 
     forward | forward2
+}
+
+// *************************** //
+//      NEEDS REFACTORING      //
+// - pawn pushes (non-generic) //
+// - castling improvements     //
+// *************************** //
+
+#[inline(always)]
+fn shift<const SIDE: usize, const AMOUNT: u8>(bb: u64) -> u64 {
+    match SIDE {
+        WHITE => bb >> AMOUNT,
+        BLACK => bb << AMOUNT,
+        _ => panic!("Invalid side in fn shift!"),
+    }
+}
+
+#[inline(always)]
+fn idx_shift<const SIDE: usize, const AMOUNT: u16>(idx: u16) -> u16 {
+    match SIDE {
+        WHITE => idx + AMOUNT,
+        BLACK => idx - AMOUNT,
+        _ => panic!("Invalid side in fn shift!"),
+    }
+}
+
+fn pawn_pushes<const SIDE: usize>(move_list: &mut MoveList, occupied: u64, pawns: u64) {
+    let empty: u64 = !occupied;
+    let mut pushable_pawns: u64 = shift::<SIDE, 8>(empty) & pawns;
+    let mut dbl_pushable_pawns: u64 = shift::<SIDE, 8>(shift::<SIDE, 8>(empty & DBLRANK[SIDE]) & empty) & pawns;
+    let mut promotable_pawns: u64 = pushable_pawns & PENRANK[SIDE];
+    pushable_pawns &= !PENRANK[SIDE];
+    let mut idx: u16;
+    while pushable_pawns > 0 {
+        idx = lsb!(pushable_pawns);
+        pop!(pushable_pawns);
+        move_list.push(idx_shift::<SIDE, 8>(idx) | idx << 6);
+    }
+    while promotable_pawns > 0 {
+        idx = lsb!(promotable_pawns);
+        pop!(promotable_pawns);
+        let to: u16 = idx_shift::<SIDE, 8>(idx);
+        let f: u16 = idx << 6;
+        move_list.push(MoveFlags::KNIGHT_PROMO | to | f);
+        move_list.push(MoveFlags::BISHOP_PROMO | to | f);
+        move_list.push(MoveFlags::ROOK_PROMO | to | f);
+        move_list.push(MoveFlags::QUEEN_PROMO | to | f);
+    }
+    while dbl_pushable_pawns > 0 {
+        idx = lsb!(dbl_pushable_pawns);
+        pop!(dbl_pushable_pawns);
+        move_list.push(MoveFlags::DBL_PUSH | idx_shift::<SIDE, 16>(idx) | idx << 6);
+    }
+}
+
+
+#[inline(always)]
+unsafe fn castles(move_list: &mut MoveList, occupied: u64, friendly: u64) {
+    let king_idx: usize = lsb!(POS.pieces[KING] & friendly) as usize;
+    if is_square_attacked(king_idx, POS.side_to_move, occupied) {
+        return
+    }
+    match POS.side_to_move {
+        WHITE => {
+            if POS.state.castle_rights & CastleRights::WHITE_QS > 0 && occupied & (B1 | C1 | D1) == 0
+                && !is_square_attacked(3, WHITE, occupied) {
+                move_list.push(MoveFlags::QS_CASTLE | 2 | 4 << 6)
+            }
+            if POS.state.castle_rights & CastleRights::WHITE_KS > 0 && occupied & (F1 | G1) == 0
+                && !is_square_attacked(5, WHITE, occupied) {
+                move_list.push(MoveFlags::KS_CASTLE | 6 | 4 << 6)
+            }
+        }
+        BLACK => {
+            if POS.state.castle_rights & CastleRights::BLACK_QS > 0 && occupied & (B8 | C8 | D8) == 0
+                && !is_square_attacked(59, BLACK, occupied) {
+                move_list.push(MoveFlags::QS_CASTLE | 58 | 60 << 6)
+            }
+            if POS.state.castle_rights & CastleRights::BLACK_KS > 0 && occupied & (F8 | G8) == 0
+                && !is_square_attacked(61, BLACK, occupied) {
+                move_list.push(MoveFlags::KS_CASTLE | 62 | 60 << 6)
+            }
+        }
+        _ => panic!("Invalid side for castling!"),
+    }
 }
