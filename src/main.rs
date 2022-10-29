@@ -38,6 +38,7 @@ fn main() {
 /// Runs a fixed time (1 second) search on a small collection of FENs,
 /// used to check for any glaring bugs introduced by new search techniques.
 fn performance(commands: Vec<&str>) {
+    tt_resize(128 * 1024 * 1024);
     let time: u128 = if commands.len() >= 2 {commands[1].parse::<u128>().unwrap_or(1000)} else {1000};
     let now = Instant::now();
     for fen in _POSITIONS {

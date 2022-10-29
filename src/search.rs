@@ -234,7 +234,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     // write to hash if appropriate
     if write_to_hash { tt_push(POS.state.zobrist, best_move, depth, bound, alpha) }
 
-    // fail-hard
+    // fail-hard on upper bounds
     alpha
 }
 
