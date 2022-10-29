@@ -40,6 +40,12 @@ macro_rules! add {
     };
 }
 
+/// Gets the from square of a move.
+macro_rules! from {($m:expr) => {(($m >> 6) & 63) as usize}}
+
+/// Gets the target square of a move.
+macro_rules! to {($m:expr) => {($m & 63) as usize}}
+
 /// Index of a square -> bitboard with just that square.
 macro_rules! bit {($x:expr) => {1 << $x}}
 
@@ -153,8 +159,8 @@ pub fn do_move(m: u16) -> bool {
     let opp: usize = POS.side_to_move ^ 1;
 
     // move data
-    let from: usize = ((m >> 6) & 63) as usize;
-    let to: usize = (m & 63) as usize;
+    let from: usize = from!(m);
+    let to: usize = to!(m);
     let f: u64 = bit!(from);
     let t: u64 = bit!(to);
     let moved_pc: u8 = POS.squares[from];
@@ -253,8 +259,8 @@ pub fn undo_move() {
     // move data
     let moved_pc: u8 = state.moved_pc;
     let captured_pc: u8 = state.captured_pc;
-    let from: usize = ((state.m >> 6) & 63) as usize;
-    let to: usize = (state.m & 63) as usize;
+    let from: usize = from!(state.m);
+    let to: usize = to!(state.m);
     let f: u64 = bit!(from);
     let t: u64 = bit!(to);
     let flag: u16 = state.m & MoveFlags::ALL;

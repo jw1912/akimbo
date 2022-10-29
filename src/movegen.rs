@@ -170,12 +170,6 @@ pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
     forward | forward2
 }
 
-// *************************** //
-//      NEEDS REFACTORING      //
-// - pawn pushes (non-generic) //
-// - castling improvements     //
-// *************************** //
-
 #[inline(always)]
 fn shift<const SIDE: usize, const AMOUNT: u8>(bb: u64) -> u64 {
     match SIDE {
