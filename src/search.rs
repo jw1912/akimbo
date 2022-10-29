@@ -173,11 +173,13 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     gen_moves::<ALL>(&mut moves);
     score_moves(&moves, &mut move_scores, hash_move, m_idx);
     
+    // if no cutoff or alpha improvements are achieved then score is an upper bound
+    let mut bound: u8 = Bound::UPPER;
+
     // going through moves
     PLY += 1;
     let mut best_move: u16 = 0;
     let mut best_score: i16 = -MAX;
-    let mut bound: u8 = Bound::UPPER;
     let mut count: u16 = 0;
     while let Some((m, m_score)) = get_next_move(&mut moves, &mut move_scores, &mut m_idx) {
         let invalid: bool = do_move(m);
@@ -210,8 +212,10 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
 
             // raise alpha
             if score > alpha {
-                bound = Bound::EXACT;
                 alpha = score;
+
+                // score no longer an upper bound
+                bound = Bound::EXACT;
 
                 // write to pv in pv nodes
                 if pv { PV_LINE[PLY as usize - 1] = m }
@@ -220,6 +224,11 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
                 if score >= beta {
                     // push to killer move table if not a capture
                     if m & 0b0100_0000_0000_0000 == 0 { kt_push(m) };
+
+                    // failing hard
+                    alpha = beta;
+
+                    // beta cutoff gives a lower bound
                     bound = Bound::LOWER;
                     break 
                 }
