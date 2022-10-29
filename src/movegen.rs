@@ -1,4 +1,4 @@
-use super::{from, to, bit, consts::*, position::{POS, is_square_attacked, MoveList}};
+use super::{consts::*, position::{POS, is_square_attacked, MoveList}};
 
 /// Forward bitscan.
 #[macro_export]
@@ -246,63 +246,5 @@ unsafe fn castles(move_list: &mut MoveList, occupied: u64, friendly: u64) {
             }
         }
         _ => panic!("Invalid side for castling!"),
-    }
-}
-
-/// Tests whether a given move is pseudo legal.
-pub fn is_pseudo_legal(m: u16) -> bool {
-    unsafe {
-    let fidx: usize = from!(m);
-    let f: u64 = bit!(fidx);
-    let us = POS.side_to_move;
-    let flag = m & MoveFlags::ALL;
-    let mut moves: MoveList = MoveList::default();
-    
-    // for uncommon moves just generate relevant moves
-    if flag == MoveFlags::EN_PASSANT {
-        if POS.state.en_passant_sq == 0 { return false }
-        else {
-            en_passants(&mut moves, POS.pieces[PAWN] & POS.sides[us], POS.state.en_passant_sq);
-            return moves.contains(m)
-        }
-    } 
-
-    let occupied: u64 = POS.sides[0] | POS.sides[1];
-    let friendly: u64 = POS.sides[us];
-    
-    if flag == MoveFlags::KS_CASTLE || flag == MoveFlags::QS_CASTLE {
-        castles(&mut moves, occupied, friendly);
-        return moves.contains(m)
-    }
-
-    let tidx: usize = to!(m);
-    let t: u64 = bit!(tidx);
-    let pc: usize = POS.squares[fidx] as usize;
-
-    // hopefully a quick cutoff if none are available
-    if pc == EMPTY || friendly & f == 0 || friendly & t > 0 {
-        return false
-    }
-
-    // now just generate relevant moves, masked by the from square so only generating relevant moves
-    match pc {
-        PAWN => {
-            let pawns: u64 = POS.pieces[PAWN] & POS.sides[us] & f;
-            pawn_captures(&mut moves, pawns, POS.sides[us ^ 1]);
-            match us {
-                WHITE => pawn_pushes::<WHITE>(&mut moves, occupied, pawns),
-                BLACK => pawn_pushes::<BLACK>(&mut moves, occupied, pawns),
-                _ => {}
-            }
-        }
-        KNIGHT => piece_moves::<KNIGHT, ALL>(&mut moves, occupied, f),
-        BISHOP => piece_moves::<BISHOP, ALL>(&mut moves, occupied, f),
-        ROOK => piece_moves::<ROOK, ALL>(&mut moves, occupied, f),
-        QUEEN => piece_moves::<QUEEN, ALL>(&mut moves, occupied, f),
-        KING => piece_moves::<KING, ALL>(&mut moves, occupied, f),
-        _ => {}
-    }
-
-    moves.contains(m)
     }
 }
