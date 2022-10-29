@@ -130,15 +130,6 @@ impl MoveList {
         let ptr: *mut u16 = self.list.as_mut_ptr();
         unsafe { ptr::swap(ptr.add(i), ptr.add(j)) }
     }
-
-    /// Checks if the move list contains a move.
-    #[inline(always)]
-    pub fn contains(&self, m: u16) -> bool {
-        for i in 0..self.len {
-            if m == self.list[i] { return true }
-        }
-        false
-    }
 }
 
 /// Is the given square under attack by the opposing side?
