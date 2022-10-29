@@ -29,12 +29,12 @@ impl Bound {
 /// the hash table.
 #[derive(Clone, Copy, Default)]
 #[repr(align(64))]
-pub struct HashBucket(pub [u64; 8]);
+pub struct HashBucket(pub [HashEntry; 8]);
 const BUCKET_SIZE: usize = std::mem::size_of::<HashBucket>();
 
 /// Split of the encoded entries into their constituent parts.
-#[derive(Default)]
-pub struct HashResult {
+#[derive(Clone, Copy, Default)]
+pub struct HashEntry {
     /// Last 16 bits of the zobrist hash for the position.
     pub key: u16,
     /// Hash move.
@@ -70,26 +70,6 @@ pub fn tt_clear() {
     }
 }
 
-/// Loads HashResult from a given hash entry.
-fn tt_load(data: u64) -> HashResult {
-    HashResult {
-        key: data as u16,
-        best_move: (data >> 16) as u16,
-        score: (data >> 32) as i16,
-        depth: (data >> 48) as i8,
-        bound: ((data >> 56) & 3) as u8,
-    }
-}
-
-/// Encode a search result into a hash entry.
-fn tt_encode(key: u16, best_move: u16, depth: i8, bound: u8, score: i16) -> u64 {
-    (key as u64)
-    | ((best_move as u64) << 16)
-    | (((score as u16) as u64) << 32)
-    | ((depth as u64) << 48)
-    | ((bound as u64) << 56)
-}
-
 /// Push a search result to the hash table.
 /// #### Replacement Scheme
 /// 1. Prioritise replacing entries for the same position (key) that have lower depth.
@@ -103,18 +83,17 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
     let mut desired_idx: usize = usize::MAX;
     let mut smallest_depth: i8 = i8::MAX;
     for (entry_idx, &entry) in bucket.0.iter().enumerate() {
-        let entry_data: HashResult = tt_load(entry);
-        if entry_data.key == key && depth > entry_data.depth {
+        if entry.key == key && depth > entry.depth {
             desired_idx = entry_idx;
             break;
         }
-        if entry_data.depth == 0 {
+        if entry.depth == 0 {
             FILLED += 1;
             desired_idx = entry_idx;
             break;
         }
-        if entry_data.depth < smallest_depth {
-            smallest_depth = entry_data.depth;
+        if entry.depth < smallest_depth {
+            smallest_depth = entry.depth;
             desired_idx = entry_idx;
             continue;
         }
@@ -124,25 +103,25 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
     } else if score < -MATE_THRESHOLD {
         score -= PLY as i16;
     }
-    bucket.0[desired_idx] = tt_encode(key, best_move, depth, bound, score);
+    bucket.0[desired_idx] = HashEntry {key, best_move, depth, bound, score };
     }
 }
 
 /// Probe the hash table to find an entry with given zobrist key.
-pub fn tt_probe(zobrist: u64) -> Option<HashResult> {
+pub fn tt_probe(zobrist: u64) -> Option<HashEntry> {
     let key: u16 = (zobrist >> 48) as u16;
     let idx: usize = (zobrist as usize) % unsafe{TT.len()};
     let bucket: &HashBucket = unsafe{&TT[idx]};
-    for &data in &bucket.0 {
-        if data as u16 == key {
-            let mut entry_data: HashResult = tt_load(data);
-            if entry_data.score > MATE_THRESHOLD {
-                entry_data.score -= unsafe{PLY} as i16;
-            } else if entry_data.score < -MATE_THRESHOLD {
-                entry_data.score += unsafe{PLY} as i16;
+    for entry in &bucket.0 {
+        if entry.key == key {
+            let mut res = *entry;
+            if res.score > MATE_THRESHOLD {
+                res.score -= unsafe{PLY} as i16;
+            } else if res.score < -MATE_THRESHOLD {
+                res.score += unsafe{PLY} as i16;
             }
-            return Some(entry_data);
-        } 
+            return Some(res);
+        }
     }
     None
 }
