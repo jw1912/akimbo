@@ -47,6 +47,7 @@ impl CastleRights {
 }
 
 // movegen
+pub const MSB: u64 = 0x80_00_00_00_00_00_00_00;
 pub const LSB: u64 = 1;
 pub const PENRANK: [u64; 2] = [0x00FF000000000000, 0x000000000000FF00];
 pub const DBLRANK: [u64; 2] = [0x00000000FF000000, 0x000000FF00000000];
@@ -66,19 +67,17 @@ pub static PAWN_ATTACKS: [[u64; 64];2] = [
 ];
 
 // castling
+pub const B1C1D1: u64 = 14;
+pub const F1G1: u64 = 96;
+pub const B8C8D8: u64 = 0x0E00000000000000;
+pub const F8G8: u64 = 0x6000000000000000;
 pub const A1: u64 = 1;
-pub const B1: u64 = 2;
-pub const C1: u64 = 4;
 pub const D1: u64 = 8;
 pub const F1: u64 = 32;
-pub const G1: u64 = 64;
 pub const H1: u64 = 128;
 pub const A8: u64 = 0x0100000000000000;
-pub const B8: u64 = 0x0200000000000000;
-pub const C8: u64 = 0x0400000000000000;
 pub const D8: u64 = 0x0800000000000000;
 pub const F8: u64 = 0x2000000000000000;
-pub const G8: u64 = 0x4000000000000000;
 pub const H8: u64 = 0x8000000000000000;
 pub static CASTLE_RIGHTS: [u8; 64] = castle_rights();
 const fn castle_rights() -> [u8; 64] {

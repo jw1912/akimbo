@@ -133,16 +133,14 @@ pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
     forward ^= reverse.swap_bytes();
     forward &= masks.file;
 
-    // subtracting rook from blocking piece
-    let mut blockers: u64 = masks.easts & occupied;
-    let closest: u64 = blockers & blockers.wrapping_neg();
-    let mut easts: u64 = (closest.wrapping_sub(masks.bitmask)) ^ masks.bitmask ^ closest;
-    easts *= (closest > 0) as u64;
-
-    // classical approach -- OPTIMISE (lookup in WEST and msb scan)
+    // backwards moves
+    let mut easts: u64 = EAST[idx];
+    let mut blockers: u64 = easts & occupied;
+    let mut sq = lsb!(blockers | MSB) as usize;
+    easts ^= EAST[sq];
     let mut wests: u64 = masks.wests;
     blockers = wests & occupied;
-    let sq: usize = msb!(blockers | LSB) as usize;
+    sq = msb!(blockers | LSB) as usize;
     wests ^= WEST[sq];
 
     forward | easts | wests
@@ -234,21 +232,21 @@ unsafe fn castles(move_list: &mut MoveList, occupied: u64, friendly: u64) {
     }
     match POS.side_to_move {
         WHITE => {
-            if POS.state.castle_rights & CastleRights::WHITE_QS > 0 && occupied & (B1 | C1 | D1) == 0
+            if POS.state.castle_rights & CastleRights::WHITE_QS > 0 && occupied & (B1C1D1) == 0
                 && !is_square_attacked(3, WHITE, occupied) {
                 move_list.push(MoveFlags::QS_CASTLE | 2 | 4 << 6)
             }
-            if POS.state.castle_rights & CastleRights::WHITE_KS > 0 && occupied & (F1 | G1) == 0
+            if POS.state.castle_rights & CastleRights::WHITE_KS > 0 && occupied & (F1G1) == 0
                 && !is_square_attacked(5, WHITE, occupied) {
                 move_list.push(MoveFlags::KS_CASTLE | 6 | 4 << 6)
             }
         }
         BLACK => {
-            if POS.state.castle_rights & CastleRights::BLACK_QS > 0 && occupied & (B8 | C8 | D8) == 0
+            if POS.state.castle_rights & CastleRights::BLACK_QS > 0 && occupied & (B8C8D8) == 0
                 && !is_square_attacked(59, BLACK, occupied) {
                 move_list.push(MoveFlags::QS_CASTLE | 58 | 60 << 6)
             }
-            if POS.state.castle_rights & CastleRights::BLACK_KS > 0 && occupied & (F8 | G8) == 0
+            if POS.state.castle_rights & CastleRights::BLACK_KS > 0 && occupied & (F8G8) == 0
                 && !is_square_attacked(61, BLACK, occupied) {
                 move_list.push(MoveFlags::KS_CASTLE | 62 | 60 << 6)
             }
