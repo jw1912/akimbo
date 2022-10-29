@@ -41,12 +41,15 @@ macro_rules! add {
 }
 
 /// Gets the from square of a move.
+#[macro_export]
 macro_rules! from {($m:expr) => {(($m >> 6) & 63) as usize}}
 
 /// Gets the target square of a move.
+#[macro_export]
 macro_rules! to {($m:expr) => {($m & 63) as usize}}
 
 /// Index of a square -> bitboard with just that square.
+#[macro_export]
 macro_rules! bit {($x:expr) => {1 << $x}}
 
 /// Contains all relevant information for the current board state.
@@ -126,6 +129,15 @@ impl MoveList {
     pub fn swap_unchecked(&mut self, i: usize, j: usize) {
         let ptr: *mut u16 = self.list.as_mut_ptr();
         unsafe { ptr::swap(ptr.add(i), ptr.add(j)) }
+    }
+
+    /// Checks if the move list contains a move.
+    #[inline(always)]
+    pub fn contains(&self, m: u16) -> bool {
+        for i in 0..self.len {
+            if m == self.list[i] { return true }
+        }
+        false
     }
 }
 
