@@ -183,11 +183,9 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     let mut count: u16 = 0;
     while let Some((m, m_score)) = get_next_move(&mut moves, &mut move_scores, &mut m_idx) {
         let invalid: bool = do_move(m);
-        // is move legal?
         if invalid { continue }
         count += 1;
 
-        // does the move give check?
         let gives_check = is_in_check();
 
         // late move reductions
@@ -213,11 +211,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
             // raise alpha
             if score > alpha {
                 alpha = score;
-
-                // score no longer an upper bound
                 bound = Bound::EXACT;
-
-                // write to pv in pv nodes
                 if pv { PV_LINE[PLY as usize - 1] = m }
 
                 // beta prune
@@ -227,8 +221,6 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
 
                     // failing hard
                     alpha = beta;
-
-                    // beta cutoff gives a lower bound
                     bound = Bound::LOWER;
                     break 
                 }
@@ -243,7 +235,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     // write to hash if appropriate
     if write_to_hash { tt_push(POS.state.zobrist, best_move, depth, bound, alpha) }
 
-    // fail-hard on upper bounds
+    // fail-hard
     alpha
 }
 
