@@ -116,6 +116,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
 
     // check extensions
     depth += in_check as i8;
+
     // qsearch at depth 0
     if depth <= 0 || PLY == MAX_PLY { 
         SELDEPTH = max(SELDEPTH, PLY);
@@ -132,7 +133,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         // write to hash only if this search is of greater depth than the hash entry
         write_to_hash = depth > res.depth;
 
-        // hash move for move ordering (immeediate cutoff ~60% of the time there is one)
+        // hash move for move ordering (immediate cutoff ~60% of the time there is one)
         hash_move = res.best_move;
 
         // hash score pruning
