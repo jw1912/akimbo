@@ -53,11 +53,11 @@ pub fn hashfull() -> u64 {
     unsafe {FILLED * 1000 / (8 * TT_SIZE) as u64}
 }
 
-/// Resizes the hash table to given size **in bytes**, rounded down to nearest power of 2.
+/// Resizes the hash table to given size **in megabytes**, rounded down to nearest power of 2.
 pub fn tt_resize(mut size: usize) {
     unsafe {
         size = 2usize.pow((size as f64).log2().floor() as u32);
-        TT_SIZE = size / BUCKET_SIZE;
+        TT_SIZE = size * 1024 * 1024 / BUCKET_SIZE;
         TT = vec![Default::default(); TT_SIZE];
         FILLED = 0;
     }

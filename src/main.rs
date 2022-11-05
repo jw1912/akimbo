@@ -38,7 +38,7 @@ fn main() {
 /// Runs a fixed time (1 second) search on a small collection of FENs,
 /// used to check for any glaring bugs introduced by new search techniques.
 fn performance(commands: Vec<&str>) {
-    tt_resize(128 * 1024 * 1024);
+    tt_resize(128);
     let time: u128 = if commands.len() >= 2 {commands[1].parse::<u128>().unwrap_or(1000)} else {1000};
     let now = Instant::now();
     for fen in _POSITIONS {
@@ -74,7 +74,7 @@ fn perft<const ROOT: bool>(depth_left: u8) -> u64 {
 fn uci_run() {
     // init position and hash table
     parse_fen(STARTPOS);
-    tt_resize(1024 * 1024);
+    tt_resize(1);
     // uci preamble
     println!("id name akimbo {}", VERSION);
     println!("id author {}", AUTHOR);
@@ -197,7 +197,7 @@ fn parse_position(commands: Vec<&str>) {
 /// Parses "setoption name ...".
 fn parse_setoption(commands: Vec<&str>) {
     match commands[..4] {
-        ["setoption", "name", "Hash", "value"] => tt_resize(commands[4].parse::<usize>().unwrap_or(1) * 1024 * 1024),
+        ["setoption", "name", "Hash", "value"] => tt_resize(commands[4].parse::<usize>().unwrap_or(1)),
         ["setoption", "name", "Clear", "Hash"] => tt_clear(),
         _ => {},
     }
