@@ -3,7 +3,7 @@ use super::consts::*;
 use super::position::*;
 use super::hash::*;
 use super::movegen::*;
-use super::eval::{static_eval, lazy_eval};
+use super::eval::lazy_eval;
 use super::u16_to_uci;
 
 /// Maximum depth to search.
@@ -247,7 +247,7 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     NODES += 1;
 
     // static eval as an initial guess
-    let stand_pat = static_eval();
+    let stand_pat = lazy_eval();
 
     // alpha-beta, delta pruning
     if stand_pat >= beta { return beta }

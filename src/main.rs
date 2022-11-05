@@ -18,7 +18,7 @@ pub mod search;
 use std::io::stdin;
 use std::time::Instant;
 use consts::*;
-use eval::{lazy_eval, static_eval};
+use eval::lazy_eval;
 use hash::{tt_clear, tt_resize, zobrist, kt_clear};
 use position::{POS, MoveList, do_move, undo_move, GameState};
 use movegen::{gen_moves, ALL};
@@ -108,8 +108,8 @@ fn parse_commands(commands: Vec<&str>) {
 fn output_eval() {
     unsafe{
         let side = SIDE_FACTOR[POS.side_to_move];
-        println!("phase: {}, mg: {}, eg: {}, lazy_eval: {}, static_eval: {} (white pov)", 
-        POS.state.phase, POS.state.mg, POS.state.eg, side * lazy_eval(), side * static_eval())
+        println!("phase: {}, mg: {}, eg: {}, eval: {}(white pov)", 
+        POS.state.phase, POS.state.mg, POS.state.eg, side * lazy_eval())
     }
 }
 
