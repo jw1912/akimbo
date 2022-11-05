@@ -53,9 +53,10 @@ pub fn hashfull() -> u64 {
     unsafe {FILLED * 1000 / (8 * TT_SIZE) as u64}
 }
 
-/// Resizes the hash table to given size **in bytes**.
-pub fn tt_resize(size: usize) {
+/// Resizes the hash table to given size **in bytes**, rounded down to nearest power of 2.
+pub fn tt_resize(mut size: usize) {
     unsafe {
+        size = 2usize.pow((size as f64).log2().floor() as u32);
         TT_SIZE = size / BUCKET_SIZE;
         TT = vec![Default::default(); TT_SIZE];
         FILLED = 0;
@@ -110,7 +111,7 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
 /// Probe the hash table to find an entry with given zobrist key.
 pub fn tt_probe(zobrist: u64) -> Option<HashEntry> {
     let key: u16 = (zobrist >> 48) as u16;
-    let idx: usize = (zobrist as usize) % unsafe{TT.len()};
+    let idx: usize = (zobrist as usize) & (unsafe{TT.len()} - 1);
     let bucket: &HashBucket = unsafe{&TT[idx]};
     for entry in &bucket.0 {
         if entry.key == key {
