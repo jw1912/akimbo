@@ -10,19 +10,16 @@ pub mod position;
 pub mod movegen;
 /// Contains hash and killer move tables.
 pub mod hash;
-/// Contains the evaluation code for static positions and detecting draws.
-pub mod eval;
 /// Contains the main engine code for searching positions.
 pub mod search;
 
 use std::io::stdin;
 use std::time::Instant;
 use consts::*;
-use eval::lazy_eval;
 use hash::{tt_clear, tt_resize, zobrist, kt_clear};
-use position::{POS, MoveList, do_move, undo_move, GameState};
+use position::{POS, MoveList, do_move, undo_move, GameState, calc};
 use movegen::{gen_moves, ALL};
-use search::{DEPTH, TIME, go};
+use search::{DEPTH, TIME, go, lazy_eval};
 
 /// Main loop waits until receiving the "uci" command.
 fn main() {
@@ -272,7 +269,7 @@ pub fn parse_fen(s: &str) {
     }
     let en_passant_sq: u16 = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
     let halfmove_clock: u8 = vec[4].parse::<u8>().unwrap_or(0);
-    let (phase, mg, eg): (i16, i16, i16) = eval::calc();
+    let (phase, mg, eg): (i16, i16, i16) = calc();
 
     // set state
     POS.state = GameState {zobrist: 0, phase, mg, eg,en_passant_sq, halfmove_clock, castle_rights};

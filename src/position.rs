@@ -379,3 +379,25 @@ pub fn is_draw_by_material() -> bool {
     false
     }
 }
+
+/// Calculates the midgame and endgame piece-square table evaluations and the game 
+/// phase of the current position from scratch.
+pub fn calc() -> (i16, i16, i16) {
+    let mut res: (i16, i16, i16) = (0,0,0);
+    for (i, side) in unsafe{POS.sides.iter().enumerate()} {
+        let factor = SIDE_FACTOR[i];
+        for j in 0..6 {
+            let mut pcs: u64 = unsafe{POS.pieces[j]} & side;
+            let count: i16 = pcs.count_ones() as i16;
+            res.0 += PHASE_VALS[j] * count;
+            while pcs > 0 {
+                let idx: usize = lsb!(pcs) as usize;
+                let white: usize = (i == 0) as usize * 56;
+                res.1 += factor * PST_MG[j][idx ^ white];
+                res.2 += factor * PST_EG[j][idx ^ white];
+                pop!(pcs);
+            }
+        }
+    }
+    res
+}
