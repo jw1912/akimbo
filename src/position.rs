@@ -356,7 +356,7 @@ pub fn is_draw_by_repetition(num: u8) -> bool {
 /// Has the position reached a draw by the fifty-move rule.
 #[inline(always)]
 pub fn is_draw_by_50() -> bool {
-    unsafe{NULLS > 0 && POS.state.halfmove_clock >= 100}
+    unsafe{POS.state.halfmove_clock >= 100}
 }
 
 /// Is there a FIDE draw by insufficient material?
