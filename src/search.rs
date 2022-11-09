@@ -39,7 +39,7 @@ fn mvv_lva(m: u16) -> u16 {
     let to_idx: u16 = m & 0b111111;
     let moved_pc: usize = unsafe{POS.squares[from_idx as usize]} as usize;
     let captured_pc: usize = unsafe{POS.squares[to_idx as usize]} as usize;
-    MVV_LVA[captured_pc][moved_pc]
+    (1500 + captured_pc * 1000 - moved_pc * 100) as u16
 }
 
 /// Scores a move.
