@@ -59,7 +59,7 @@ pub fn gen_moves<const U: u8>(move_list: &mut MoveList) {
     }
 }
 
-unsafe fn piece_moves<const PIECE: usize, const U: u8>(move_list: &mut MoveList, occupied: u64, friendly: u64) { 
+unsafe fn piece_moves<const PIECE: usize, const U: u8>(move_list: &mut MoveList, occupied: u64, friendly: u64) {
     let mut from: u16;
     let mut idx: usize;
     let mut attacks: u64;

@@ -2,9 +2,9 @@ use super::{lsb, pop, consts::*, movegen::{bishop_attacks, rook_attacks}, hash::
 use std::ptr;
 
 /// The position is stored as global state.
-pub static mut POS: Position = Position { 
-    pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], side_to_move: 0, 
-    state: GameState { zobrist: 0, phase: 0, mg: 0, eg: 0, en_passant_sq: 0, halfmove_clock: 0, castle_rights: 0 }, 
+pub static mut POS: Position = Position {
+    pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], side_to_move: 0,
+    state: GameState { zobrist: 0, phase: 0, mg: 0, eg: 0, en_passant_sq: 0, halfmove_clock: 0, castle_rights: 0 },
     fullmove_counter: 0, stack: Vec::new()
 };
 
@@ -194,7 +194,7 @@ pub fn do_move(m: u16) -> bool {
     }
 
     // piece-specific updates
-    match moved_pc as usize { 
+    match moved_pc as usize {
         PAWN =>  {
             if flag == MoveFlags::EN_PASSANT {
                 let pwn: usize = match opp { WHITE => to + 8, BLACK => to - 8, _ => panic!() };
@@ -206,7 +206,7 @@ pub fn do_move(m: u16) -> bool {
                 POS.state.en_passant_sq = match POS.side_to_move {WHITE => to - 8, BLACK => to + 8, _ => panic!("")} as u16;
                 POS.state.zobrist ^= ZVALS.en_passant[to & 7];
             } else if flag >= MoveFlags::KNIGHT_PROMO {
-                let ppc: usize = (((flag >> 12) & 3) + 1) as usize; 
+                let ppc: usize = (((flag >> 12) & 3) + 1) as usize;
                 POS.pieces[moved_pc as usize] ^= t;
                 POS.pieces[ppc] ^= t;
                 POS.squares[to] = ppc as u8;
@@ -214,7 +214,7 @@ pub fn do_move(m: u16) -> bool {
                 remove!(to, POS.side_to_move, moved_pc as usize);
                 add!(to, POS.side_to_move, ppc);
             }
-        } 
+        }
         KING => {
             POS.state.castle_rights &= CASTLE_RIGHTS[from];
             if flag == MoveFlags::KS_CASTLE || flag == MoveFlags::QS_CASTLE {
@@ -224,7 +224,7 @@ pub fn do_move(m: u16) -> bool {
                 remove!(idx1, POS.side_to_move, ROOK);
                 add!(idx2, POS.side_to_move, ROOK);
             }
-        } 
+        }
         ROOK => POS.state.castle_rights &= CASTLE_RIGHTS[from],
         _ => {}
     }
@@ -281,7 +281,7 @@ pub fn undo_move() {
     }
 
     // piece-specific updates
-    match moved_pc as usize { 
+    match moved_pc as usize {
         PAWN =>  {
             if flag == MoveFlags::EN_PASSANT {
                 let pwn: usize = match opp { WHITE => to + 8, BLACK => to - 8, _ => panic!() };
@@ -289,18 +289,18 @@ pub fn undo_move() {
                 toggle!(opp, PAWN, p);
                 POS.squares[pwn] = PAWN as u8;
             } else if flag >= MoveFlags::KNIGHT_PROMO {
-                let promo_pc: u16 = ((flag >> 12) & 3) + 1; 
+                let promo_pc: u16 = ((flag >> 12) & 3) + 1;
                 POS.pieces[moved_pc as usize] ^= t;
                 POS.pieces[promo_pc as usize] ^= t;
             }
-        } 
+        }
         KING => {
             if flag == MoveFlags::KS_CASTLE || flag == MoveFlags::QS_CASTLE {
                 let (c, idx1, idx2): (u64, usize, usize) = CASTLE_MOVES[POS.side_to_move][(flag == MoveFlags::KS_CASTLE) as usize];
                 POS.squares.swap(idx1, idx2);
                 toggle!(POS.side_to_move, ROOK, c);
             }
-        } 
+        }
         _ => {}
     }
 
@@ -350,7 +350,7 @@ pub fn is_draw_by_repetition(num: u8) -> bool {
         }
     }
     false
-    } 
+    }
 }
 
 /// Has the position reached a draw by the fifty-move rule.
@@ -380,7 +380,7 @@ pub fn is_draw_by_material() -> bool {
     }
 }
 
-/// Calculates the midgame and endgame piece-square table evaluations and the game 
+/// Calculates the midgame and endgame piece-square table evaluations and the game
 /// phase of the current position from scratch.
 pub fn calc() -> (i16, i16, i16) {
     let mut res: (i16, i16, i16) = (0,0,0);

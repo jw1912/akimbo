@@ -105,7 +105,7 @@ fn parse_commands(commands: Vec<&str>) {
 fn output_eval() {
     unsafe{
         let side = SIDE_FACTOR[POS.side_to_move];
-        println!("phase: {}, mg: {}, eg: {}, eval: {}(white pov)", 
+        println!("phase: {}, mg: {}, eg: {}, eval: {}(white pov)",
         POS.state.phase, POS.state.mg, POS.state.eg, side * lazy_eval())
     }
 }

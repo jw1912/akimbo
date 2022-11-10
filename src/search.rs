@@ -63,7 +63,7 @@ fn score_move(m: u16, hash_move: u16, killers: [u16; KILLERS_PER_PLY]) -> u16 {
 fn score_moves(moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, start_idx: usize) {
     let killers: [u16; KILLERS_PER_PLY] = unsafe{KT[PLY as usize]};
     for i in start_idx..moves.len {
-        let m: u16 = moves.list[i]; 
+        let m: u16 = moves.list[i];
         move_scores.push(score_move(m, hash_move, killers));
     }
 }
@@ -126,9 +126,9 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     depth += in_check as i8;
 
     // qsearch at depth 0
-    if depth <= 0 || PLY == MAX_PLY { 
+    if depth <= 0 || PLY == MAX_PLY {
         SELDEPTH = max(SELDEPTH, PLY);
-        return quiesce(alpha, beta) 
+        return quiesce(alpha, beta)
     }
 
     // count the node
@@ -181,7 +181,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     let mut move_scores = MoveList::default();
     gen_moves::<ALL>(&mut moves);
     score_moves(&moves, &mut move_scores, hash_move, m_idx);
-    
+
     // if no cutoff or alpha improvements are achieved then score is an upper bound
     let mut bound: u8 = Bound::UPPER;
 
@@ -231,9 +231,9 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
                     // failing hard
                     alpha = beta;
                     bound = Bound::LOWER;
-                    break 
+                    break
                 }
-            } 
+            }
         }
     }
     PLY -= 1;
@@ -248,7 +248,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     alpha
 }
 
-/// Performas a quiescence search to more effectively evluate positions 
+/// Performas a quiescence search to more effectively evluate positions
 /// (particularly exchanges at the horizon).
 unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     // count all quiescent nodes
@@ -279,7 +279,7 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
         let score: i16 = -quiesce(-beta, -alpha);
 
         undo_move();
-        
+
         // alpha-beta pruning
         if score > alpha {
             alpha = score;
@@ -291,7 +291,7 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     alpha
 }
 
-/// Runs main iterative deepening loop for the search, 
+/// Runs main iterative deepening loop for the search,
 /// and outputs relevant information while doing so.
 pub fn go() {
     unsafe {
@@ -319,7 +319,7 @@ pub fn go() {
 
         // uci output for the gui
         let (stype, sval): (&str, i16) = match is_mate_score!(score) {
-            true => ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2), 
+            true => ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2),
             false => ("cp", score)
         };
         let nps: u32 = ((NODES as f64) * 1000.0 / (t as f64)) as u32;

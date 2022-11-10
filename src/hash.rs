@@ -25,7 +25,7 @@ impl Bound {
 }
 
 /// A 64 byte-alligned bucket that can hold up to 8 entries
-/// with the same hash key modulo the number of buckets in 
+/// with the same hash key modulo the number of buckets in
 /// the hash table.
 #[derive(Clone, Copy, Default)]
 #[repr(align(64))]
@@ -47,7 +47,7 @@ pub struct HashEntry {
     pub bound: u8,
 }
 
-/// The proportion of the hash table that is filled, 
+/// The proportion of the hash table that is filled,
 /// measured in permill.
 pub fn hashfull() -> u64 {
     unsafe {FILLED * 1000 / (8 * TT_SIZE) as u64}
