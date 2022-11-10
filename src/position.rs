@@ -20,7 +20,7 @@ macro_rules! toggle {
     };
 }
 
-/// Removes a piece from the incrementalally updated fields.
+/// Removes a piece from the incrementally updated fields.
 macro_rules! remove {
     ($from:expr, $side:expr, $pc:expr) => {
         let indx = $from ^ (56 * ($side == 0) as usize);
@@ -30,7 +30,7 @@ macro_rules! remove {
     };
 }
 
-/// Adds a piece to the incrementalally updated fields.
+/// Adds a piece to the incrementally updated fields.
 macro_rules! add {
     ($from:expr, $side:expr, $pc:expr) => {
         let indx = $from ^ (56 * ($side == 0) as usize);
@@ -304,7 +304,7 @@ pub fn undo_move() {
         _ => {}
     }
 
-    // fnal updates
+    // final updates
     POS.fullmove_counter -= (POS.side_to_move == BLACK) as u16;
     }
 }

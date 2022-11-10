@@ -1,6 +1,6 @@
 # akimbo
 
-akimbo is a UCI compatible chess engine written in Rust. 
+akimbo is a UCI compatible chess engine written in Rust.
 It is the successor of [Kimbo](https://github.com/JacquesRW/Kimbo).
 
 ### Aims
@@ -30,7 +30,7 @@ If you have cargo installed, run `cargo build --release`.
 3. Killer moves
 4. Quiets
 
-#### Evalutaion
+#### Evaluation
 - Tapered from midgame to endgame
 - Piece-square tables
 - Passed pawn bonus

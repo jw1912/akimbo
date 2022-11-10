@@ -295,7 +295,7 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
 /// and outputs relevant information while doing so.
 pub fn go() {
     unsafe {
-    // initilialise values
+    // initialise values
     NODES = 0;
     SELDEPTH = 0;
     STOP = false;

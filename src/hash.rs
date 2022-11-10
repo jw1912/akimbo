@@ -24,7 +24,7 @@ impl Bound {
     pub const EXACT: u8 = 3;
 }
 
-/// A 64 byte-alligned bucket that can hold up to 8 entries
+/// A 64 byte-aligned bucket that can hold up to 8 entries
 /// with the same hash key modulo the number of buckets in
 /// the hash table.
 #[derive(Clone, Copy, Default)]
