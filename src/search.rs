@@ -191,8 +191,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     let mut best_score: i16 = -MAX;
     let mut count: u16 = 0;
     while let Some((m, m_score)) = get_next_move(&mut moves, &mut move_scores, &mut m_idx) {
-        let invalid: bool = do_move(m);
-        if invalid { continue }
+        if do_move(m) { continue }
         count += 1;
 
         let gives_check = is_in_check();
