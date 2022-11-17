@@ -158,7 +158,6 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         let lazy_eval: i16 = lazy_eval();
 
         // reverse futility pruning
-        // TODO: test if it actually helps
         if depth <= 8 && lazy_eval >= beta + 120 * depth as i16 {
             return beta
         }
