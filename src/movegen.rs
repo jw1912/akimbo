@@ -1,6 +1,4 @@
-use crate::position::is_in_check;
-
-use super::{consts::*, position::{POS, is_square_attacked, MoveList}};
+use super::{consts::*, position::{POS, MoveList, is_in_check, is_square_attacked}};
 
 /// Forward bitscan.
 #[macro_export]
