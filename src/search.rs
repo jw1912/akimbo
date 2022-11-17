@@ -47,7 +47,7 @@ fn mvv_lva(m: u16) -> u16 {
 /// 2. Captures, sorted by MVV-LVA
 /// 3. Killer moves
 /// 4. Quiet moves
-fn score_move(m: u16, hash_move: u16, killers: [u16; KILLERS_PER_PLY]) -> u16 {
+fn score_move(m: u16, hash_move: u16, killers: [u16; 3]) -> u16 {
     if m == hash_move {
         HASH_MOVE
     } else if is_capture!(m) {
@@ -61,7 +61,7 @@ fn score_move(m: u16, hash_move: u16, killers: [u16; KILLERS_PER_PLY]) -> u16 {
 
 /// Goes through all moves in a movelist and scores them.
 fn score_moves(moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, start_idx: usize) {
-    let killers: [u16; KILLERS_PER_PLY] = unsafe{KT[PLY as usize]};
+    let killers: [u16; 3] = unsafe{KT[PLY as usize]};
     for i in start_idx..moves.len {
         let m: u16 = moves.list[i];
         move_scores.push(score_move(m, hash_move, killers));

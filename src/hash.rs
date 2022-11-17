@@ -9,9 +9,7 @@ static mut TT_SIZE: usize = 0;
 static mut FILLED: u64 = 0;
 
 /// Killer Move Table
-pub static mut KT: [[u16; KILLERS_PER_PLY]; MAX_PLY as usize] = [[0; KILLERS_PER_PLY]; MAX_PLY as usize];
-/// Testing shows 3 killers per ply is most beneficial
-pub const KILLERS_PER_PLY: usize = 3;
+pub static mut KT: [[u16; 3]; MAX_PLY as usize] = [[0; 3]; MAX_PLY as usize];
 
 /// The type of bound determined by the hash entry when it was searched.
 pub struct Bound;
@@ -211,21 +209,14 @@ pub mod zobrist {
 pub fn kt_push(m: u16) {
     unsafe {
     let ply: usize = PLY as usize - 1;
-    let lost_move: u16 = KT[ply][KILLERS_PER_PLY - 1];
-    let mut copy_found: bool = false;
-    for idx in (1..KILLERS_PER_PLY).rev() {
-        let entry: u16 = KT[ply][idx - 1];
-        if entry == m { copy_found = true }
-        KT[ply][idx] = entry;
-    }
-    KT[ply as usize][0] = if copy_found {lost_move} else {m}
+    if KT[ply].contains(&m) { return }
+    KT[ply][2] = KT[ply][1];
+    KT[ply][1] = KT[ply][0];
+    KT[ply][0] = m;
     }
 }
 
 /// Clear the killer moves table.
 pub fn kt_clear() {
-    unsafe{
-    for ply in &mut KT {
-        *ply = [0; KILLERS_PER_PLY];
-    }}
+    unsafe{KT = [[0; 3]; MAX_PLY as usize]}
 }
