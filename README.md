@@ -5,7 +5,7 @@ It is the successor of [Kimbo](https://github.com/JacquesRW/Kimbo).
 
 ### Aims
 The main aim of akimbo is to stay under 1500 lines of code.
-At last count it was at 1302 lines, excluding blank lines and comments.
+At last count it was at 1275 lines, excluding blank lines and comments.
 
 ### Compiling
 If you have cargo installed, run `cargo build --release`.
@@ -26,14 +26,12 @@ If you have cargo installed, run `cargo build --release`.
 
 #### Move Ordering
 1. Hash move
-2. Captures, sorted by MVV-LVA
+2. Captures (MVV-LVA)
 3. Killer moves
 4. Quiets
 
 #### Evaluation
-- Tapered from midgame to endgame
-- Piece-square tables
-- Passed pawn bonus
+- Tapered piece-square tables
 
 #### Pruning/Reductions
 - Mate distance pruning

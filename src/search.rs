@@ -1,9 +1,5 @@
+use super::{consts::*, position::*, hash::*, movegen::*, u16_to_uci};
 use std::{cmp::{min, max}, time::Instant};
-use super::consts::*;
-use super::position::*;
-use super::hash::*;
-use super::movegen::*;
-use super::u16_to_uci;
 
 /// Maximum depth to search.
 pub static mut DEPTH: i8 = i8::MAX;

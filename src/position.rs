@@ -92,14 +92,10 @@ pub struct GameState {
 /// Holds all relevant move information that needs to be retrieved on unmake.
 #[derive(Clone, Copy)]
 pub struct MoveState {
-    /// Game state.
-    pub state: GameState,
-    /// Last move.
-    pub m: u16,
-    /// Piece last moved.
-    pub moved_pc: u8,
-    /// Piece last captured.
-    pub captured_pc: u8,
+    state: GameState,
+    m: u16,
+    moved_pc: u8,
+    captured_pc: u8,
 }
 
 /// Stack allocated list, to holds moves and move scores.

@@ -1,5 +1,4 @@
-use super::consts::{MATE_THRESHOLD, MAX_PLY};
-use super::search::PLY;
+use super::{consts::{MATE_THRESHOLD, MAX_PLY}, search::PLY};
 
 /// HASH TABLE
 pub static mut TT: Vec<HashBucket> = Vec::new();
@@ -28,7 +27,6 @@ impl Bound {
 #[derive(Clone, Copy, Default)]
 #[repr(align(64))]
 pub struct HashBucket(pub [HashEntry; 8]);
-const BUCKET_SIZE: usize = std::mem::size_of::<HashBucket>();
 
 /// Split of the encoded entries into their constituent parts.
 #[derive(Clone, Copy, Default)]
@@ -55,7 +53,7 @@ pub fn hashfull() -> u64 {
 pub fn tt_resize(mut size: usize) {
     unsafe {
         size = 2usize.pow((size as f64).log2().floor() as u32);
-        TT_SIZE = size * 1024 * 1024 / BUCKET_SIZE;
+        TT_SIZE = size * 1024 * 1024 / std::mem::size_of::<HashBucket>();
         TT = vec![Default::default(); TT_SIZE];
         FILLED = 0;
     }
@@ -127,9 +125,9 @@ pub fn tt_probe(zobrist: u64) -> Option<HashEntry> {
 
 /// Methods and initialisation of zobrist hashing values.
 pub mod zobrist {
+    use crate::{lsb, pop, position::POS};
     use lazy_static::lazy_static;
     use fastrand;
-    use crate::{lsb, pop, position::POS};
 
     lazy_static!(
         /// Zobrist hashing values, initialised on first call.

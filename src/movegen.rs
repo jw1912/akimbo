@@ -1,3 +1,5 @@
+use crate::position::is_in_check;
+
 use super::{consts::*, position::{POS, is_square_attacked, MoveList}};
 
 /// Forward bitscan.
@@ -43,7 +45,7 @@ pub fn gen_moves<const U: u8>(move_list: &mut MoveList) {
             _ => panic!("Invalid side to move!"),
         }
         if POS.state.castle_rights & CastleRights::SIDES[POS.side_to_move] > 0 {
-            castles(move_list, occupied, friendly);
+            castles(move_list, occupied);
         }
     }
     if U != QUIETS {
@@ -219,11 +221,8 @@ fn pawn_pushes<const SIDE: usize>(move_list: &mut MoveList, occupied: u64, pawns
 
 
 #[inline(always)]
-unsafe fn castles(move_list: &mut MoveList, occupied: u64, friendly: u64) {
-    let king_idx: usize = lsb!(POS.pieces[KING] & friendly) as usize;
-    if is_square_attacked(king_idx, POS.side_to_move, occupied) {
-        return
-    }
+unsafe fn castles(move_list: &mut MoveList, occupied: u64) {
+    if is_in_check() { return }
     match POS.side_to_move {
         WHITE => {
             if POS.state.castle_rights & CastleRights::WHITE_QS > 0 && occupied & (B1C1D1) == 0
