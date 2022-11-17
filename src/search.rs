@@ -26,11 +26,9 @@ macro_rules! is_mate_score {($score:expr) => {$score.abs() >= MATE_THRESHOLD}}
 
 /// Returns a piece-square table only evaluation of the current position.
 #[inline(always)]
-pub fn lazy_eval() -> i16 {
-    unsafe {
+unsafe fn lazy_eval() -> i16 {
     let phase: i32 = std::cmp::min(POS.state.phase as i32, TPHASE);
     SIDE_FACTOR[POS.side_to_move] * ((phase * POS.state.mg as i32 + (TPHASE - phase) * POS.state.eg as i32) / TPHASE) as i16
-    }
 }
 
 /// Assigns scores first by the most valuable victim, then within that orders by least valuable attacker

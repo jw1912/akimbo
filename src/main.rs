@@ -19,7 +19,7 @@ use consts::*;
 use hash::{tt_clear, tt_resize, zobrist, kt_clear};
 use position::{POS, MoveList, do_move, undo_move, GameState, calc};
 use movegen::{gen_moves, ALL};
-use search::{DEPTH, TIME, go, lazy_eval};
+use search::{DEPTH, TIME, go};
 
 /// Main loop waits until receiving the "uci" command.
 fn main() {
@@ -97,17 +97,8 @@ fn parse_commands(commands: Vec<&str>) {
         "setoption" => parse_setoption(commands),
         "perft" => parse_perft(commands),
         "performance" => performance(commands),
-        "eval" => output_eval(),
         _ => {},
     };
-}
-
-fn output_eval() {
-    unsafe{
-        let side = SIDE_FACTOR[POS.side_to_move];
-        println!("phase: {}, mg: {}, eg: {}, eval: {}(white pov)",
-        POS.state.phase, POS.state.mg, POS.state.eg, side * lazy_eval())
-    }
 }
 
 /// Resets position to starting position, clears hash and killer move tables.
