@@ -21,6 +21,8 @@ use position::{POS, MoveList, do_move, undo_move, GameState, calc};
 use movegen::{gen_moves, ALL};
 use search::{DEPTH, TIME, go};
 
+macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().unwrap_or($else)}}
+
 /// Main loop waits until receiving the "uci" command.
 fn main() {
     println!("akimbo, created by Jamie Whiting");
@@ -36,7 +38,7 @@ fn main() {
 /// used to check for any glaring bugs introduced by new search techniques.
 fn performance(commands: Vec<&str>) {
     tt_resize(128);
-    let time: u128 = if commands.len() >= 2 {commands[1].parse::<u128>().unwrap_or(1000)} else {1000};
+    let time: u128 = if commands.len() >= 2 {parse!(u128, commands[1], 1000)} else {1000};
     let now = Instant::now();
     for fen in _POSITIONS {
         unsafe {TIME = time;}
@@ -111,7 +113,7 @@ fn ucinewgame() {
 /// Runs a perft search to a specified depth.
 fn parse_perft(commands: Vec<&str>) {
     let now = Instant::now();
-    let count: u64 = perft::<true>(commands[1].parse::<u8>().unwrap_or(0));
+    let count: u64 = perft::<true>(parse!(u8, commands[1], 0));
     println!("leaf count: {count} ({:.2} ML/sec)", count as f64 / now.elapsed().as_micros() as f64);
 }
 
@@ -133,14 +135,14 @@ fn parse_go( commands: Vec<&str>) {
             _ => {
                 match token {
                     Tokens::None => {},
-                    Tokens::Depth => unsafe{
-                        DEPTH = command.parse::<i8>().unwrap_or(1);
+                    Tokens::Depth => unsafe {
+                        DEPTH = parse!(i8, command, 1);
                         TIME = u128::MAX;
                     },
-                    Tokens::Movetime => unsafe{TIME = command.parse::<i64>().unwrap_or(1000) as u128 - 10}
-                    Tokens::WTime => times[0] = std::cmp::max(command.parse::<i64>().unwrap_or(100), 0) as u64,
-                    Tokens::BTime => times[1] = std::cmp::max(command.parse::<i64>().unwrap_or(100), 0) as u64,
-                    Tokens::MovesToGo => moves_to_go = Some(command.parse::<u16>().unwrap_or(40)),
+                    Tokens::Movetime => unsafe{TIME = parse!(i64, command, 1000) as u128 - 10}
+                    Tokens::WTime => times[0] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
+                    Tokens::BTime => times[1] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
+                    Tokens::MovesToGo => moves_to_go = Some(parse!(u16, command, 40)),
                     _ => {},
                 }
             },
@@ -184,8 +186,8 @@ fn parse_position(commands: Vec<&str>) {
 
 /// Parses "setoption name ...".
 fn parse_setoption(commands: Vec<&str>) {
-    match commands[..4] {
-        ["setoption", "name", "Hash", "value"] => tt_resize(commands[4].parse::<usize>().unwrap_or(1)),
+    match commands[..] {
+        ["setoption", "name", "Hash", "value", x] => tt_resize(parse!(usize, x, 1)),
         ["setoption", "name", "Clear", "Hash"] => tt_clear(),
         _ => {},
     }
@@ -197,7 +199,7 @@ macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", FILES[($idx & 7) as usiz
 fn sq_to_idx(sq: &str) -> u16 {
     let chs: Vec<char> = sq.chars().collect();
     let file: u16 = FILES.iter().position(|&ch| ch == chs[0]).unwrap_or(0) as u16;
-    let rank: u16 = chs[1].to_string().parse::<u16>().unwrap_or(0) - 1;
+    let rank: u16 = parse!(u16, chs[1].to_string(), 0) - 1;
     8 * rank + file
 }
 
@@ -247,7 +249,7 @@ pub fn parse_fen(s: &str) {
                 POS.squares[idx] = pc as u8;
                 idx -= (idx > 0) as usize;
             } else {
-                let len: usize = ch.to_string().parse::<usize>().unwrap_or(8);
+                let len: usize = parse!(usize, ch.to_string(), 8);
                 idx -= (idx >= len) as usize * len;
             }
         }
@@ -259,12 +261,12 @@ pub fn parse_fen(s: &str) {
         castle_rights |= match ch {'Q' => CastleRights::WHITE_QS, 'K' => CastleRights::WHITE_KS, 'q' => CastleRights::BLACK_QS, 'k' => CastleRights::BLACK_KS, _ => 0,};
     }
     let en_passant_sq: u16 = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
-    let halfmove_clock: u8 = vec[4].parse::<u8>().unwrap_or(0);
+    let halfmove_clock: u8 = parse!(u8, vec[4], 0);
     let (phase, mg, eg): (i16, i16, i16) = calc();
 
     // set state
     POS.state = GameState {zobrist: 0, phase, mg, eg,en_passant_sq, halfmove_clock, castle_rights};
-    POS.fullmove_counter = vec[5].parse::<u16>().unwrap_or(1);
+    POS.fullmove_counter = parse!(u16, vec[5], 1);
     POS.state.zobrist = zobrist::calc();
     POS.stack.clear();
     }
