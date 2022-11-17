@@ -59,8 +59,7 @@ fn perft<const ROOT: bool>(depth_left: u8) -> u64 {
     let mut positions: u64 = 0;
     for m_idx in 0..moves.len {
         let m: u16 = moves.list[m_idx];
-        let invalid: bool = do_move(m);
-        if invalid { continue }
+        if do_move(m) { continue }
         let count: u64 = perft::<false>(depth_left - 1);
         if ROOT {println!("{}: {}", u16_to_uci(&m), count)}
         positions += count;
@@ -198,9 +197,7 @@ macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", FILES[($idx & 7) as usiz
 /// Converts e.g. "a6" to index 5.
 fn sq_to_idx(sq: &str) -> u16 {
     let chs: Vec<char> = sq.chars().collect();
-    let file: u16 = FILES.iter().position(|&ch| ch == chs[0]).unwrap_or(0) as u16;
-    let rank: u16 = parse!(u16, chs[1].to_string(), 0) - 1;
-    8 * rank + file
+    8 * parse!(u16, chs[1].to_string(), 0) + chs[0] as u16 - 105
 }
 
 /// Converts a u16 representation of a move to UCI format.
