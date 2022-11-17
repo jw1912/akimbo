@@ -192,7 +192,7 @@ fn parse_setoption(commands: Vec<&str>) {
     }
 }
 
-macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", FILES[($idx & 7) as usize], ($idx >> 3) + 1)}}
+macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", char::from_u32(($idx & 7) as u32 + 97).unwrap(), ($idx >> 3) + 1)}}
 
 /// Converts e.g. "a6" to index 5.
 fn sq_to_idx(sq: &str) -> u16 {
@@ -202,7 +202,7 @@ fn sq_to_idx(sq: &str) -> u16 {
 
 /// Converts a u16 representation of a move to UCI format.
 pub fn u16_to_uci(m: &u16) -> String {
-    let promo: &str = if m & PROMO_BIT > 0 {PROMOS[((m >> 12) & 0b11) as usize]} else {""};
+    let promo: &str = if m & 0b1000_0000_0000_0000 > 0 {["n","b","r","q"][((m >> 12) & 0b11) as usize]} else {""};
     format!("{}{}{} ", idx_to_sq!((m >> 6) & 0b111111), idx_to_sq!(m & 0b111111), promo)
 }
 

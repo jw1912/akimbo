@@ -71,14 +71,6 @@ pub const B1C1D1: u64 = 14;
 pub const F1G1: u64 = 96;
 pub const B8C8D8: u64 = 0x0E00000000000000;
 pub const F8G8: u64 = 0x6000000000000000;
-pub const A1: u64 = 1;
-pub const D1: u64 = 8;
-pub const F1: u64 = 32;
-pub const H1: u64 = 128;
-pub const A8: u64 = 0x0100000000000000;
-pub const D8: u64 = 0x0800000000000000;
-pub const F8: u64 = 0x2000000000000000;
-pub const H8: u64 = 0x8000000000000000;
 pub static CASTLE_RIGHTS: [u8; 64] = castle_rights();
 const fn castle_rights() -> [u8; 64] {
     let mut rights: [u8; 64] = [CastleRights::ALL; 64];
@@ -90,7 +82,7 @@ const fn castle_rights() -> [u8; 64] {
     rights[60] = 0b1100;
     rights
 }
-pub const CASTLE_MOVES: [[(u64, usize, usize);2];2] = [[(A1|D1, 0, 3), (F1|H1, 7, 5)], [(A8|D8, 56, 59), (F8|H8, 63, 61)]];
+pub const CASTLE_MOVES: [[(u64, usize, usize);2];2] = [[(9, 0, 3), (160, 7, 5)], [(0x0900000000000000, 56, 59), (0xA000000000000000, 63, 61)]];
 
 // search/eval
 pub const MAX_PLY: i8 = i8::MAX;
@@ -142,10 +134,7 @@ pub const _POSITIONS: [&str; 12] = [
 ];
 
 // uci <-> u16
-pub const FILES: [char; 8] = ['a','b','c','d','e','f','g','h'];
 pub const PIECES: [char; 12] = ['P','N','B','R','Q','K','p','n','b','r','q','k'];
-pub const PROMOS: [&str; 4] = ["n","b","r","q"];
-pub const PROMO_BIT: u16 = 0b1000_0000_0000_0000;
 pub const TWELVE: u16 = 0b0000_1111_1111_1111;
 
 // KBvKB draw detection

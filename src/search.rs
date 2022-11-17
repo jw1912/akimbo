@@ -158,6 +158,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         let lazy_eval: i16 = lazy_eval();
 
         // reverse futility pruning
+        // TODO: test if it actually helps
         if depth <= 8 && lazy_eval >= beta + 120 * depth as i16 {
             return beta
         }
@@ -197,6 +198,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         let gives_check = is_in_check();
 
         // late move reductions
+        // TODO: variable lmr
         let r: i8 = (can_lmr && !gives_check && count > 1 && m_score < 300) as i8;
 
         // score move
