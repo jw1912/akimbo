@@ -185,19 +185,23 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     // if no cutoff or alpha improvements are achieved then score is an upper bound
     let mut bound: u8 = Bound::UPPER;
 
+    // is the threshold for late move reductions satisfied?
+    let can_lmr = !in_check && PLY > 0 && depth >= 2;
+
     // going through moves
     PLY += 1;
     let mut best_move: u16 = 0;
     let mut best_score: i16 = -MAX;
     let mut count: u16 = 0;
     while let Some((m, m_score)) = get_next_move(&mut moves, &mut move_scores, &mut m_idx) {
+        // make move and skip if not legal
         if do_move(m) { continue }
         count += 1;
 
         let gives_check = is_in_check();
 
         // late move reductions
-        let r: i8 = (!in_check && !gives_check && count > 1 && m_score < 300) as i8;
+        let r: i8 = (can_lmr && !gives_check && count > 1 && m_score < 300) as i8;
 
         // score move
         let score: i16 = if count == 1 {
