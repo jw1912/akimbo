@@ -20,6 +20,8 @@ static mut STOP: bool = true;
 static mut SELDEPTH: i8 = 0;
 /// Principle variation (best) line.
 static mut PV_LINE: [u16; MAX_PLY as usize] = [0; MAX_PLY as usize];
+/// Time the search started at
+static mut START_TIME: Option<Instant> = None;
 
 macro_rules! is_capture {($m:expr) => {$m & 0b0100_0000_0000_0000 > 0}}
 macro_rules! is_mate_score {($score:expr) => {$score.abs() >= MATE_THRESHOLD}}
@@ -104,10 +106,10 @@ fn get_next_move(moves: &mut MoveList, move_scores: &mut MoveList, start_idx: &m
 }
 
 /// Main principle variation (negamax) search.
-unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, start_time: &Instant, allow_null: bool) -> i16 {
+unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, allow_null: bool) -> i16 {
     // search aborting
     if STOP { return 0 }
-    if NODES & 2047 == 0 && start_time.elapsed().as_millis() >= TIME {
+    if NODES & 2047 == 0 && START_TIME.unwrap().elapsed().as_millis() >= TIME {
         STOP = true;
         return 0
     }
@@ -167,7 +169,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         // null move pruning
         if allow_null && depth >= 3 && POS.state.phase >= 6 && lazy_eval >= beta {
             let ctx: (u16, u64) = do_null();
-            let score: i16 = -pvs(false, -beta, -beta + 1, depth - 3, false, start_time, false);
+            let score: i16 = -pvs(false, -beta, -beta + 1, depth - 3, false, false);
             undo_null(ctx);
             if score >= beta {return beta}
         }
@@ -203,11 +205,11 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
 
         // score move
         let score: i16 = if count == 1 {
-            -pvs(pv, -beta, -alpha, depth - 1, gives_check, start_time, false)
+            -pvs(pv, -beta, -alpha, depth - 1, gives_check, false)
         } else {
-            let null_window_score: i16 = -pvs(false, -alpha - 1, -alpha, depth - 1 - r, gives_check, start_time, true);
+            let null_window_score: i16 = -pvs(false, -alpha - 1, -alpha, depth - 1 - r, gives_check, true);
             if (null_window_score < beta || r > 0) && null_window_score > alpha {
-                -pvs(pv, -beta, -alpha, depth - 1, gives_check, start_time, false)
+                -pvs(pv, -beta, -alpha, depth - 1, gives_check, false)
             } else { null_window_score }
         };
 
@@ -301,7 +303,7 @@ pub fn go() {
     SELDEPTH = 0;
     STOP = false;
     let mut best_move: u16 = 0;
-    let now = Instant::now();
+    START_TIME = Some(Instant::now());
 
     // iterative deepening loop
     for d in 0..DEPTH {
@@ -309,10 +311,10 @@ pub fn go() {
         let in_check: bool = is_in_check();
 
         // get score
-        let score: i16 = pvs(true, -MAX, MAX, d + 1, in_check, &now, false);
+        let score: i16 = pvs(true, -MAX, MAX, d + 1, in_check, false);
 
         // end search if out of time
-        let t: u128 = now.elapsed().as_millis();
+        let t: u128 = START_TIME.unwrap().elapsed().as_millis();
         if t >= TIME { break }
 
         // update best move
