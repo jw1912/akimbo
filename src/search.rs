@@ -259,9 +259,8 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
 
     // go through moves
     while let Some((m, _)) = get_next_move(&mut captures, &mut scores, &mut m_idx) {
-        let invalid: bool = do_move(m);
-        // is move legal?
-        if invalid { continue }
+        // make move and skip if not legal
+        if do_move(m) { continue }
 
         // get score
         let score: i16 = -quiesce(-beta, -alpha);
