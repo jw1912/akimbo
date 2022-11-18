@@ -28,7 +28,7 @@ fn main() {
     }
 }
 
-fn perft<const ROOT: bool>(depth_left: u8) -> u64 {
+fn perft(depth_left: u8) -> u64 {
     if depth_left == 0 { return 1 }
     let mut moves = MoveList::default();
     gen_moves::<ALL>(&mut moves);
@@ -36,8 +36,7 @@ fn perft<const ROOT: bool>(depth_left: u8) -> u64 {
     for m_idx in 0..moves.len {
         let m: u16 = moves.list[m_idx];
         if do_move(m) { continue }
-        let count: u64 = perft::<false>(depth_left - 1);
-        if ROOT {println!("{}: {}", u16_to_uci(&m), count)}
+        let count: u64 = perft(depth_left - 1);
         positions += count;
         undo_move();
     }
@@ -83,8 +82,8 @@ fn ucinewgame() {
 
 fn parse_perft(commands: Vec<&str>) {
     let now = Instant::now();
-    let count: u64 = perft::<true>(parse!(u8, commands[1], 0));
-    println!("leaf count: {count} ({:.2} ML/sec)", count as f64 / now.elapsed().as_micros() as f64);
+    let count: u64 = perft(parse!(u8, commands[1], 0));
+    println!("info nodes {count} Mnps {:.2}", count as f64 / now.elapsed().as_micros() as f64);
 }
 
 fn parse_go( commands: Vec<&str>) {
