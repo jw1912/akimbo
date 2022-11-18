@@ -17,7 +17,6 @@ use search::{DEPTH, TIME, go};
 
 macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().unwrap_or($else)}}
 
-/// Main loop waits until receiving the "uci" command.
 fn main() {
     println!("{}, created by {}", NAME, AUTHOR);
     loop {
@@ -48,11 +47,7 @@ fn uci_run() {
     parse_fen(STARTPOS);
     tt_resize(1);
     // uci preamble
-    println!("id name {} {}", NAME, VERSION);
-    println!("id author {}", AUTHOR);
-    println!("option name Hash type spin default 128 min 1 max 512");
-    println!("option name Clear Hash type button");
-    println!("uciok");
+    println!("id name {} {}\nid author {}\noption name Hash type spin default 128 min 1 max 512\nuciok", NAME, VERSION, AUTHOR);
     // await commands
     loop {
         let mut input = String::new();

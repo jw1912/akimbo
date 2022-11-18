@@ -170,7 +170,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     let mut bound: u8 = Bound::UPPER;
 
     // is the threshold for late move reductions satisfied?
-    let can_lmr = !in_check && PLY > 0 && depth >= 2;
+    let can_lmr = depth >= 2 && PLY > 0 && !in_check;
 
     // going through moves
     PLY += 1;
