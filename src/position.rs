@@ -1,4 +1,4 @@
-use super::{lsb, pop, consts::*, movegen::{bishop_attacks, rook_attacks}, hash::zobrist::ZVALS};
+use super::{lsb, pop, consts::*, movegen::{bishop_attacks, rook_attacks}, zobrist::ZVALS};
 use std::ptr;
 
 /// The position is stored as global state.

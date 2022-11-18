@@ -1,20 +1,16 @@
 //! akimbo, a UCI compatible chess engine written in Rust.
 
-/// Contains all constant and static **immutable** values used in the engine.
 mod consts;
-/// Contains all methods that mutate the global POS (apart from parsing positions).
 pub mod position;
-/// Conatins pseudo-legal move generation code.
 pub mod movegen;
-/// Contains hash and killer move tables.
-pub mod hash;
-/// Contains the main engine code for searching positions.
+pub mod zobrist;
+pub mod tables;
 pub mod search;
 
 use std::io::stdin;
 use std::time::Instant;
 use consts::*;
-use hash::{tt_clear, tt_resize, zobrist, kt_clear};
+use tables::{tt_clear, tt_resize, kt_clear};
 use position::{POS, MoveList, do_move, undo_move, GameState, calc};
 use movegen::{gen_moves, ALL};
 use search::{DEPTH, TIME, go};
@@ -23,7 +19,7 @@ macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().u
 
 /// Main loop waits until receiving the "uci" command.
 fn main() {
-    println!("akimbo, created by Jamie Whiting");
+    println!("{}, created by {}", NAME, AUTHOR);
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
@@ -53,7 +49,7 @@ fn uci_run() {
     parse_fen(STARTPOS);
     tt_resize(1);
     // uci preamble
-    println!("id name akimbo {}", VERSION);
+    println!("id name {} {}", NAME, VERSION);
     println!("id author {}", AUTHOR);
     println!("option name Hash type spin default 128 min 1 max 512");
     println!("option name Clear Hash type button");

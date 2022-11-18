@@ -1,4 +1,4 @@
-use super::{from, to, consts::*, position::*, hash::*, movegen::*, u16_to_uci};
+use super::{from, to, consts::*, position::*, tables::*, movegen::*, u16_to_uci};
 use std::{cmp::{min, max}, time::Instant};
 
 // Search parameters.
