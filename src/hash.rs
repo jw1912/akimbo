@@ -13,11 +13,8 @@ pub static mut KT: [[u16; 3]; MAX_PLY as usize] = [[0; 3]; MAX_PLY as usize];
 /// The type of bound determined by the hash entry when it was searched.
 pub struct Bound;
 impl Bound {
-    /// Best score >= beta.
     pub const LOWER: u8 = 1;
-    /// Best score < alpha.
     pub const UPPER: u8 = 2;
-    /// Best score between alpha and beta.
     pub const EXACT: u8 = 3;
 }
 
@@ -28,23 +25,15 @@ impl Bound {
 #[repr(align(64))]
 pub struct HashBucket(pub [HashEntry; 8]);
 
-/// Split of the encoded entries into their constituent parts.
 #[derive(Clone, Copy, Default)]
 pub struct HashEntry {
-    /// Last 16 bits of the zobrist hash for the position.
     pub key: u16,
-    /// Hash move.
     pub best_move: u16,
-    /// Hash score.
     pub score: i16,
-    /// Depth of search that determined this entry.
     pub depth: i8,
-    /// Bound type.
     pub bound: u8,
 }
 
-/// The proportion of the hash table that is filled,
-/// measured in permill.
 pub fn hashfull() -> u64 {
     unsafe {FILLED * 1000 / (8 * TT_SIZE) as u64}
 }
@@ -59,7 +48,6 @@ pub fn tt_resize(mut size: usize) {
     }
 }
 
-/// Clears the hash table.
 pub fn tt_clear() {
     unsafe {
         TT = vec![Default::default(); TT_SIZE];
@@ -104,7 +92,6 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
     }
 }
 
-/// Probe the hash table to find an entry with given zobrist key.
 pub fn tt_probe(zobrist: u64) -> Option<HashEntry> {
     let key: u16 = (zobrist >> 48) as u16;
     let idx: usize = (zobrist as usize) & (unsafe{TT.len()} - 1);
@@ -123,26 +110,17 @@ pub fn tt_probe(zobrist: u64) -> Option<HashEntry> {
     None
 }
 
-/// Methods and initialisation of zobrist hashing values.
 pub mod zobrist {
     use crate::{lsb, pop, position::POS};
     use lazy_static::lazy_static;
     use fastrand;
 
-    lazy_static!(
-        /// Zobrist hashing values, initialised on first call.
-        pub static ref ZVALS: ZobristVals = ZobristVals::init();
-    );
+    lazy_static!( pub static ref ZVALS: ZobristVals = ZobristVals::init(); );
 
-    /// Container for zobrist hashing values.
     pub struct ZobristVals {
-        /// Hash value for each piece on each square.
         pub pieces: [[[u64; 64]; 6]; 2],
-        /// Castle hash values
         pub castle: [u64; 4],
-        /// En passant hash value based on file.
         pub en_passant: [u64; 8],
-        /// Side to move hash value
         pub side: u64,
     }
 
@@ -203,7 +181,6 @@ pub mod zobrist {
     }
 }
 
-/// Push a move to the killer moves table.
 pub fn kt_push(m: u16) {
     unsafe {
     let ply: usize = PLY as usize - 1;
@@ -214,7 +191,6 @@ pub fn kt_push(m: u16) {
     }
 }
 
-/// Clear the killer moves table.
 pub fn kt_clear() {
     unsafe{KT = [[0; 3]; MAX_PLY as usize]}
 }

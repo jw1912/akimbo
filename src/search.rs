@@ -1,35 +1,27 @@
 use super::{from, to, consts::*, position::*, hash::*, movegen::*, u16_to_uci};
 use std::{cmp::{min, max}, time::Instant};
 
-/// Maximum depth to search.
+// Search parameters.
 pub static mut DEPTH: i8 = i8::MAX;
-/// Maximum time allocated to search.
 pub static mut TIME: u128 = 1000;
-/// Maximum ply reachable.
-pub static mut PLY: i8 = 0;
 
-/// Number of nodes searched.
+// Search statistics.
+pub static mut PLY: i8 = 0;
 static mut NODES: u64 = 0;
-/// Stop token for search.
 static mut STOP: bool = true;
-/// Highest depth reached in PVS.
 static mut SELDEPTH: i8 = 0;
-/// Principle variation (best) line.
 static mut PV_LINE: [u16; MAX_PLY as usize] = [0; MAX_PLY as usize];
-/// Time the search started at
 static mut START_TIME: Option<Instant> = None;
 
 macro_rules! is_capture {($m:expr) => {$m & 0b0100_0000_0000_0000 > 0}}
 macro_rules! is_mate_score {($score:expr) => {$score.abs() >= MATE_THRESHOLD}}
 
-/// Returns a piece-square table only evaluation of the current position.
 #[inline(always)]
 unsafe fn lazy_eval() -> i16 {
     let phase: i32 = std::cmp::min(POS.state.phase as i32, TPHASE);
     SIDE_FACTOR[POS.side_to_move] * ((phase * POS.state.mg as i32 + (TPHASE - phase) * POS.state.eg as i32) / TPHASE) as i16
 }
 
-/// Assigns scores first by the most valuable victim, then within that orders by least valuable attacker
 fn mvv_lva(m: u16) -> u16 {
     let from_idx: usize = from!(m);
     let to_idx: usize = to!(m);
@@ -55,7 +47,6 @@ fn score_move(m: u16, hash_move: u16, killers: [u16; 3]) -> u16 {
     }
 }
 
-/// Goes through all moves in a movelist and scores them.
 fn score_moves(moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, start_idx: usize) {
     let killers: [u16; 3] = unsafe{KT[PLY as usize]};
     for i in start_idx..moves.len {
@@ -64,15 +55,13 @@ fn score_moves(moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, sta
     }
 }
 
-/// Scores moves with the assumption they are all captures.
 fn score_captures(moves: &MoveList, move_scores: &mut MoveList, start_idx: usize) {
     for i in start_idx..moves.len {
         move_scores.push(mvv_lva(moves.list[i]));
     }
 }
 
-/// O(n^2) algorithm to incrementally sort the move list as needed
-/// will be useful when implementing staged move generation.
+/// O(n^2) algorithm to incrementally sort the move list as needed.
 fn get_next_move(moves: &mut MoveList, move_scores: &mut MoveList, start_idx: &mut usize) -> Option<(u16, u16)> {
     let m_idx: usize = *start_idx;
 
@@ -101,7 +90,6 @@ fn get_next_move(moves: &mut MoveList, move_scores: &mut MoveList, start_idx: &m
     Some((m, best_score))
 }
 
-/// Main principle variation (negamax) search.
 unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, allow_null: bool) -> i16 {
     // search aborting
     if STOP { return 0 }
@@ -248,8 +236,6 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     alpha
 }
 
-/// Performas a quiescence search to more effectively evluate positions
-/// (particularly exchanges at the horizon).
 unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     // count all quiescent nodes
     NODES += 1;
@@ -291,8 +277,6 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     alpha
 }
 
-/// Runs main iterative deepening loop for the search,
-/// and outputs relevant information while doing so.
 pub fn go() {
     unsafe {
     // initialise values

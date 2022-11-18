@@ -11,7 +11,6 @@ pub static mut POS: Position = Position {
 /// Count of how many null moves were made during reaching the current position.
 pub static mut NULLS: u8 = 0;
 
-/// Removes/adds a piece to the position bitboards.
 #[macro_export]
 macro_rules! toggle {
     ($side:expr, $pc:expr, $bit:expr) => {
@@ -20,7 +19,6 @@ macro_rules! toggle {
     };
 }
 
-/// Removes a piece from the incrementally updated fields.
 macro_rules! remove {
     ($from:expr, $side:expr, $pc:expr) => {
         let indx = $from ^ (56 * ($side == 0) as usize);
@@ -30,7 +28,6 @@ macro_rules! remove {
     };
 }
 
-/// Adds a piece to the incrementally updated fields.
 macro_rules! add {
     ($from:expr, $side:expr, $pc:expr) => {
         let indx = $from ^ (56 * ($side == 0) as usize);
@@ -40,56 +37,36 @@ macro_rules! add {
     };
 }
 
-/// Gets the from square of a move.
 #[macro_export]
 macro_rules! from {($m:expr) => {(($m >> 6) & 63) as usize}}
 
-/// Gets the target square of a move.
 #[macro_export]
 macro_rules! to {($m:expr) => {($m & 63) as usize}}
 
-/// Index of a square -> bitboard with just that square.
 #[macro_export]
 macro_rules! bit {($x:expr) => {1 << $x}}
 
-/// Contains all relevant information for the current board state.
 pub struct Position {
-    /// Array of bitboards, one for each piece type.
     pub pieces: [u64; 6],
-    /// Occupancy bitboards for each side.
     pub sides: [u64; 2],
-    /// List of the pieces on each square.
     pub squares: [u8; 64],
-    /// Side that is about to move.
     pub side_to_move: usize,
-    /// Current state that will be pushed to the state stack.
     pub state: GameState,
-    /// Number of full moves played to reach the current position.
     pub fullmove_counter: u16,
-    /// State stack (history) of the position.
     pub stack: Vec<MoveState>,
 }
 
-/// Holds state of the position, to be copied during move-making.
 #[derive(Clone, Copy, Default)]
 pub struct GameState {
-    /// Zobrist hash key for the position.
     pub zobrist: u64,
-    /// Current game-phase heuristic.
     pub phase: i16,
-    /// Current midgame piece-square table eval.
     pub mg: i16,
-    /// Current endgame piece-square table eval.
     pub eg: i16,
-    /// Target square for en passant (0 if not available).
     pub en_passant_sq: u16,
-    /// Number of half-moves without a capture or pawn push.
     pub halfmove_clock: u8,
-    /// Castling rights for each side.
     pub castle_rights: u8,
 }
 
-/// Holds all relevant move information that needs to be retrieved on unmake.
 #[derive(Clone, Copy)]
 pub struct MoveState {
     state: GameState,
@@ -98,11 +75,8 @@ pub struct MoveState {
     captured_pc: u8,
 }
 
-/// Stack allocated list, to holds moves and move scores.
 pub struct MoveList {
-    /// List, 256 moves available.
     pub list: [u16; 256],
-    /// Length (used capacity) of the list.
     pub len: usize,
 }
 
@@ -113,14 +87,12 @@ impl Default for MoveList {
 }
 
 impl MoveList {
-    /// Pushes an item to the move list.
     #[inline(always)]
     pub fn push(&mut self, m: u16) {
         self.list[self.len] = m;
         self.len += 1;
     }
 
-    /// Swaps two items in the move list.
     #[inline(always)]
     pub fn swap_unchecked(&mut self, i: usize, j: usize) {
         let ptr: *mut u16 = self.list.as_mut_ptr();
@@ -128,7 +100,6 @@ impl MoveList {
     }
 }
 
-/// Is the given square under attack by the opposing side?
 #[inline(always)]
 pub fn is_square_attacked(idx: usize, side: usize, occ: u64) -> bool {
     unsafe {
@@ -143,7 +114,6 @@ pub fn is_square_attacked(idx: usize, side: usize, occ: u64) -> bool {
     }
 }
 
-/// Is the current side to move in check?
 #[inline(always)]
 pub fn is_in_check() -> bool {
     unsafe {
@@ -152,7 +122,6 @@ pub fn is_in_check() -> bool {
     }
 }
 
-/// Makes a given move.
 pub fn do_move(m: u16) -> bool {
     unsafe {
     let opp: usize = POS.side_to_move ^ 1;
@@ -246,7 +215,6 @@ pub fn do_move(m: u16) -> bool {
     }
 }
 
-/// Undoes the last move played.
 pub fn undo_move() {
     unsafe {
     let opp: usize = POS.side_to_move;
@@ -305,7 +273,6 @@ pub fn undo_move() {
     }
 }
 
-/// Makes a null move.
 pub fn do_null() -> (u16, u64) {
     unsafe {
     NULLS += 1;
@@ -319,7 +286,6 @@ pub fn do_null() -> (u16, u64) {
     }
 }
 
-/// Undoes a null move.
 pub fn undo_null((enp, hash): (u16, u64)) {
     unsafe {
     NULLS -= 1;
@@ -329,8 +295,6 @@ pub fn undo_null((enp, hash): (u16, u64)) {
     }
 }
 
-/// Checks for an n-fold repetition by going through the state stack and
-/// comparing zobrist keys.
 pub fn is_draw_by_repetition(num: u8) -> bool {
     unsafe {
     let l: usize = POS.stack.len();
@@ -349,7 +313,6 @@ pub fn is_draw_by_repetition(num: u8) -> bool {
     }
 }
 
-/// Has the position reached a draw by the fifty-move rule.
 #[inline(always)]
 pub fn is_draw_by_50() -> bool {
     unsafe{POS.state.halfmove_clock >= 100}

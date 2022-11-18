@@ -1,7 +1,5 @@
 //! akimbo, a UCI compatible chess engine written in Rust.
 
-#![deny(missing_docs)]
-
 /// Contains all constant and static **immutable** values used in the engine.
 mod consts;
 /// Contains all methods that mutate the global POS (apart from parsing positions).
@@ -51,7 +49,6 @@ fn performance(commands: Vec<&str>) {
     ucinewgame();
 }
 
-/// Runs a perft on the current position to a given depth.
 fn perft<const ROOT: bool>(depth_left: u8) -> u64 {
     if depth_left == 0 { return 1 }
     let mut moves = MoveList::default();
@@ -68,7 +65,6 @@ fn perft<const ROOT: bool>(depth_left: u8) -> u64 {
     positions
 }
 
-/// Main uci loop, taking in input from the command line.
 fn uci_run() {
     // init position and hash table
     parse_fen(STARTPOS);
@@ -88,7 +84,6 @@ fn uci_run() {
     }
 }
 
-/// Parses the uci commands received.
 fn parse_commands(commands: Vec<&str>) {
     match commands[0] {
         "isready" => println!("readyok"),
@@ -102,21 +97,18 @@ fn parse_commands(commands: Vec<&str>) {
     };
 }
 
-/// Resets position to starting position, clears hash and killer move tables.
 fn ucinewgame() {
     parse_fen(STARTPOS);
     tt_clear();
     kt_clear();
 }
 
-/// Runs a perft search to a specified depth.
 fn parse_perft(commands: Vec<&str>) {
     let now = Instant::now();
     let count: u64 = perft::<true>(parse!(u8, commands[1], 0));
     println!("leaf count: {count} ({:.2} ML/sec)", count as f64 / now.elapsed().as_micros() as f64);
 }
 
-/// Parses "go ..." and runs the requested search based on this.
 fn parse_go( commands: Vec<&str>) {
     #[derive(PartialEq)]
     enum Tokens {None, Depth, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
@@ -158,7 +150,6 @@ fn parse_go( commands: Vec<&str>) {
     go();
 }
 
-/// Parses "position ...".
 fn parse_position(commands: Vec<&str>) {
     enum Tokens {Nothing, Fen, Moves}
     let mut fen = String::from("");
@@ -183,7 +174,6 @@ fn parse_position(commands: Vec<&str>) {
     for m in moves {do_move(uci_to_u16(&m));}
 }
 
-/// Parses "setoption name ...".
 fn parse_setoption(commands: Vec<&str>) {
     match commands[..] {
         ["setoption", "name", "Hash", "value", x] => tt_resize(parse!(usize, x, 1)),
@@ -200,13 +190,11 @@ fn sq_to_idx(sq: &str) -> u16 {
     8 * parse!(u16, chs[1].to_string(), 0) + chs[0] as u16 - 105
 }
 
-/// Converts a u16 representation of a move to UCI format.
 pub fn u16_to_uci(m: &u16) -> String {
     let promo: &str = if m & 0b1000_0000_0000_0000 > 0 {["n","b","r","q"][((m >> 12) & 0b11) as usize]} else {""};
     format!("{}{}{} ", idx_to_sq!((m >> 6) & 0b111111), idx_to_sq!(m & 0b111111), promo)
 }
 
-/// Converts standard UCI move notation to the usual u16 format used by the engine.
 pub fn uci_to_u16(m: &str) -> u16 {
     let l: usize = m.len();
     let from: u16 = sq_to_idx(&m[0..2]);
@@ -222,7 +210,6 @@ pub fn uci_to_u16(m: &str) -> u16 {
     panic!("invalid move list!");
 }
 
-/// Parses a FEN string and sets the global POS to it.
 pub fn parse_fen(s: &str) {
     unsafe {
     let vec: Vec<&str> = s.split_whitespace().collect();

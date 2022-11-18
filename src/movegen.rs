@@ -11,14 +11,10 @@ macro_rules! msb {($x:expr) => {63 ^ $x.leading_zeros() as u16}}
 #[macro_export]
 macro_rules! pop {($x:expr) => {$x &= $x - 1}}
 
-/// Generate all moves.
 pub const ALL: u8 = 0;
-/// Generate captures only.
 pub const CAPTURES: u8 = 1;
-/// Generate quiet moves only.
 pub const QUIETS: u8 = 2;
 
-/// Encodes a set of attacks with a given move flag and from-square.
 #[inline(always)]
 fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16) {
     let f: u16 = from << 6;
@@ -30,7 +26,6 @@ fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16
     }
 }
 
-/// Generates all moves of a given type in the current position.
 pub fn gen_moves<const U: u8>(move_list: &mut MoveList) {
     unsafe {
     let occupied: u64 = POS.sides[0] | POS.sides[1];
@@ -120,7 +115,6 @@ unsafe fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16) {
     }
 }
 
-/// Calculates rook attacks from a given square and occupancy.
 #[inline(always)]
 pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
     let masks: Rmask = RMASKS[idx];
@@ -146,7 +140,6 @@ pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
     forward | easts | wests
 }
 
-/// Calculates bishop attacks from a given square and occupancy.
 #[inline(always)]
 pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
     let masks: Mask = MASKS[idx];
