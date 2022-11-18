@@ -1,4 +1,4 @@
-use super::{consts::*, position::*, hash::*, movegen::*, u16_to_uci};
+use super::{from, to, consts::*, position::*, hash::*, movegen::*, u16_to_uci};
 use std::{cmp::{min, max}, time::Instant};
 
 /// Maximum depth to search.
@@ -31,10 +31,10 @@ unsafe fn lazy_eval() -> i16 {
 
 /// Assigns scores first by the most valuable victim, then within that orders by least valuable attacker
 fn mvv_lva(m: u16) -> u16 {
-    let from_idx: u16 = (m >> 6) & 0b111111;
-    let to_idx: u16 = m & 0b111111;
-    let moved_pc: usize = unsafe{POS.squares[from_idx as usize]} as usize;
-    let captured_pc: usize = unsafe{POS.squares[to_idx as usize]} as usize;
+    let from_idx: usize = from!(m);
+    let to_idx: usize = to!(m);
+    let moved_pc: usize = unsafe{POS.squares[from_idx]} as usize;
+    let captured_pc: usize = unsafe{POS.squares[to_idx]} as usize;
     MVV_LVA[captured_pc][moved_pc]
 }
 
