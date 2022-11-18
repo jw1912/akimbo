@@ -113,10 +113,10 @@ pub fn tt_probe(zobrist: u64) -> Option<HashEntry> {
 pub fn kt_push(m: u16) {
     unsafe {
     let ply: usize = PLY as usize - 1;
-    if KT[ply].contains(&m) { return }
+    let new = if KT[ply].contains(&m) {KT[ply][2]} else {m};
     KT[ply][2] = KT[ply][1];
     KT[ply][1] = KT[ply][0];
-    KT[ply][0] = m;
+    KT[ply][0] = new;
     }
 }
 

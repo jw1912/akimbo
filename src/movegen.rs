@@ -95,10 +95,10 @@ unsafe fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents:
         while attacks > 0 {
             cidx = lsb!(attacks);
             let f: u16 = from << 6;
+            move_list.push(MoveFlags::QUEEN_PROMO_CAPTURE | cidx | f);
             move_list.push(MoveFlags::KNIGHT_PROMO_CAPTURE | cidx | f);
             move_list.push(MoveFlags::BISHOP_PROMO_CAPTURE | cidx | f);
             move_list.push(MoveFlags::ROOK_PROMO_CAPTURE | cidx | f);
-            move_list.push(MoveFlags::QUEEN_PROMO_CAPTURE | cidx | f);
             pop!(attacks)
         }
         pop!(promo_attackers)
@@ -198,10 +198,10 @@ fn pawn_pushes<const SIDE: usize>(move_list: &mut MoveList, occupied: u64, pawns
         pop!(promotable_pawns);
         let to: u16 = idx_shift::<SIDE, 8>(idx);
         let f: u16 = idx << 6;
+        move_list.push(MoveFlags::QUEEN_PROMO | to | f);
         move_list.push(MoveFlags::KNIGHT_PROMO | to | f);
         move_list.push(MoveFlags::BISHOP_PROMO | to | f);
         move_list.push(MoveFlags::ROOK_PROMO | to | f);
-        move_list.push(MoveFlags::QUEEN_PROMO | to | f);
     }
     while dbl_pushable_pawns > 0 {
         idx = lsb!(dbl_pushable_pawns);

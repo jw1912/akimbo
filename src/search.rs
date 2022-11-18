@@ -13,7 +13,6 @@ static mut SELDEPTH: i8 = 0;
 static mut PV_LINE: [u16; MAX_PLY as usize] = [0; MAX_PLY as usize];
 static mut START_TIME: Option<Instant> = None;
 
-macro_rules! is_capture {($m:expr) => {$m & 0b0100_0000_0000_0000 > 0}}
 macro_rules! is_mate_score {($score:expr) => {$score.abs() >= MATE_THRESHOLD}}
 
 #[inline(always)]
@@ -38,8 +37,10 @@ fn mvv_lva(m: u16) -> u16 {
 fn score_move(m: u16, hash_move: u16, killers: [u16; 3]) -> u16 {
     if m == hash_move {
         HASH_MOVE
-    } else if is_capture!(m) {
+    } else if m & 0b0100_0000_0000_0000 > 0 {
         mvv_lva(m)
+    } else if m & 0b1000_0000_0000_0000 > 0 {
+        PROMOTION
     } else if killers.contains(&m) {
         KILLER
     } else {
