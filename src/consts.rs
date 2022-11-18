@@ -34,7 +34,6 @@ impl MoveFlags {
 
 pub struct CastleRights;
 impl CastleRights {
-    pub const ALL: u8 = 15;
     pub const WHITE_QS: u8 = 8;
     pub const WHITE_KS: u8 = 4;
     pub const BLACK_QS: u8 = 2;
@@ -67,22 +66,12 @@ pub static PAWN_ATTACKS: [[u64; 64];2] = [
 ];
 
 // castling
+pub const CASTLE_MOVES: [[(u64, usize, usize);2];2] = [[(9, 0, 3), (160, 7, 5)], [(0x0900000000000000, 56, 59), (0xA000000000000000, 63, 61)]];
 pub const B1C1D1: u64 = 14;
 pub const F1G1: u64 = 96;
 pub const B8C8D8: u64 = 0x0E00000000000000;
 pub const F8G8: u64 = 0x6000000000000000;
-pub static CASTLE_RIGHTS: [u8; 64] = castle_rights();
-const fn castle_rights() -> [u8; 64] {
-    let mut rights: [u8; 64] = [CastleRights::ALL; 64];
-    rights[0] = 0b0111;
-    rights[7] = 0b1011;
-    rights[56] = 0b1101;
-    rights[63] = 0b1110;
-    rights[4] = 0b0011;
-    rights[60] = 0b1100;
-    rights
-}
-pub const CASTLE_MOVES: [[(u64, usize, usize);2];2] = [[(9, 0, 3), (160, 7, 5)], [(0x0900000000000000, 56, 59), (0xA000000000000000, 63, 61)]];
+pub static CASTLE_RIGHTS: [u8; 64] = [7, 15, 15, 15, 3, 15, 15, 11, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 13, 15, 15, 15, 12, 15, 15, 14];
 
 // search/eval
 pub const MAX_PLY: i8 = i8::MAX;
@@ -120,33 +109,15 @@ pub static PST_EG: [[i16; 64];6] = [
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 pub const KIWIPETE: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
 pub const LASKER: &str = "8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1";
-pub const _POSITIONS: [&str; 12] = [
-    STARTPOS, LASKER, KIWIPETE,
-    "rn5r/pp3kpp/2p1R3/5p2/3P4/2B2N2/PPP3PP/2K4n w - - 1 17",
-    "4r1rk/pp4pp/2n5/8/6Q1/7R/1qPK1P1P/3R4 w - - 0 28",
-    "2r1rbk1/1R3R1N/p3p1p1/3pP3/8/q7/P1Q3PP/7K b - - 0 25",
-    "8/2krR3/1pp3bp/6p1/PPNp4/3P1PKP/8/8 w - - 0 1",
-    "1Q6/8/8/8/2k2P2/1p6/1B4K1/8 w - - 3 63",
-    "3r2k1/pp3ppp/4p3/8/QP6/P1P5/5KPP/7q w - - 0 27",
-    "1q1r3k/3P1pp1/ppBR1n1p/4Q2P/P4P2/8/5PK1/8 w - - 0 1",
-    "1n3r2/3k2pp/pp1P4/1p4b1/1q3B2/5Q2/PPP2PP1/R4RK1 w - - 0 1",
-    "7K/8/k1P5/7p/8/8/8/8 w - - 0 1"
-];
 
 // uci <-> u16
-pub const PIECES: [char; 12] = ['P','N','B','R','Q','K','p','n','b','r','q','k'];
 pub const TWELVE: u16 = 0b0000_1111_1111_1111;
-
-// KBvKB draw detection
-pub const SQ1: u64 = 0x55AA55AA55AA55AA;
-pub const SQ2: u64 = 0xAA55AA55AA55AA55;
 
 // hyperbola quintessence rook and bishop attacks
 pub static MASKS: [Mask; 64] = masks();
 pub static RMASKS: [Rmask; 64] = rmasks();
 
 #[derive(Clone, Copy)]
-#[repr(align(32))]
 pub struct Rmask {
     pub bitmask: u64,
     pub easts: u64,
@@ -155,7 +126,6 @@ pub struct Rmask {
 }
 
 #[derive(Clone, Copy)]
-#[repr(align(32))]
 pub struct Mask {
     pub bitmask: u64,
     pub diag: u64,

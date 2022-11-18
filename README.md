@@ -5,7 +5,7 @@ It is the successor of [Kimbo](https://github.com/JacquesRW/Kimbo).
 
 ### Aims
 The main aim of akimbo is to stay under 1500 lines of code.
-At last count it was at 1260 lines, excluding blank lines and comments.
+At last count it was at 1217 lines, excluding blank lines and comments.
 
 ### Compiling
 If you have cargo installed, run `cargo build --release`.

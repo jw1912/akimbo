@@ -32,23 +32,6 @@ fn main() {
     }
 }
 
-/// Runs a fixed time (1 second) search on a small collection of FENs,
-/// used to check for any glaring bugs introduced by new search techniques.
-fn performance(commands: Vec<&str>) {
-    tt_resize(128);
-    let time: u128 = if commands.len() >= 2 {parse!(u128, commands[1], 1000)} else {1000};
-    let now = Instant::now();
-    for fen in _POSITIONS {
-        unsafe {TIME = time;}
-        kt_clear();
-        parse_fen(fen);
-        println!("\n===Search Report===\nfen: {}", fen);
-        go();
-    }
-    println!("Total time: {}ms", now.elapsed().as_millis());
-    ucinewgame();
-}
-
 fn perft<const ROOT: bool>(depth_left: u8) -> u64 {
     if depth_left == 0 { return 1 }
     let mut moves = MoveList::default();
@@ -92,7 +75,6 @@ fn parse_commands(commands: Vec<&str>) {
         "position" => parse_position(commands),
         "setoption" => parse_setoption(commands),
         "perft" => parse_perft(commands),
-        "performance" => performance(commands),
         _ => {},
     };
 }
@@ -227,7 +209,7 @@ pub fn parse_fen(s: &str) {
         for ch in row.chars().rev() {
             if ch == '/' { continue }
             if !ch.is_numeric() {
-                let idx2: usize = PIECES.iter().position(|&element| element == ch).unwrap_or(6);
+                let idx2: usize = ['P','N','B','R','Q','K','p','n','b','r','q','k'].iter().position(|&element| element == ch).unwrap_or(6);
                 let (col, pc): (usize, usize) = ((idx2 > 5) as usize, idx2 - 6 * ((idx2 > 5) as usize));
                 toggle!(col, pc, 1 << idx);
                 POS.squares[idx] = pc as u8;
