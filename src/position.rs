@@ -328,10 +328,7 @@ pub fn is_draw_by_material() -> bool {
     if pawns == 0 && POS.state.phase <= 2 {
         if POS.state.phase == 2 {
             let bishops: u64 = POS.pieces[BISHOP];
-            if bishops & POS.sides[0] != bishops && bishops & POS.sides[1] != bishops && (bishops & 0x55AA55AA55AA55AA == bishops || bishops & 0xAA55AA55AA55AA55 == bishops) {
-                return true
-            }
-            return false
+            return bishops & POS.sides[0] != bishops && bishops & POS.sides[1] != bishops && (bishops & 0x55AA55AA55AA55AA == bishops || bishops & 0xAA55AA55AA55AA55 == bishops)
         }
         return true
     }
