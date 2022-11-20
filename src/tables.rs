@@ -83,7 +83,7 @@ pub fn tt_probe(zobrist: u64) -> Option<HashEntry> {
     let bucket: &HashBucket = unsafe{&TT[idx]};
     for entry in &bucket.0 {
         if entry.key == key {
-            let mut res = *entry;
+            let mut res: HashEntry = *entry;
             if res.score > MATE_THRESHOLD {
                 res.score -= unsafe{PLY} as i16;
             } else if res.score < -MATE_THRESHOLD {
@@ -98,7 +98,7 @@ pub fn tt_probe(zobrist: u64) -> Option<HashEntry> {
 pub fn kt_push(m: u16) {
     unsafe {
     let ply: usize = PLY as usize - 1;
-    let new = if KT[ply].contains(&m) {KT[ply][2]} else {m};
+    let new: u16 = if KT[ply].contains(&m) {KT[ply][2]} else {m};
     KT[ply][2] = KT[ply][1];
     KT[ply][1] = KT[ply][0];
     KT[ply][0] = new;

@@ -168,7 +168,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     let mut bound: u8 = Bound::UPPER;
 
     // is the threshold for late move reductions satisfied?
-    let can_lmr = depth >= 2 && PLY > 0 && !in_check;
+    let can_lmr: bool = depth >= 2 && PLY > 0 && !in_check;
 
     // going through moves
     PLY += 1;
@@ -180,20 +180,19 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         if do_move(m) { continue }
         count += 1;
 
-        let gives_check = is_in_check();
+        let gives_check: bool = is_in_check();
 
         // late move reductions
-        // TODO: variable lmr
         let r: i8 = (can_lmr && !gives_check && count > 1 && m_score < 300) as i8;
 
         // score move
         let score: i16 = if count == 1 {
             -pvs(pv, -beta, -alpha, depth - 1, gives_check, false)
         } else {
-            let null_window_score: i16 = -pvs(false, -alpha - 1, -alpha, depth - 1 - r, gives_check, true);
-            if (null_window_score < beta || r > 0) && null_window_score > alpha {
+            let zw_score: i16 = -pvs(false, -alpha - 1, -alpha, depth - 1 - r, gives_check, true);
+            if (alpha != beta - 1 || r > 0) && zw_score > alpha {
                 -pvs(pv, -beta, -alpha, depth - 1, gives_check, false)
-            } else { null_window_score }
+            } else { zw_score }
         };
 
         undo_move();
@@ -239,7 +238,7 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     NODES += 1;
 
     // static eval as an initial guess
-    let stand_pat = lazy_eval();
+    let stand_pat: i16 = lazy_eval();
 
     // alpha-beta, delta pruning
     if stand_pat >= beta { return beta }
