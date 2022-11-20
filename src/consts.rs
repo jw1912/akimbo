@@ -114,15 +114,6 @@ pub const TWELVE: u16 = 0b0000_1111_1111_1111;
 
 // hyperbola quintessence rook and bishop attacks
 pub static MASKS: [Mask; 64] = masks();
-pub static RMASKS: [Rmask; 64] = rmasks();
-
-#[derive(Clone, Copy)]
-pub struct Rmask {
-    pub bitmask: u64,
-    pub easts: u64,
-    pub wests: u64,
-    pub file: u64,
-}
 
 #[derive(Clone, Copy)]
 pub struct Mask {
@@ -139,19 +130,6 @@ const fn masks() -> [Mask; 64] {
         masks[idx].bitmask = 1 << idx;
         masks[idx].diag = NE[idx] | SW[idx];
         masks[idx].antidiag = NW[idx] | SE[idx];
-        masks[idx].file = NORTH[idx] | SOUTH[idx];
-        idx += 1;
-    }
-    masks
-}
-
-const fn rmasks() -> [Rmask; 64] {
-    let mut masks: [Rmask; 64] = [Rmask { bitmask: 0, easts: 0, wests: 0, file: 0} ; 64];
-    let mut idx: usize = 0;
-    while idx < 64 {
-        masks[idx].bitmask = 1 << idx;
-        masks[idx].easts = EAST[idx];
-        masks[idx].wests = WEST[idx];
         masks[idx].file = NORTH[idx] | SOUTH[idx];
         idx += 1;
     }

@@ -118,7 +118,7 @@ unsafe fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16) {
 
 #[inline(always)]
 pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
-    let masks: Rmask = RMASKS[idx];
+    let masks: Mask = MASKS[idx];
 
     // file
     let mut forward: u64 = occupied & masks.file;
@@ -129,11 +129,11 @@ pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
     forward &= masks.file;
 
     // rank
-    let mut easts: u64 = masks.easts;
+    let mut easts: u64 = EAST[idx];
     let mut blockers: u64 = easts & occupied;
     let mut sq: usize = lsb!(blockers | MSB) as usize;
     easts ^= EAST[sq];
-    let mut wests: u64 = masks.wests;
+    let mut wests: u64 = WEST[idx];
     blockers = wests & occupied;
     sq = msb!(blockers | LSB) as usize;
     wests ^= WEST[sq];
