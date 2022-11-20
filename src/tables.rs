@@ -61,11 +61,7 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
             continue;
         }
     }
-    if score > MATE_THRESHOLD {
-        score += PLY as i16;
-    } else if score < -MATE_THRESHOLD {
-        score -= PLY as i16;
-    }
+    score += if score > MATE_THRESHOLD {PLY} else if score < -MATE_THRESHOLD {-PLY} else {0} as i16;
     bucket[desired_idx] = HashEntry {key, best_move, depth, bound, score };
     }
 }
@@ -78,11 +74,7 @@ pub fn tt_probe(zobrist: u64) -> Option<HashEntry> {
     for entry in bucket {
         if entry.key == key {
             let mut res: HashEntry = *entry;
-            if res.score > MATE_THRESHOLD {
-                res.score -= PLY as i16;
-            } else if res.score < -MATE_THRESHOLD {
-                res.score += PLY as i16;
-            }
+            res.score += if res.score > MATE_THRESHOLD {-PLY} else if res.score < -MATE_THRESHOLD {PLY} else {0} as i16;
             return Some(res);
         }
     }}

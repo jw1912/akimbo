@@ -7,8 +7,7 @@ pub mod zobrist;
 pub mod tables;
 pub mod search;
 
-use std::io::stdin;
-use std::time::Instant;
+use std::{io::stdin, time::Instant};
 use consts::*;
 use tables::{tt_clear, tt_resize, kt_clear};
 use position::{POS, MoveList, do_move, undo_move, GameState, calc};
@@ -60,7 +59,11 @@ fn uci_run() {
 fn parse_commands(commands: Vec<&str>) {
     match commands[0] {
         "isready" => println!("readyok"),
-        "ucinewgame" => ucinewgame(),
+        "ucinewgame" => {
+            parse_fen(STARTPOS);
+            tt_clear();
+            kt_clear();
+        },
         "go" => parse_go(commands),
         "position" => parse_position(commands),
         "setoption" => parse_setoption(commands),
@@ -69,19 +72,13 @@ fn parse_commands(commands: Vec<&str>) {
     };
 }
 
-fn ucinewgame() {
-    parse_fen(STARTPOS);
-    tt_clear();
-    kt_clear();
-}
-
 fn parse_perft(commands: Vec<&str>) {
     let now = Instant::now();
     let count: u64 = perft(parse!(u8, commands[1], 0));
     println!("info nodes {count} Mnps {:.2}", count as f64 / now.elapsed().as_micros() as f64);
 }
 
-fn parse_go( commands: Vec<&str>) {
+fn parse_go(commands: Vec<&str>) {
     #[derive(PartialEq)]
     enum Tokens {None, Depth, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
     let mut token: Tokens = Tokens::None;
@@ -214,7 +211,7 @@ pub fn parse_fen(s: &str) {
     // calculate state
     let mut castle_rights: u8 = CastleRights::NONE;
     for ch in vec[2].chars() {
-        castle_rights |= match ch {'Q' => CastleRights::WHITE_QS, 'K' => CastleRights::WHITE_KS, 'q' => CastleRights::BLACK_QS, 'k' => CastleRights::BLACK_KS, _ => 0,};
+        castle_rights |= match ch {'Q' => CastleRights::WHITE_QS, 'K' => CastleRights::WHITE_KS, 'q' => CastleRights::BLACK_QS, 'k' => CastleRights::BLACK_KS, _ => 0};
     }
     let en_passant_sq: u16 = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
     let halfmove_clock: u8 = parse!(u8, vec[4], 0);
