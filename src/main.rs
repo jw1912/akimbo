@@ -172,7 +172,7 @@ pub fn uci_to_u16(m: &str) -> u16 {
     let from: u16 = sq_to_idx(&m[0..2]);
     let to: u16 = sq_to_idx(&m[2..4]);
     let mut no_flags: u16 = (from << 6) | to;
-    no_flags |= match m.chars().nth(4).unwrap_or('f') {'n' => 0x8000, 'b' => 0x9000, 'r' => 0xA000, 'q' => 0xB000, _ => 0,};
+    no_flags |= match m.chars().nth(4).unwrap_or('f') {'n' => 0x8000, 'b' => 0x9000, 'r' => 0xA000, 'q' => 0xB000, _ => 0};
     let mut possible_moves = MoveList::default();
     gen_moves::<ALL>(&mut possible_moves);
     for m_idx in 0..possible_moves.len {

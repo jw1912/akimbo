@@ -1,4 +1,5 @@
 use super::{consts::*, position::{POS, MoveList, is_in_check, is_square_attacked}};
+use std::hint::unreachable_unchecked;
 
 /// Forward bitscan.
 #[macro_export]
@@ -35,7 +36,7 @@ pub fn gen_moves<const U: u8>(move_list: &mut MoveList) {
         match POS.side_to_move {
             0 => pawn_pushes::<{ WHITE }>(move_list, occupied, pawns),
             1 => pawn_pushes::<{ BLACK }>(move_list, occupied, pawns),
-            _ => panic!("Invalid side to move!"),
+            _ => unreachable_unchecked(),
         }
         if POS.state.castle_rights & CastleRights::SIDES[POS.side_to_move] > 0 {
             castles(move_list, occupied);
@@ -235,6 +236,6 @@ unsafe fn castles(move_list: &mut MoveList, occupied: u64) {
                 move_list.push(MoveFlags::KS_CASTLE | 62 | 60 << 6)
             }
         }
-        _ => panic!("Invalid side for castling!"),
+        _ => unreachable_unchecked(),
     }
 }

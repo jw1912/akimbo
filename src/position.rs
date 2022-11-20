@@ -1,5 +1,5 @@
 use super::{lsb, pop, consts::*, movegen::{bishop_attacks, rook_attacks}, zobrist::ZVALS};
-use std::ptr;
+use std::{ptr, hint::unreachable_unchecked};
 
 /// The position is stored as global state.
 pub static mut POS: Position = Position {
@@ -162,13 +162,13 @@ pub fn do_move(m: u16) -> bool {
     match moved_pc as usize {
         PAWN =>  {
             if flag == MoveFlags::EN_PASSANT {
-                let pwn: usize = match opp { WHITE => to + 8, BLACK => to - 8, _ => panic!() };
+                let pwn: usize = match opp { WHITE => to + 8, BLACK => to - 8, _ => unreachable_unchecked() };
                 let p: u64 = bit!(pwn);
                 toggle!(opp, PAWN, p);
                 remove!(pwn, opp, PAWN);
                 POS.squares[pwn] = EMPTY as u8;
             } else if flag == MoveFlags::DBL_PUSH {
-                POS.state.en_passant_sq = match POS.side_to_move {WHITE => to - 8, BLACK => to + 8, _ => panic!("")} as u16;
+                POS.state.en_passant_sq = match POS.side_to_move {WHITE => to - 8, BLACK => to + 8, _ => unreachable_unchecked()} as u16;
                 POS.state.zobrist ^= ZVALS.en_passant[to & 7];
             } else if flag >= MoveFlags::KNIGHT_PROMO {
                 let ppc: usize = (((flag >> 12) & 3) + 1) as usize;
@@ -248,7 +248,7 @@ pub fn undo_move() {
     match moved_pc as usize {
         PAWN =>  {
             if flag == MoveFlags::EN_PASSANT {
-                let pwn: usize = match opp { WHITE => to + 8, BLACK => to - 8, _ => panic!() };
+                let pwn: usize = match opp { WHITE => to + 8, BLACK => to - 8, _ => unreachable_unchecked() };
                 let p: u64 = bit!(pwn);
                 toggle!(opp, PAWN, p);
                 POS.squares[pwn] = PAWN as u8;
