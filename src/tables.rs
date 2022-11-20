@@ -1,11 +1,9 @@
 use super::{consts::{MATE_THRESHOLD, MAX_PLY}, search::PLY};
 
-/// HASH TABLE
+/// Hash Table
 pub static mut TT: Vec<HashBucket> = Vec::new();
 /// Number of **buckets** in the transposition table
 static mut TT_SIZE: usize = 0;
-/// Number of **entries** filled
-static mut FILLED: u64 = 0;
 
 /// Killer Move Table
 pub static mut KT: [[u16; 3]; MAX_PLY as usize] = [[0; 3]; MAX_PLY as usize];
@@ -34,25 +32,17 @@ pub struct HashEntry {
     pub bound: u8,
 }
 
-pub fn hashfull() -> u64 {
-    unsafe {FILLED * 1000 / (8 * TT_SIZE) as u64}
-}
-
 /// Resizes the hash table to given size **in megabytes**, rounded down to nearest power of 2.
 pub fn tt_resize(mut size: usize) {
     unsafe {
         size = 2usize.pow((size as f64).log2().floor() as u32);
         TT_SIZE = size * 1024 * 1024 / std::mem::size_of::<HashBucket>();
         TT = vec![Default::default(); TT_SIZE];
-        FILLED = 0;
     }
 }
 
 pub fn tt_clear() {
-    unsafe {
-        TT = vec![Default::default(); TT_SIZE];
-        FILLED = 0;
-    }
+    unsafe {TT = vec![Default::default(); TT_SIZE]}
 }
 
 /// Push a search result to the hash table.
@@ -68,12 +58,7 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
     let mut desired_idx: usize = usize::MAX;
     let mut smallest_depth: i8 = i8::MAX;
     for (entry_idx, &entry) in bucket.0.iter().enumerate() {
-        if entry.key == key && depth > entry.depth {
-            desired_idx = entry_idx;
-            break;
-        }
-        if entry.depth == 0 {
-            FILLED += 1;
+        if (entry.key == key && depth > entry.depth) || entry.depth == 0 {
             desired_idx = entry_idx;
             break;
         }

@@ -9,7 +9,6 @@ pub static mut TIME: u128 = 1000;
 pub static mut PLY: i8 = 0;
 static mut NODES: u64 = 0;
 static mut STOP: bool = true;
-static mut SELDEPTH: i8 = 0;
 static mut PV_LINE: [u16; MAX_PLY as usize] = [0; MAX_PLY as usize];
 static mut START_TIME: Option<Instant> = None;
 
@@ -112,10 +111,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     depth += in_check as i8;
 
     // qsearch at depth 0
-    if depth <= 0 || PLY == MAX_PLY {
-        SELDEPTH = max(SELDEPTH, PLY);
-        return quiesce(alpha, beta)
-    }
+    if depth <= 0 || PLY == MAX_PLY { return quiesce(alpha, beta) }
 
     // count the node
     NODES += 1;
@@ -282,7 +278,6 @@ pub fn go() {
     unsafe {
     // initialise values
     NODES = 0;
-    SELDEPTH = 0;
     STOP = false;
     let mut best_move: u16 = 0;
     START_TIME = Some(Instant::now());
@@ -309,7 +304,7 @@ pub fn go() {
         };
         let nps: u32 = ((NODES as f64) * 1000.0 / (t as f64)) as u32;
         let pv_str: String = PV_LINE[..(d as usize + 1)].iter().map(u16_to_uci).collect();
-        println!("info depth {} seldepth {} score {} {} time {} nodes {} nps {} hashfull {} pv {}", d + 1, SELDEPTH, stype, sval, t, NODES, nps, hashfull(), pv_str);
+        println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d + 1, stype, sval, t, NODES, nps, pv_str);
 
         // stop searching if mate found
         if is_mate_score!(score) { break }
