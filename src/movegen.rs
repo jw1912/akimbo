@@ -129,7 +129,7 @@ pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
     forward &= masks.file;
 
     // backwards moves
-    let mut easts: u64 = EAST[idx];
+    let mut easts: u64 = masks.easts;
     let mut blockers: u64 = easts & occupied;
     let mut sq: usize = lsb!(blockers | MSB) as usize;
     easts ^= EAST[sq];

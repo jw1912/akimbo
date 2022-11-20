@@ -110,11 +110,7 @@ fn parse_go(commands: Vec<&str>) {
     }
     unsafe {
     if times[POS.side_to_move] != 0 {
-        TIME = if let Some(mtg) = moves_to_go {
-            times[POS.side_to_move] as u128 / mtg as u128
-        } else {
-            times[POS.side_to_move] as u128 / (2 * (POS.state.phase as u128 + 1))
-        } - 10;
+        TIME = times[POS.side_to_move] as u128 / (if let Some(mtg) = moves_to_go {mtg as u128} else {2 * (POS.state.phase as u128 + 1)}) - 10;
     }}
     go();
 }
