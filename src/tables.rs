@@ -1,7 +1,7 @@
 use super::{consts::{MATE_THRESHOLD, MAX_PLY}, search::PLY};
 
 /// Hash Table
-pub static mut TT: Vec<HashBucket> = Vec::new();
+pub static mut TT: Vec<[HashEntry; 8]> = Vec::new();
 /// Number of **buckets** in the transposition table
 static mut TT_SIZE: usize = 0;
 
@@ -16,13 +16,6 @@ impl Bound {
     pub const EXACT: u8 = 3;
 }
 
-/// A 64 byte-aligned bucket that can hold up to 8 entries
-/// with the same hash key modulo the number of buckets in
-/// the hash table.
-#[derive(Clone, Copy, Default)]
-#[repr(align(64))]
-pub struct HashBucket(pub [HashEntry; 8]);
-
 #[derive(Clone, Copy, Default)]
 pub struct HashEntry {
     pub key: u16,
@@ -35,9 +28,9 @@ pub struct HashEntry {
 /// Resizes the hash table to given size **in megabytes**, rounded down to nearest power of 2.
 pub fn tt_resize(mut size: usize) {
     unsafe {
-        size = 2usize.pow((size as f64).log2().floor() as u32);
-        TT_SIZE = size * 1024 * 1024 / std::mem::size_of::<HashBucket>();
-        TT = vec![Default::default(); TT_SIZE];
+    size = 2usize.pow((size as f64).log2().floor() as u32);
+    TT_SIZE = size * 1024 * 1024 / std::mem::size_of::<[HashEntry; 8]>();
+    TT = vec![Default::default(); TT_SIZE];
     }
 }
 
@@ -53,11 +46,11 @@ pub fn tt_clear() {
 pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i16) {
     unsafe {
     let key: u16 = (zobrist >> 48) as u16;
-    let idx: usize = (zobrist as usize) % TT.len();
-    let bucket: &mut HashBucket = &mut TT[idx];
+    let idx: usize = (zobrist as usize) & (TT.len() - 1);
+    let bucket: &mut [HashEntry] = &mut TT[idx];
     let mut desired_idx: usize = usize::MAX;
     let mut smallest_depth: i8 = i8::MAX;
-    for (entry_idx, &entry) in bucket.0.iter().enumerate() {
+    for (entry_idx, &entry) in bucket.iter().enumerate() {
         if (entry.key == key && depth > entry.depth) || entry.depth == 0 {
             desired_idx = entry_idx;
             break;
@@ -73,25 +66,26 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
     } else if score < -MATE_THRESHOLD {
         score -= PLY as i16;
     }
-    bucket.0[desired_idx] = HashEntry {key, best_move, depth, bound, score };
+    bucket[desired_idx] = HashEntry {key, best_move, depth, bound, score };
     }
 }
 
 pub fn tt_probe(zobrist: u64) -> Option<HashEntry> {
+    unsafe{
     let key: u16 = (zobrist >> 48) as u16;
-    let idx: usize = (zobrist as usize) & (unsafe{TT.len()} - 1);
-    let bucket: &HashBucket = unsafe{&TT[idx]};
-    for entry in &bucket.0 {
+    let idx: usize = (zobrist as usize) & (TT.len() - 1);
+    let bucket: &[HashEntry; 8] = &TT[idx];
+    for entry in bucket {
         if entry.key == key {
             let mut res: HashEntry = *entry;
             if res.score > MATE_THRESHOLD {
-                res.score -= unsafe{PLY} as i16;
+                res.score -= PLY as i16;
             } else if res.score < -MATE_THRESHOLD {
-                res.score += unsafe{PLY} as i16;
+                res.score += PLY as i16;
             }
             return Some(res);
         }
-    }
+    }}
     None
 }
 
