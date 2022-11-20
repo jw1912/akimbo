@@ -1,6 +1,5 @@
 use crate::{lsb, pop, position::POS};
 use lazy_static::lazy_static;
-use fastrand;
 
 lazy_static!( pub static ref ZVALS: ZobristVals = ZobristVals::init(); );
 

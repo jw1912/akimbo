@@ -1,11 +1,11 @@
 //! akimbo, a UCI compatible chess engine written in Rust.
 
 mod consts;
-pub mod position;
-pub mod movegen;
-pub mod zobrist;
-pub mod tables;
-pub mod search;
+mod position;
+mod movegen;
+mod zobrist;
+mod tables;
+mod search;
 
 use std::{io::stdin, time::Instant};
 use consts::*;
@@ -79,6 +79,7 @@ fn parse_perft(commands: Vec<&str>) {
 }
 
 fn parse_go(commands: Vec<&str>) {
+    unsafe{
     #[derive(PartialEq)]
     enum Tokens {None, Depth, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
     let mut token: Tokens = Tokens::None;
@@ -95,11 +96,11 @@ fn parse_go(commands: Vec<&str>) {
             _ => {
                 match token {
                     Tokens::None => {},
-                    Tokens::Depth => unsafe {
+                    Tokens::Depth => {
                         DEPTH = parse!(i8, command, 1);
                         TIME = u128::MAX;
                     },
-                    Tokens::Movetime => unsafe{TIME = parse!(i64, command, 1000) as u128 - 10}
+                    Tokens::Movetime => TIME = parse!(i64, command, 1000) as u128 - 10,
                     Tokens::WTime => times[0] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
                     Tokens::BTime => times[1] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
                     Tokens::MovesToGo => moves_to_go = Some(parse!(u16, command, 40)),
@@ -108,7 +109,6 @@ fn parse_go(commands: Vec<&str>) {
             },
         }
     }
-    unsafe {
     if times[POS.side_to_move] != 0 {
         TIME = times[POS.side_to_move] as u128 / (if let Some(mtg) = moves_to_go {mtg as u128} else {2 * (POS.state.phase as u128 + 1)}) - 10;
     }}

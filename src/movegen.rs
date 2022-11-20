@@ -120,7 +120,7 @@ unsafe fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16) {
 pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
     let masks: Rmask = RMASKS[idx];
 
-    // forward moves
+    // file
     let mut forward: u64 = occupied & masks.file;
     let mut reverse: u64 = forward.swap_bytes();
     forward -= masks.bitmask;
@@ -128,7 +128,7 @@ pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
     forward ^= reverse.swap_bytes();
     forward &= masks.file;
 
-    // backwards moves
+    // rank
     let mut easts: u64 = masks.easts;
     let mut blockers: u64 = easts & occupied;
     let mut sq: usize = lsb!(blockers | MSB) as usize;
@@ -145,7 +145,7 @@ pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
 pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
     let masks: Mask = MASKS[idx];
 
-    // forward moves
+    // diagonal
     let mut forward: u64 = occ & masks.diag;
     let mut reverse: u64 = forward.swap_bytes();
     forward -= masks.bitmask;
@@ -153,7 +153,7 @@ pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
     forward ^= reverse.swap_bytes();
     forward &= masks.diag;
 
-    // backward moves
+    // antidiagonal
     let mut forward2: u64 = occ & masks.antidiag;
     let mut reverse2: u64 = forward2.swap_bytes();
     forward2 -= masks.bitmask;
