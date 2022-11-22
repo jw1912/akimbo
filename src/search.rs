@@ -128,14 +128,13 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
 
         // hash score pruning
         // not at root, with shallower hash entries or near 50 move draws
-        if PLY > 0 && POS.state.halfmove_clock <= 90 && res.depth >= depth {
+        if PLY > 0 && POS.state.halfmove_clock <= 90 && res.depth >= depth &&
             match res.bound {
-                Bound::EXACT => { if !pv { return res.score } }, // want nice pv lines
-                Bound::LOWER => { if res.score >= beta { return beta } },
-                Bound::UPPER => { if res.score <= alpha { return alpha } },
-                _ => ()
-            }
-        }
+                Bound::EXACT => { !pv }, // want nice pv lines
+                Bound::LOWER => { res.score >= beta },
+                Bound::UPPER => { res.score <= alpha },
+                _ => false
+            } { return res.score }
     }
 
     // pruning
@@ -144,14 +143,14 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         let lazy_eval: i16 = lazy_eval();
 
         // reverse futility pruning
-        if depth <= 8 && lazy_eval >= beta + 120 * depth as i16 { return beta }
+        if depth <= 8 && lazy_eval >= beta + 120 * depth as i16 { return lazy_eval - 120 * depth as i16 }
 
         // null move pruning
         if allow_null && depth >= 3 && POS.state.phase >= 6 && lazy_eval >= beta {
             let ctx: (u16, u64) = do_null();
             let score: i16 = -pvs(false, -beta, -beta + 1, depth - 3, false, false);
             undo_null(ctx);
-            if score >= beta {return beta}
+            if score >= beta {return score}
         }
     }
 
@@ -211,8 +210,6 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
                     // push to killer move table if not a capture
                     if m & 0b0100_0000_0000_0000 == 0 { kt_push(m) };
 
-                    // failing hard
-                    alpha = beta;
                     bound = Bound::LOWER;
                     break
                 }
@@ -225,10 +222,10 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     if count == 0 { return (in_check as i16) * (-MAX + PLY as i16) }
 
     // write to hash if appropriate
-    if write_to_hash { tt_push(POS.state.zobrist, best_move, depth, bound, alpha) }
+    if write_to_hash { tt_push(POS.state.zobrist, best_move, depth, bound, best_score) }
 
-    // fail-hard
-    alpha
+    // fail-soft
+    best_score
 }
 
 unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
@@ -236,11 +233,11 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     NODES += 1;
 
     // static eval as an initial guess
-    let stand_pat: i16 = lazy_eval();
+    let mut stand_pat: i16 = lazy_eval();
 
     // alpha-beta, delta pruning
-    if stand_pat >= beta { return beta }
-    if stand_pat < alpha - 850 { return alpha }
+    if stand_pat >= beta { return stand_pat }
+    if stand_pat < alpha - 850 { return stand_pat + 850 }
     if alpha < stand_pat { alpha = stand_pat }
 
     // generate and score moves
@@ -261,14 +258,17 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
         undo_move();
 
         // alpha-beta pruning
-        if score > alpha {
-            alpha = score;
-            if score >= beta { return beta }
+        if score > stand_pat {
+            stand_pat = score;
+            if score > alpha {
+                alpha = score;
+                if score >= beta { break }
+            }
         }
     }
 
     // fail-hard
-    alpha
+    stand_pat
 }
 
 pub fn go() {
