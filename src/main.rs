@@ -73,9 +73,12 @@ fn parse_commands(commands: Vec<&str>) {
 }
 
 fn parse_perft(commands: Vec<&str>) {
-    let now = Instant::now();
-    let count: u64 = perft(parse!(u8, commands[1], 0));
-    println!("info nodes {count} Mnps {:.2}", count as f64 / now.elapsed().as_micros() as f64);
+    for d in 0..parse!(u8, commands[1], 0) + 1 {
+        let now = Instant::now();
+        let count: u64 = perft(d);
+        let time = now.elapsed();
+        println!("info depth {} time {} nodes {count} Mnps {:.2}", d, time.as_millis(), count as f64 / time.as_micros() as f64);
+    }
 }
 
 fn parse_go(commands: Vec<&str>) {
