@@ -302,7 +302,7 @@ pub fn is_draw_by_repetition(num: u8) -> bool {
     let to: usize = l - 1;
     let mut from: usize = l.wrapping_sub(POS.state.halfmove_clock as usize);
     if from > 1024 { from = 0 }
-    let mut repetitions_count = 1;
+    let mut repetitions_count: u8 = 1;
     for i in (from..to).rev().step_by(2) {
         if POS.stack[i].state.zobrist == POS.state.zobrist {
             repetitions_count += 1;
@@ -341,7 +341,7 @@ pub fn is_draw_by_material() -> bool {
 pub fn calc() -> (i16, i16, i16) {
     let mut res: (i16, i16, i16) = (0,0,0);
     for (i, side) in unsafe{POS.sides.iter().enumerate()} {
-        let factor = SIDE_FACTOR[i];
+        let factor: i16 = SIDE_FACTOR[i];
         for j in 0..6 {
             let mut pcs: u64 = unsafe{POS.pieces[j]} & side;
             let count: i16 = pcs.count_ones() as i16;
