@@ -267,7 +267,7 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
         }
     }
 
-    // fail-hard
+    // fail-soft
     stand_pat
 }
 

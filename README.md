@@ -2,6 +2,11 @@
 
 akimbo is a UCI compatible chess engine written in Rust.
 
+### TODO (before first release)
+- Tuner (in separate repo)
+- FRC support
+- Syzygy tablebase support (maybe)
+
 ### Aims
 The main aim of akimbo is to stay under 1500 lines of code.
 At last count it was at 1154 lines, excluding blank lines and comments.
@@ -17,7 +22,7 @@ If you have cargo installed, run `cargo build --release`.
 - Hyperbola quintessence sliding attacks
 
 #### Search
-- Fail-hard
+- Fail-soft
 - Principle variation search
 - Quiescence search
 - Iterative deepening
