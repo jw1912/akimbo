@@ -11,5 +11,4 @@ codegen-units = 1
 strip = true
 
 [dependencies]
-lazy_static = "1.4.0"
 fastrand = "1.8.0"

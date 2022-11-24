@@ -13,11 +13,13 @@ use tables::{tt_clear, tt_resize, kt_clear};
 use position::{POS, MoveList, do_move, undo_move, GameState, calc};
 use movegen::{gen_moves, ALL};
 use search::{DEPTH, TIME, go};
+use zobrist::{ZVALS, ZobristVals};
 
 macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().unwrap_or($else)}}
 
 fn main() {
     println!("{}, created by {}", NAME, AUTHOR);
+    unsafe{ZVALS = ZobristVals::init()}
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();

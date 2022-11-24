@@ -1,7 +1,6 @@
 use crate::{lsb, pop, position::POS};
-use lazy_static::lazy_static;
 
-lazy_static!( pub static ref ZVALS: ZobristVals = ZobristVals::init(); );
+pub static mut ZVALS: ZobristVals = ZobristVals {pieces: [[[0; 64]; 6]; 2], castle: [0; 4], en_passant: [0; 8], side: 0};
 
 pub struct ZobristVals {
     pub pieces: [[[u64; 64]; 6]; 2],
@@ -18,7 +17,7 @@ impl ZobristVals {
         self.castle[lsb!(update as u64) as usize]
     }
     /// Initialises ZVALS.
-    fn init() -> Self {
+    pub fn init() -> Self {
         fastrand::seed(353012);
         let mut vals: ZobristVals = Self {
             pieces: [[[0; 64]; 6]; 2],
