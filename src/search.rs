@@ -9,7 +9,7 @@ pub static mut TIME: u128 = 1000;
 pub static mut PLY: i8 = 0;
 static mut NODES: u64 = 0;
 static mut STOP: bool = true;
-static mut PV_LINE: [u16; MAX_PLY as usize] = [0; MAX_PLY as usize];
+static mut BEST_MOVE: u16 = 0;
 static mut START_TIME: Option<Instant> = None;
 
 #[inline(always)]
@@ -201,7 +201,6 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
             if score > alpha {
                 alpha = score;
                 bound = Bound::EXACT;
-                if pv { PV_LINE[PLY as usize - 1] = m }
 
                 // beta prune
                 if score >= beta {
@@ -215,6 +214,8 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
         }
     }
     PLY -= 1;
+
+    if pv && PLY == 0 { BEST_MOVE = best_move }
 
     // check for (stale)mate
     if count == 0 { return (in_check as i16) * (-MAX + PLY as i16) }
@@ -290,7 +291,7 @@ pub fn go() {
         if t >= TIME { break }
 
         // update best move
-        best_move = PV_LINE[0];
+        best_move = BEST_MOVE;
 
         // uci output for the gui
         let (stype, sval): (&str, i16) = match score.abs() >= MATE_THRESHOLD {
@@ -298,7 +299,7 @@ pub fn go() {
             false => ("cp", score)
         };
         let nps: u32 = ((NODES as f64) * 1000.0 / (t as f64)) as u32;
-        let pv_str: String = PV_LINE[..(d as usize + 1)].iter().map(u16_to_uci).collect();
+        let pv_str: String = u16_to_uci(&best_move);
         println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d + 1, stype, sval, t, NODES, nps, pv_str);
 
         // stop searching if mate found
