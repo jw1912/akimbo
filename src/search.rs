@@ -12,11 +12,9 @@ static mut STOP: bool = true;
 static mut PV_LINE: [u16; MAX_PLY as usize] = [0; MAX_PLY as usize];
 static mut START_TIME: Option<Instant> = None;
 
-macro_rules! is_mate_score {($score:expr) => {$score.abs() >= MATE_THRESHOLD}}
-
 #[inline(always)]
 unsafe fn lazy_eval() -> i16 {
-    let phase: i32 = std::cmp::min(POS.state.phase as i32, TPHASE);
+    let phase: i32 = min(POS.state.phase as i32, TPHASE);
     SIDE_FACTOR[POS.side_to_move] * ((phase * POS.state.mg as i32 + (TPHASE - phase) * POS.state.eg as i32) / TPHASE) as i16
 }
 
@@ -295,7 +293,7 @@ pub fn go() {
         best_move = PV_LINE[0];
 
         // uci output for the gui
-        let (stype, sval): (&str, i16) = match is_mate_score!(score) {
+        let (stype, sval): (&str, i16) = match score.abs() >= MATE_THRESHOLD {
             true => ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2),
             false => ("cp", score)
         };
@@ -304,7 +302,7 @@ pub fn go() {
         println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d + 1, stype, sval, t, NODES, nps, pv_str);
 
         // stop searching if mate found
-        if is_mate_score!(score) { break }
+        if score.abs() >= MATE_THRESHOLD { break }
     }
     DEPTH = i8::MAX;
     TIME = 1000;
