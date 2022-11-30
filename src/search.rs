@@ -215,7 +215,8 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     }
     PLY -= 1;
 
-    if pv && PLY == 0 { BEST_MOVE = best_move }
+    // set best move at root
+    if PLY == 0 { BEST_MOVE = best_move }
 
     // check for (stale)mate
     if count == 0 { return (in_check as i16) * (-MAX + PLY as i16) }
@@ -250,10 +251,7 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     while let Some((m, _)) = get_next_move(&mut captures, &mut scores, &mut m_idx) {
         // make move and skip if not legal
         if do_move(m) { continue }
-
-        // get score
         let score: i16 = -quiesce(-beta, -alpha);
-
         undo_move();
 
         // alpha-beta pruning
