@@ -19,21 +19,12 @@ macro_rules! toggle {
     };
 }
 
-macro_rules! remove {
-    ($from:expr, $side:expr, $pc:expr) => {
+macro_rules! switch {
+    ($from:expr, $side:expr, $pc:expr, $s:tt) => {
         let indx = $from ^ (56 * ($side == 0) as usize);
         POS.state.zobrist ^= ZVALS.pieces[$side][$pc][$from];
-        POS.state.mg -= SIDE_FACTOR[$side] * PST_MG[$pc][indx];
-        POS.state.eg -= SIDE_FACTOR[$side] * PST_EG[$pc][indx];
-    };
-}
-
-macro_rules! add {
-    ($from:expr, $side:expr, $pc:expr) => {
-        let indx = $from ^ (56 * ($side == 0) as usize);
-        POS.state.zobrist ^= ZVALS.pieces[$side][$pc][$from];
-        POS.state.mg += SIDE_FACTOR[$side] * PST_MG[$pc][indx];
-        POS.state.eg += SIDE_FACTOR[$side] * PST_EG[$pc][indx];
+        POS.state.mg $s SIDE_FACTOR[$side] * PST_MG[$pc][indx];
+        POS.state.eg $s SIDE_FACTOR[$side] * PST_EG[$pc][indx];
     };
 }
 
@@ -139,8 +130,8 @@ pub fn do_move(m: u16) -> bool {
     // initial updates
     POS.stack.push(MoveState { state: POS.state, m, moved_pc, captured_pc});
     toggle!(POS.side_to_move, moved_pc as usize, f | t);
-    remove!(from, POS.side_to_move, moved_pc as usize);
-    add!(to, POS.side_to_move, moved_pc as usize);
+    switch!(from, POS.side_to_move, moved_pc as usize, -=);
+    switch!(to, POS.side_to_move, moved_pc as usize, +=);
     POS.squares[from] = EMPTY as u8;
     POS.squares[to] = moved_pc;
     if POS.state.en_passant_sq > 0 {POS.state.zobrist ^= ZVALS.en_passant[(POS.state.en_passant_sq & 7) as usize]}
@@ -151,7 +142,7 @@ pub fn do_move(m: u16) -> bool {
     if captured_pc != EMPTY as u8 {
         let cpc: usize = captured_pc as usize;
         toggle!(opp, cpc, t);
-        remove!(to, opp, cpc);
+        switch!(to, opp, cpc, -=);
         POS.state.phase -= PHASE_VALS[cpc];
         if captured_pc == ROOK as u8 {
             POS.state.castle_rights &= CASTLE_RIGHTS[to];
@@ -165,7 +156,7 @@ pub fn do_move(m: u16) -> bool {
                 let pwn: usize = match opp { WHITE => to + 8, BLACK => to - 8, _ => unreachable_unchecked() };
                 let p: u64 = bit!(pwn);
                 toggle!(opp, PAWN, p);
-                remove!(pwn, opp, PAWN);
+                switch!(pwn, opp, PAWN, -=);
                 POS.squares[pwn] = EMPTY as u8;
             } else if flag == MoveFlags::DBL_PUSH {
                 POS.state.en_passant_sq = match POS.side_to_move {WHITE => to - 8, BLACK => to + 8, _ => unreachable_unchecked()} as u16;
@@ -176,8 +167,8 @@ pub fn do_move(m: u16) -> bool {
                 POS.pieces[ppc] ^= t;
                 POS.squares[to] = ppc as u8;
                 POS.state.phase += PHASE_VALS[ppc];
-                remove!(to, POS.side_to_move, moved_pc as usize);
-                add!(to, POS.side_to_move, ppc);
+                switch!(to, POS.side_to_move, moved_pc as usize, -=);
+                switch!(to, POS.side_to_move, ppc, +=);
             }
         }
         KING => {
@@ -186,8 +177,8 @@ pub fn do_move(m: u16) -> bool {
                 let (c, idx1, idx2): (u64, usize, usize) = CASTLE_MOVES[POS.side_to_move][(flag == MoveFlags::KS_CASTLE) as usize];
                 POS.squares.swap(idx1, idx2);
                 toggle!(POS.side_to_move, ROOK, c);
-                remove!(idx1, POS.side_to_move, ROOK);
-                add!(idx2, POS.side_to_move, ROOK);
+                switch!(idx1, POS.side_to_move, ROOK, -=);
+                switch!(idx2, POS.side_to_move, ROOK, +=);
             }
         }
         ROOK => POS.state.castle_rights &= CASTLE_RIGHTS[from],
