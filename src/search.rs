@@ -3,7 +3,7 @@ use std::{cmp::{min, max}, time::Instant};
 
 // Search parameters.
 pub static mut DEPTH: i8 = i8::MAX;
-pub static mut TIME: u128 = u128::MAX;
+pub static mut TIME: u128 = 1000;
 
 // Search statistics.
 pub static mut PLY: i8 = 0;
@@ -309,7 +309,7 @@ pub fn go() {
         if score.abs() >= MATE_THRESHOLD { break }
     }
     DEPTH = i8::MAX;
-    TIME = u128::MAX;
+    TIME = 1000;
     println!("bestmove {}", u16_to_uci(&best_move));
     kt_clear();
     }
