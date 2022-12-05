@@ -234,9 +234,8 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
 
     // static eval as an initial guess
     let mut stand_pat: i16 = lazy_eval();
-    let margin = stand_pat + 200;
 
-    // alpha-beta, delta pruning
+    // alpha-beta pruning
     if stand_pat >= beta { return stand_pat }
     if alpha < stand_pat { alpha = stand_pat }
 
@@ -247,9 +246,14 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     gen_moves::<CAPTURES>(&mut captures);
     score_captures(&captures, &mut scores, m_idx);
 
+    // delta pruning margin
+    let margin = stand_pat + 200;
+
     // go through moves
     while let Some((m, m_score)) = get_next_move(&mut captures, &mut scores, &mut m_idx) {
+        // delta pruning
         if margin + m_score as i16 / 5 < alpha { break }
+
         // make move and skip if not legal
         if do_move(m) { continue }
         let score: i16 = -quiesce(-beta, -alpha);
