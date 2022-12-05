@@ -3,12 +3,12 @@ use std::{cmp::{min, max}, time::Instant};
 
 // Search parameters.
 pub static mut DEPTH: i8 = i8::MAX;
-pub static mut TIME: u128 = 1000;
+pub static mut TIME: u128 = u128::MAX;
 
 // Search statistics.
 pub static mut PLY: i8 = 0;
+pub static mut STOP: bool = true;
 static mut NODES: u64 = 0;
-static mut STOP: bool = true;
 static mut BEST_MOVE: u16 = 0;
 static mut START_TIME: Option<Instant> = None;
 
@@ -291,7 +291,7 @@ pub fn go() {
 
         // end search if out of time
         let t: u128 = START_TIME.unwrap().elapsed().as_millis();
-        if t >= TIME { break }
+        if t >= TIME || STOP { break }
 
         // update best move
         best_move = BEST_MOVE;
@@ -309,7 +309,7 @@ pub fn go() {
         if score.abs() >= MATE_THRESHOLD { break }
     }
     DEPTH = i8::MAX;
-    TIME = 1000;
+    TIME = u128::MAX;
     println!("bestmove {}", u16_to_uci(&best_move));
     kt_clear();
     }

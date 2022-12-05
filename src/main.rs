@@ -7,12 +7,12 @@ mod zobrist;
 mod tables;
 mod search;
 
-use std::{io::stdin, time::Instant};
+use std::{io::stdin, time::Instant, thread::spawn};
 use consts::*;
 use tables::{tt_clear, tt_resize, kt_clear};
 use position::{POS, MoveList, do_move, undo_move, GameState, calc};
 use movegen::{gen_moves, ALL};
-use search::{DEPTH, TIME, go};
+use search::{DEPTH, TIME, STOP, go};
 use zobrist::{ZVALS, ZobristVals};
 
 macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().unwrap_or($else)}}
@@ -117,6 +117,13 @@ fn parse_go(commands: Vec<&str>) {
     if times[POS.side_to_move] != 0 {
         TIME = times[POS.side_to_move] as u128 / (if let Some(mtg) = moves_to_go {mtg as u128} else {2 * (POS.state.phase as u128 + 1)}) - 10;
     }}
+    spawn(move || {
+        loop {
+            let mut input = String::new();
+            stdin().read_line(&mut input).unwrap();
+            if &input[..4] == "stop" { unsafe{STOP = true}; break; }
+        }
+    });
     go();
 }
 
