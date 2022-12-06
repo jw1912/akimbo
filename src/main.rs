@@ -19,12 +19,43 @@ macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().u
 
 fn main() {
     println!("{}, created by {}", NAME, AUTHOR);
+
+    // initialise position
+    parse_fen(STARTPOS);
+    tt_resize(1);
     unsafe{ZVALS = ZobristVals::init()}
+
+    // awaits input
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
         let commands: Vec<&str> = input.split(' ').map(|v| v.trim()).collect();
-        if commands[0] == "uci" {uci_run()}
+        match commands[0] {
+            "uci" => {
+                println!("id name {} {}", NAME, VERSION);
+                println!("id author {}", AUTHOR);
+                println!("option name Hash type spin default 128 min 1 max 512");
+                println!("option name Clear Hash type button");
+                println!("uciok");
+            }
+            "isready" => println!("readyok"),
+            "ucinewgame" => {
+                parse_fen(STARTPOS);
+                tt_clear();
+                kt_clear();
+            },
+            "setoption" => {
+                match commands[..] {
+                    ["setoption", "name", "Hash", "value", x] => tt_resize(parse!(usize, x, 1)),
+                    ["setoption", "name", "Clear", "Hash"] => tt_clear(),
+                    _ => {},
+                }
+            },
+            "go" => parse_go(commands),
+            "position" => parse_position(commands),
+            "perft" => parse_perft(commands),
+            _ => {},
+        }
     }
 }
 
@@ -41,37 +72,6 @@ fn perft(depth_left: u8) -> u64 {
         undo_move();
     }
     positions
-}
-
-fn uci_run() {
-    // init position and hash table
-    parse_fen(STARTPOS);
-    tt_resize(1);
-    // uci preamble
-    println!("id name {} {}\nid author {}\noption name Hash type spin default 128 min 1 max 512\nuciok", NAME, VERSION, AUTHOR);
-    // await commands
-    loop {
-        let mut input = String::new();
-        stdin().read_line(&mut input).unwrap();
-        let commands: Vec<&str> = input.split(' ').map(|v| v.trim()).collect();
-        parse_commands(commands);
-    }
-}
-
-fn parse_commands(commands: Vec<&str>) {
-    match commands[0] {
-        "isready" => println!("readyok"),
-        "ucinewgame" => {
-            parse_fen(STARTPOS);
-            tt_clear();
-            kt_clear();
-        },
-        "go" => parse_go(commands),
-        "position" => parse_position(commands),
-        "setoption" => parse_setoption(commands),
-        "perft" => parse_perft(commands),
-        _ => {},
-    };
 }
 
 fn parse_perft(commands: Vec<&str>) {
@@ -142,14 +142,6 @@ fn parse_position(commands: Vec<&str>) {
     }
     if !fen.is_empty() {parse_fen(&fen)}
     for m in moves {do_move(uci_to_u16(&m));}
-}
-
-fn parse_setoption(commands: Vec<&str>) {
-    match commands[..] {
-        ["setoption", "name", "Hash", "value", x] => tt_resize(parse!(usize, x, 1)),
-        ["setoption", "name", "Clear", "Hash"] => tt_clear(),
-        _ => {},
-    }
 }
 
 macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", char::from_u32(($idx & 7) as u32 + 97).unwrap(), ($idx >> 3) + 1)}}
