@@ -46,18 +46,13 @@ fn score_move(m: u16, hash_move: u16, killers: [u16; 3]) -> u16 {
     }
 }
 
-fn score_moves(moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, start_idx: usize) {
+fn score_moves(moves: &MoveList, move_scores: &mut MoveList, hash_move: u16) {
     let killers: [u16; 3] = unsafe{KT[PLY as usize]};
-    for i in start_idx..moves.len {
-        let m: u16 = moves.list[i];
-        move_scores.push(score_move(m, hash_move, killers));
-    }
+    for i in 0..moves.len { move_scores.push(score_move(moves.list[i], hash_move, killers)) }
 }
 
-fn score_captures(moves: &MoveList, move_scores: &mut MoveList, start_idx: usize) {
-    for i in start_idx..moves.len {
-        move_scores.push(mvv_lva(moves.list[i]));
-    }
+fn score_captures(moves: &MoveList, move_scores: &mut MoveList) {
+    for i in 0..moves.len { move_scores.push(mvv_lva(moves.list[i])) }
 }
 
 /// O(n^2) algorithm to incrementally sort the move list as needed.
@@ -153,11 +148,10 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
     }
 
     // generating and scoring moves
-    let mut m_idx: usize = 0;
     let mut moves = MoveList::default();
     let mut move_scores = MoveList::default();
     gen_moves::<ALL>(&mut moves);
-    score_moves(&moves, &mut move_scores, hash_move, m_idx);
+    score_moves(&moves, &mut move_scores, hash_move);
 
     // if no cutoff or alpha improvements are achieved then score is an upper bound
     let mut bound: u8 = Bound::UPPER;
@@ -167,6 +161,7 @@ unsafe fn pvs(pv: bool, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: 
 
     // going through moves
     PLY += 1;
+    let mut m_idx: usize = 0;
     let mut best_move: u16 = 0;
     let mut best_score: i16 = -MAX;
     let mut count: u16 = 0;
@@ -240,16 +235,16 @@ unsafe fn quiesce(mut alpha: i16, beta: i16) -> i16 {
     if alpha < stand_pat { alpha = stand_pat }
 
     // generate and score moves
-    let mut m_idx: usize = 0;
     let mut captures = MoveList::default();
     let mut scores = MoveList::default();
     gen_moves::<CAPTURES>(&mut captures);
-    score_captures(&captures, &mut scores, m_idx);
+    score_captures(&captures, &mut scores);
 
     // delta pruning margin
     let margin = stand_pat + 200;
 
     // go through moves
+    let mut m_idx: usize = 0;
     while let Some((m, m_score)) = get_next_move(&mut captures, &mut scores, &mut m_idx) {
         // delta pruning
         if margin + m_score as i16 / 5 < alpha { break }
