@@ -207,12 +207,12 @@ pub fn parse_fen(s: &str) {
         castle_rights |= match ch {'Q' => CastleRights::WHITE_QS, 'K' => CastleRights::WHITE_KS, 'q' => CastleRights::BLACK_QS, 'k' => CastleRights::BLACK_KS, _ => 0};
     }
     let en_passant_sq: u16 = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
-    let halfmove_clock: u8 = parse!(u8, vec[4], 0);
+    let halfmove_clock: u8 = parse!(u8, vec.get(4).unwrap_or(&"0"), 0);
     let (phase, mg, eg): (i16, i16, i16) = calc();
 
     // set state
     POS.state = GameState {zobrist: 0, phase, mg, eg,en_passant_sq, halfmove_clock, castle_rights};
-    POS.fullmove_counter = parse!(u16, vec[5], 1);
+    POS.fullmove_counter = parse!(u16, vec.get(5).unwrap_or(&"1"), 1);
     POS.state.zobrist = zobrist::calc();
     POS.stack.clear();
     }
