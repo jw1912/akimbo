@@ -12,56 +12,51 @@ macro_rules! msb {($x:expr) => {63 ^ $x.leading_zeros() as u16}}
 #[macro_export]
 macro_rules! pop {($x:expr) => {$x &= $x - 1}}
 
-pub const ALL: u8 = 0;
-pub const CAPTURES: u8 = 1;
-pub const QUIETS: u8 = 2;
+macro_rules! pop_lsb {($idx:expr, $x:expr) => {$idx = $x.trailing_zeros() as u16; $x &= $x - 1}}
+
+pub const ALL: bool = true;
+pub const CAPTURES: bool = false;
 
 #[inline(always)]
 fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16) {
     let f: u16 = from << 6;
     let mut aidx: u16;
     while attacks > 0 {
-        aidx = lsb!(attacks);
+        pop_lsb!(aidx, attacks);
         move_list.push(flag | f | aidx);
-        pop!(attacks)
     }
 }
 
-pub fn gen_moves<const U: u8>(move_list: &mut MoveList) {
+pub fn gen_moves<const QUIETS: bool>(move_list: &mut MoveList) {
     unsafe {
     let occupied: u64 = POS.sides[0] | POS.sides[1];
     let friendly: u64 = POS.sides[POS.side_to_move];
     let pawns: u64 = POS.pieces[PAWN] & POS.sides[POS.side_to_move];
-    if U != CAPTURES {
+    if QUIETS {
         match POS.side_to_move {
-            0 => pawn_pushes::<{ WHITE }>(move_list, occupied, pawns),
-            1 => pawn_pushes::<{ BLACK }>(move_list, occupied, pawns),
+            0 => pawn_pushes::<WHITE>(move_list, occupied, pawns),
+            1 => pawn_pushes::<BLACK>(move_list, occupied, pawns),
             _ => unreachable_unchecked(),
         }
-        if POS.state.castle_rights & CastleRights::SIDES[POS.side_to_move] > 0 {
-            castles(move_list, occupied);
-        }
+        if POS.state.castle_rights & CastleRights::SIDES[POS.side_to_move] > 0 && !is_in_check() {castles(move_list, occupied)}
     }
-    if U != QUIETS {
-        let opps: u64 = POS.sides[POS.side_to_move ^ 1];
-        pawn_captures(move_list, pawns, opps);
-        if POS.state.en_passant_sq > 0 {en_passants(move_list, pawns, POS.state.en_passant_sq)}
-    }
-    piece_moves::<{ KNIGHT }, U>(move_list, occupied, friendly);
-    piece_moves::<{ BISHOP }, U>(move_list, occupied, friendly);
-    piece_moves::<{ ROOK   }, U>(move_list, occupied, friendly);
-    piece_moves::<{ QUEEN  }, U>(move_list, occupied, friendly);
-    piece_moves::<{ KING   }, U>(move_list, occupied, friendly);
+    pawn_captures(move_list, pawns, POS.sides[POS.side_to_move ^ 1]);
+    if POS.state.en_passant_sq > 0 {en_passants(move_list, pawns, POS.state.en_passant_sq)}
+    piece_moves::<KNIGHT, QUIETS>(move_list, occupied, friendly);
+    piece_moves::<BISHOP, QUIETS>(move_list, occupied, friendly);
+    piece_moves::<ROOK  , QUIETS>(move_list, occupied, friendly);
+    piece_moves::<QUEEN , QUIETS>(move_list, occupied, friendly);
+    piece_moves::<KING  , QUIETS>(move_list, occupied, friendly);
     }
 }
 
-unsafe fn piece_moves<const PIECE: usize, const U: u8>(move_list: &mut MoveList, occupied: u64, friendly: u64) {
+unsafe fn piece_moves<const PIECE: usize, const QUIETS: bool>(move_list: &mut MoveList, occupied: u64, friendly: u64) {
     let mut from: u16;
     let mut idx: usize;
     let mut attacks: u64;
     let mut attackers: u64 = POS.pieces[PIECE] & friendly;
     while attackers > 0 {
-        from = lsb!(attackers);
+        pop_lsb!(from, attackers);
         idx = from as usize;
         attacks = match PIECE {
             KNIGHT => KNIGHT_ATTACKS[idx],
@@ -71,9 +66,8 @@ unsafe fn piece_moves<const PIECE: usize, const U: u8>(move_list: &mut MoveList,
             KING => KING_ATTACKS[idx],
             _ => panic!("Not a valid usize in fn piece_moves_general: {}", PIECE),
         };
-        if U != CAPTURES {encode_moves(move_list, attacks & !occupied, from, MoveFlags::QUIET)}
-        if U != QUIETS {encode_moves(move_list, attacks & POS.sides[POS.side_to_move ^ 1], from, MoveFlags::CAPTURE)}
-        pop!(attackers)
+        encode_moves(move_list, attacks & POS.sides[POS.side_to_move ^ 1], from, MoveFlags::CAPTURE);
+        if QUIETS {encode_moves(move_list, attacks & !occupied, from, MoveFlags::QUIET)}
     }
 }
 
@@ -81,38 +75,36 @@ unsafe fn piece_moves<const PIECE: usize, const U: u8>(move_list: &mut MoveList,
 unsafe fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents: u64) {
     let mut from: u16;
     let mut attacks: u64;
+    let mut cidx: u16;
+    let mut f: u16;
     let mut promo_attackers: u64 = attackers & PENRANK[POS.side_to_move];
     attackers &= !PENRANK[POS.side_to_move];
     while attackers > 0 {
-        from = lsb!(attackers);
+        pop_lsb!(from, attackers);
         attacks = PAWN_ATTACKS[POS.side_to_move][from as usize] & opponents;
         encode_moves(move_list, attacks, from, MoveFlags::CAPTURE);
-        pop!(attackers)
     }
-    let mut cidx: u16;
     while promo_attackers > 0 {
-        from = lsb!(promo_attackers);
+        pop_lsb!(from, promo_attackers);
         attacks = PAWN_ATTACKS[POS.side_to_move][from as usize] & opponents;
         while attacks > 0 {
-            cidx = lsb!(attacks);
-            let f: u16 = from << 6;
+            pop_lsb!(cidx, attacks);
+            f = from << 6;
             move_list.push(MoveFlags::QUEEN_PROMO_CAPTURE  | cidx | f);
             move_list.push(MoveFlags::KNIGHT_PROMO_CAPTURE | cidx | f);
             move_list.push(MoveFlags::BISHOP_PROMO_CAPTURE | cidx | f);
             move_list.push(MoveFlags::ROOK_PROMO_CAPTURE   | cidx | f);
-            pop!(attacks)
         }
-        pop!(promo_attackers)
     }
 }
 
 #[inline(always)]
 unsafe fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16) {
     let mut attackers: u64 = PAWN_ATTACKS[POS.side_to_move ^ 1][sq as usize] & pawns;
+    let mut cidx: u16;
     while attackers > 0 {
-        let cidx: u16 = lsb!(attackers);
+        pop_lsb!(cidx, attackers);
         move_list.push( MoveFlags::EN_PASSANT | sq | cidx << 6 );
-        pop!(attackers)
     }
 }
 
@@ -190,13 +182,11 @@ fn pawn_pushes<const SIDE: usize>(move_list: &mut MoveList, occupied: u64, pawns
     pushable_pawns &= !PENRANK[SIDE];
     let mut idx: u16;
     while pushable_pawns > 0 {
-        idx = lsb!(pushable_pawns);
-        pop!(pushable_pawns);
+        pop_lsb!(idx, pushable_pawns);
         move_list.push(idx_shift::<SIDE, 8>(idx) | idx << 6);
     }
     while promotable_pawns > 0 {
-        idx = lsb!(promotable_pawns);
-        pop!(promotable_pawns);
+        pop_lsb!(idx, promotable_pawns);
         let to: u16 = idx_shift::<SIDE, 8>(idx);
         let f: u16 = idx << 6;
         move_list.push(MoveFlags::QUEEN_PROMO  | to | f);
@@ -205,8 +195,7 @@ fn pawn_pushes<const SIDE: usize>(move_list: &mut MoveList, occupied: u64, pawns
         move_list.push(MoveFlags::ROOK_PROMO   | to | f);
     }
     while dbl_pushable_pawns > 0 {
-        idx = lsb!(dbl_pushable_pawns);
-        pop!(dbl_pushable_pawns);
+        pop_lsb!(idx, dbl_pushable_pawns);
         move_list.push(MoveFlags::DBL_PUSH | idx_shift::<SIDE, 16>(idx) | idx << 6);
     }
 }
@@ -214,7 +203,6 @@ fn pawn_pushes<const SIDE: usize>(move_list: &mut MoveList, occupied: u64, pawns
 
 #[inline(always)]
 unsafe fn castles(move_list: &mut MoveList, occupied: u64) {
-    if is_in_check() { return }
     match POS.side_to_move {
         WHITE => {
             if POS.state.castle_rights & CastleRights::WHITE_QS > 0 && occupied & (B1C1D1) == 0
