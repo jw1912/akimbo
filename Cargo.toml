@@ -9,6 +9,3 @@ panic = 'abort'
 lto = true
 codegen-units = 1
 strip = true
-
-[dependencies]
-fastrand = "1.8.0"

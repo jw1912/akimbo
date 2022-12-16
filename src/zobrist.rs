@@ -2,11 +2,19 @@ use crate::{lsb, pop, position::POS};
 
 pub static mut ZVALS: ZobristVals = ZobristVals {pieces: [[[0; 64]; 6]; 2], castle: [0; 4], en_passant: [0; 8], side: 0};
 
+#[derive(Debug)]
 pub struct ZobristVals {
     pub pieces: [[[u64; 64]; 6]; 2],
     pub castle: [u64; 4],
     pub en_passant: [u64; 8],
     pub side: u64,
+}
+
+fn xor_shift(seed: &mut u64) -> u64 {
+    *seed ^= *seed << 13;
+    *seed ^= *seed >> 7;
+    *seed ^= *seed << 17;
+    *seed
 }
 
 impl ZobristVals {
@@ -18,22 +26,22 @@ impl ZobristVals {
     }
     /// Initialises ZVALS.
     pub fn init() -> Self {
-        fastrand::seed(353012);
+        let mut seed: u64 = 180620142;
         let mut vals: ZobristVals = Self {
             pieces: [[[0; 64]; 6]; 2],
             castle: [0; 4],
             en_passant: [0; 8],
-            side: fastrand::u64(1..u64::MAX),
+            side: xor_shift(&mut seed),
         };
         for color in 0..2 {
             for piece in 0..6 {
                 for sq_idx in 0..64 {
-                    vals.pieces[color][piece][sq_idx] = fastrand::u64(1..u64::MAX);
+                    vals.pieces[color][piece][sq_idx] = xor_shift(&mut seed);
                 }
             }
         }
-        for idx in 0..4 {vals.castle[idx] = fastrand::u64(1..u64::MAX);}
-        for idx in 0..8 {vals.en_passant[idx] = fastrand::u64(1..u64::MAX);}
+        for idx in 0..4 {vals.castle[idx] = xor_shift(&mut seed);}
+        for idx in 0..8 {vals.en_passant[idx] = xor_shift(&mut seed);}
         vals
     }
 }
