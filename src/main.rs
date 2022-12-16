@@ -18,7 +18,7 @@ use zobrist::{ZVALS, ZobristVals};
 macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().unwrap_or($else)}}
 
 fn main() {
-    println!("{}, created by {}", NAME, AUTHOR);
+    println!("{NAME}, created by {AUTHOR}");
 
     // initialise position
     parse_fen(STARTPOS);
@@ -32,8 +32,8 @@ fn main() {
         let commands: Vec<&str> = input.split(' ').map(|v| v.trim()).collect();
         match commands[0] {
             "uci" => {
-                println!("id name {} {}", NAME, VERSION);
-                println!("id author {}", AUTHOR);
+                println!("id name {NAME} {VERSION}");
+                println!("id author {AUTHOR}");
                 println!("option name Hash type spin default 128 min 1 max 512");
                 println!("option name Clear Hash type button");
                 println!("uciok");
@@ -60,15 +60,13 @@ fn main() {
 }
 
 fn perft(depth_left: u8) -> u64 {
-    if depth_left == 0 { return 1 }
     let mut moves = MoveList::default();
     gen_moves::<ALL>(&mut moves);
     let mut positions: u64 = 0;
     for m_idx in 0..moves.len {
         let m: u16 = moves.list[m_idx];
         if do_move(m) { continue }
-        let count: u64 = perft(depth_left - 1);
-        positions += count;
+        positions += if depth_left > 1 {perft(depth_left - 1)} else {1};
         undo_move();
     }
     positions
