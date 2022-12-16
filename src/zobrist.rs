@@ -2,7 +2,6 @@ use crate::{lsb, pop, position::POS};
 
 pub static mut ZVALS: ZobristVals = ZobristVals {pieces: [[[0; 64]; 6]; 2], castle: [0; 4], en_passant: [0; 8], side: 0};
 
-#[derive(Debug)]
 pub struct ZobristVals {
     pub pieces: [[[u64; 64]; 6]; 2],
     pub castle: [u64; 4],
