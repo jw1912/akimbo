@@ -9,10 +9,10 @@ mod search;
 
 use std::{io::stdin, time::Instant};
 use consts::*;
-use tables::{tt_clear, tt_resize, kt_clear};
+use tables::{tt_clear, tt_resize, KillerTable};
 use position::{Position, GameState};
 use movegen::{ALL, MoveList};
-use search::go;
+use search::{go, SearchContext};
 
 macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().unwrap_or($else)}}
 
@@ -21,6 +21,7 @@ fn main() {
 
     // initialise position
     let mut pos: Position = parse_fen(STARTPOS);
+    let mut ctx: SearchContext = SearchContext::new(KillerTable::new());
     tt_resize(1);
 
     // awaits input
@@ -40,7 +41,6 @@ fn main() {
             "ucinewgame" => {
                 pos = parse_fen(STARTPOS);
                 tt_clear();
-                kt_clear();
             },
             "setoption" => {
                 match commands[..] {
@@ -49,7 +49,7 @@ fn main() {
                     _ => {},
                 }
             },
-            "go" => parse_go(&mut pos, commands),
+            "go" => parse_go(&mut pos, commands, &mut ctx),
             "position" => parse_position(&mut pos, commands),
             "perft" => parse_perft(&mut pos, commands),
             _ => {},
@@ -79,11 +79,11 @@ fn parse_perft(pos: &mut Position, commands: Vec<&str>) {
     }
 }
 
-fn parse_go(pos: &mut Position, commands: Vec<&str>) {
+fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) {
     #[derive(PartialEq)]
     enum Tokens {None, Depth, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
     let mut token: Tokens = Tokens::None;
-    let (mut times, mut moves_to_go, mut time, mut depth): ([u64; 2], Option<u16>, u128, i8) = ([0, 0], None, 1000, i8::MAX);
+    let (mut times, mut moves_to_go, mut depth): ([u64; 2], Option<u16>, i8) = ([0, 0], None, i8::MAX);
     for command in commands {
         match command {
             "depth" => token = Tokens::Depth,
@@ -96,7 +96,7 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>) {
             _ => {
                 match token {
                     Tokens::Depth => depth = parse!(i8, command, 1),
-                    Tokens::Movetime => time = parse!(i64, command, 1000) as u128 - 10,
+                    Tokens::Movetime => ctx.allocated_time = parse!(i64, command, 1000) as u128 - 10,
                     Tokens::WTime => times[0] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
                     Tokens::BTime => times[1] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
                     Tokens::MovesToGo => moves_to_go = Some(parse!(u16, command, 40)),
@@ -106,9 +106,9 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>) {
         }
     }
     if times[pos.side_to_move] != 0 {
-        time = times[pos.side_to_move] as u128 / (if let Some(mtg) = moves_to_go {mtg as u128} else {2 * (pos.state.phase as u128 + 1)}) - 10;
+        ctx.allocated_time = times[pos.side_to_move] as u128 / (if let Some(mtg) = moves_to_go {mtg as u128} else {2 * (pos.state.phase as u128 + 1)}) - 10;
     }
-    go(pos, time, depth);
+    go(pos, depth, ctx);
 }
 
 fn parse_position(pos: &mut Position, commands: Vec<&str>) {

@@ -1,20 +1,9 @@
 use super::consts::{MATE_THRESHOLD, MAX_PLY};
+use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 /// Hash Table
 pub static mut TT: Vec<[HashEntry; 8]> = Vec::new();
-/// Number of **buckets** in the transposition table
-static mut TT_SIZE: usize = 0;
-
-/// Killer Move Table
-pub static mut KT: [[u16; 3]; MAX_PLY as usize] = [[0; 3]; MAX_PLY as usize];
-
-/// The type of bound determined by the hash entry when it was searched.
-pub struct Bound;
-impl Bound {
-    pub const LOWER: u8 = 1;
-    pub const UPPER: u8 = 2;
-    pub const EXACT: u8 = 3;
-}
+static TT_SIZE: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Clone, Copy, Default)]
 pub struct HashEntry {
@@ -27,15 +16,13 @@ pub struct HashEntry {
 
 /// Resizes the hash table to given size **in megabytes**, rounded down to nearest power of 2.
 pub fn tt_resize(mut size: usize) {
-    unsafe {
     size = 2usize.pow((size as f64).log2().floor() as u32);
-    TT_SIZE = size * 1024 * 1024 / std::mem::size_of::<[HashEntry; 8]>();
-    TT = vec![Default::default(); TT_SIZE];
-    }
+    TT_SIZE.store(size * 1024 * 1024 / std::mem::size_of::<[HashEntry; 8]>(), Relaxed);
+    unsafe{TT = vec![Default::default(); TT_SIZE.load(Relaxed)]};
 }
 
 pub fn tt_clear() {
-    unsafe{TT = vec![Default::default(); TT_SIZE]}
+    unsafe{TT = vec![Default::default(); TT_SIZE.load(Relaxed)]}
 }
 
 /// Push a search result to the hash table.
@@ -45,7 +32,7 @@ pub fn tt_clear() {
 /// 3. Replace lowest depth entry in bucket.
 pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i16, ply: i16) {
     let key: u16 = (zobrist >> 48) as u16;
-    let idx: usize = (zobrist as usize) & (unsafe{TT_SIZE} - 1);
+    let idx: usize = (zobrist as usize) & (TT_SIZE.load(Relaxed) - 1);
     let bucket: &mut [HashEntry] = unsafe{&mut TT[idx]};
     let mut desired_idx: usize = usize::MAX;
     let mut smallest_depth: i8 = i8::MAX;
@@ -66,7 +53,7 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
 
 pub fn tt_probe(zobrist: u64, ply: i16) -> Option<HashEntry> {
     let key: u16 = (zobrist >> 48) as u16;
-    let idx: usize = (zobrist as usize) & (unsafe{TT_SIZE} - 1);
+    let idx: usize = (zobrist as usize) & (TT_SIZE.load(Relaxed) - 1);
     let bucket: &[HashEntry; 8] = unsafe{&TT[idx]};
     for entry in bucket {
         if entry.key == key {
@@ -78,21 +65,27 @@ pub fn tt_probe(zobrist: u64, ply: i16) -> Option<HashEntry> {
     None
 }
 
-pub fn kt_push(m: u16, p: i16) {
-    unsafe {
-        let ply: usize = p as usize - 1;
-        let new: u16 = if KT[ply].contains(&m) {KT[ply][2]} else {m};
-        KT[ply][2] = KT[ply][1];
-        KT[ply][1] = KT[ply][0];
-        KT[ply][0] = new;
+/// Killer Move Table
+pub struct KillerTable([[u16; 3]; MAX_PLY as usize]);
+impl KillerTable {
+    pub const fn new() -> Self {
+        Self([[0; 3]; MAX_PLY as usize])
     }
-}
 
-pub fn kt_clear() {
-    unsafe{KT = [[0; 3]; MAX_PLY as usize]}
-}
+    pub fn push(&mut self, m: u16, p: i16) {
+        let ply: usize = p as usize - 1;
+        let new: u16 = if self.0[ply].contains(&m) {self.0[ply][2]} else {m};
+        self.0[ply][2] = self.0[ply][1];
+        self.0[ply][1] = self.0[ply][0];
+        self.0[ply][0] = new;
+    }
 
-#[inline(always)]
-pub fn kt_get(ply: i16) -> [u16; 3] {
-    unsafe{KT[ply as usize]}
+    pub fn clear(&mut self) {
+        for bucket in &mut self.0 { *bucket = [0; 3] }
+    }
+
+    #[inline(always)]
+    pub fn get(&self, ply: i16) -> [u16; 3] {
+        self.0[ply as usize]
+    }
 }

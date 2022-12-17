@@ -3,6 +3,14 @@ pub const NAME: &str = env!("CARGO_PKG_NAME");
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 
+/// The type of bound determined by the hash entry when it was searched.
+pub struct Bound;
+impl Bound {
+    pub const LOWER: u8 = 1;
+    pub const UPPER: u8 = 2;
+    pub const EXACT: u8 = 3;
+}
+
 // piece/side indices
 pub const PAWN: usize = 0;
 pub const KNIGHT: usize = 1;
