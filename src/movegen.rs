@@ -1,5 +1,4 @@
-use super::{consts::*, position::{POS, MoveList, is_in_check, is_square_attacked}};
-use std::hint::unreachable_unchecked;
+use super::{consts::*, position::{MoveList, Position}};
 
 /// Forward bitscan.
 #[macro_export]
@@ -27,34 +26,54 @@ fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16
     }
 }
 
-pub fn gen_moves<const QUIETS: bool>(move_list: &mut MoveList) {
-    unsafe {
-    let occupied: u64 = POS.sides[0] | POS.sides[1];
-    let friendly: u64 = POS.sides[POS.side_to_move];
-    let pawns: u64 = POS.pieces[PAWN] & POS.sides[POS.side_to_move];
-    if QUIETS {
-        match POS.side_to_move {
-            0 => pawn_pushes::<WHITE>(move_list, occupied, pawns),
-            1 => pawn_pushes::<BLACK>(move_list, occupied, pawns),
-            _ => unreachable_unchecked(),
+impl Position {
+    pub fn gen_moves<const QUIETS: bool>(&self, move_list: &mut MoveList) {
+        let occupied: u64 = self.sides[0] | self.sides[1];
+        let friendly: u64 = self.sides[self.side_to_move];
+        let opps: u64 = self.sides[self.side_to_move ^ 1];
+        let pawns: u64 = self.pieces[PAWN] & self.sides[self.side_to_move];
+        if QUIETS {
+            if self.side_to_move == WHITE {pawn_pushes::<WHITE>(move_list, occupied, pawns)} else {pawn_pushes::<BLACK>(move_list, occupied, pawns)}
+            if self.state.castle_rights & CastleRights::SIDES[self.side_to_move] > 0 && !self.is_in_check() {self.castles(move_list, occupied)}
         }
-        if POS.state.castle_rights & CastleRights::SIDES[POS.side_to_move] > 0 && !is_in_check() {castles(move_list, occupied)}
+        pawn_captures(move_list, pawns, opps, self.side_to_move);
+        if self.state.en_passant_sq > 0 {en_passants(move_list, pawns, self.state.en_passant_sq, self.side_to_move)}
+        piece_moves::<KNIGHT, QUIETS>(move_list, occupied, friendly, opps, self.pieces[KNIGHT]);
+        piece_moves::<BISHOP, QUIETS>(move_list, occupied, friendly, opps, self.pieces[BISHOP]);
+        piece_moves::<ROOK  , QUIETS>(move_list, occupied, friendly, opps, self.pieces[ROOK]);
+        piece_moves::<QUEEN , QUIETS>(move_list, occupied, friendly, opps, self.pieces[QUEEN]);
+        piece_moves::<KING  , QUIETS>(move_list, occupied, friendly, opps, self.pieces[KING]);
     }
-    pawn_captures(move_list, pawns, POS.sides[POS.side_to_move ^ 1]);
-    if POS.state.en_passant_sq > 0 {en_passants(move_list, pawns, POS.state.en_passant_sq)}
-    piece_moves::<KNIGHT, QUIETS>(move_list, occupied, friendly);
-    piece_moves::<BISHOP, QUIETS>(move_list, occupied, friendly);
-    piece_moves::<ROOK  , QUIETS>(move_list, occupied, friendly);
-    piece_moves::<QUEEN , QUIETS>(move_list, occupied, friendly);
-    piece_moves::<KING  , QUIETS>(move_list, occupied, friendly);
+
+    #[inline(always)]
+    fn castles(&self, move_list: &mut MoveList, occupied: u64) {
+        if self.side_to_move == WHITE {
+            if self.state.castle_rights & CastleRights::WHITE_QS > 0 && occupied & (B1C1D1) == 0
+                && !self.is_square_attacked(3, WHITE, occupied) {
+                move_list.push(MoveFlags::QS_CASTLE | 2 | 4 << 6)
+            }
+            if self.state.castle_rights & CastleRights::WHITE_KS > 0 && occupied & (F1G1) == 0
+                && !self.is_square_attacked(5, WHITE, occupied) {
+                move_list.push(MoveFlags::KS_CASTLE | 6 | 4 << 6)
+            }
+        } else {
+            if self.state.castle_rights & CastleRights::BLACK_QS > 0 && occupied & (B8C8D8) == 0
+                && !self.is_square_attacked(59, BLACK, occupied) {
+                move_list.push(MoveFlags::QS_CASTLE | 58 | 60 << 6)
+            }
+            if self.state.castle_rights & CastleRights::BLACK_KS > 0 && occupied & (F8G8) == 0
+                && !self.is_square_attacked(61, BLACK, occupied) {
+                move_list.push(MoveFlags::KS_CASTLE | 62 | 60 << 6)
+            }
+        }
     }
 }
 
-unsafe fn piece_moves<const PIECE: usize, const QUIETS: bool>(move_list: &mut MoveList, occupied: u64, friendly: u64) {
+fn piece_moves<const PIECE: usize, const QUIETS: bool>(move_list: &mut MoveList, occupied: u64, friendly: u64, opps: u64, mut attackers: u64) {
     let mut from: u16;
     let mut idx: usize;
     let mut attacks: u64;
-    let mut attackers: u64 = POS.pieces[PIECE] & friendly;
+    attackers &= friendly;
     while attackers > 0 {
         pop_lsb!(from, attackers);
         idx = from as usize;
@@ -66,27 +85,27 @@ unsafe fn piece_moves<const PIECE: usize, const QUIETS: bool>(move_list: &mut Mo
             KING => KING_ATTACKS[idx],
             _ => panic!("Not a valid usize in fn piece_moves_general: {PIECE}"),
         };
-        encode_moves(move_list, attacks & POS.sides[POS.side_to_move ^ 1], from, MoveFlags::CAPTURE);
+        encode_moves(move_list, attacks & opps, from, MoveFlags::CAPTURE);
         if QUIETS {encode_moves(move_list, attacks & !occupied, from, MoveFlags::QUIET)}
     }
 }
 
 #[inline(always)]
-unsafe fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents: u64) {
+fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents: u64, side: usize) {
     let mut from: u16;
     let mut attacks: u64;
     let mut cidx: u16;
     let mut f: u16;
-    let mut promo_attackers: u64 = attackers & PENRANK[POS.side_to_move];
-    attackers &= !PENRANK[POS.side_to_move];
+    let mut promo_attackers: u64 = attackers & PENRANK[side];
+    attackers &= !PENRANK[side];
     while attackers > 0 {
         pop_lsb!(from, attackers);
-        attacks = PAWN_ATTACKS[POS.side_to_move][from as usize] & opponents;
+        attacks = PAWN_ATTACKS[side][from as usize] & opponents;
         encode_moves(move_list, attacks, from, MoveFlags::CAPTURE);
     }
     while promo_attackers > 0 {
         pop_lsb!(from, promo_attackers);
-        attacks = PAWN_ATTACKS[POS.side_to_move][from as usize] & opponents;
+        attacks = PAWN_ATTACKS[side][from as usize] & opponents;
         while attacks > 0 {
             pop_lsb!(cidx, attacks);
             f = from << 6;
@@ -99,8 +118,8 @@ unsafe fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents:
 }
 
 #[inline(always)]
-unsafe fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16) {
-    let mut attackers: u64 = PAWN_ATTACKS[POS.side_to_move ^ 1][sq as usize] & pawns;
+fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16, side: usize) {
+    let mut attackers: u64 = PAWN_ATTACKS[side ^ 1][sq as usize] & pawns;
     let mut cidx: u16;
     while attackers > 0 {
         pop_lsb!(cidx, attackers);
@@ -197,33 +216,5 @@ fn pawn_pushes<const SIDE: usize>(move_list: &mut MoveList, occupied: u64, pawns
     while dbl_pushable_pawns > 0 {
         pop_lsb!(idx, dbl_pushable_pawns);
         move_list.push(MoveFlags::DBL_PUSH | idx_shift::<SIDE, 16>(idx) | idx << 6);
-    }
-}
-
-
-#[inline(always)]
-unsafe fn castles(move_list: &mut MoveList, occupied: u64) {
-    match POS.side_to_move {
-        WHITE => {
-            if POS.state.castle_rights & CastleRights::WHITE_QS > 0 && occupied & (B1C1D1) == 0
-                && !is_square_attacked(3, WHITE, occupied) {
-                move_list.push(MoveFlags::QS_CASTLE | 2 | 4 << 6)
-            }
-            if POS.state.castle_rights & CastleRights::WHITE_KS > 0 && occupied & (F1G1) == 0
-                && !is_square_attacked(5, WHITE, occupied) {
-                move_list.push(MoveFlags::KS_CASTLE | 6 | 4 << 6)
-            }
-        }
-        BLACK => {
-            if POS.state.castle_rights & CastleRights::BLACK_QS > 0 && occupied & (B8C8D8) == 0
-                && !is_square_attacked(59, BLACK, occupied) {
-                move_list.push(MoveFlags::QS_CASTLE | 58 | 60 << 6)
-            }
-            if POS.state.castle_rights & CastleRights::BLACK_KS > 0 && occupied & (F8G8) == 0
-                && !is_square_attacked(61, BLACK, occupied) {
-                move_list.push(MoveFlags::KS_CASTLE | 62 | 60 << 6)
-            }
-        }
-        _ => unreachable_unchecked(),
     }
 }
