@@ -83,7 +83,7 @@ fn piece_moves<const PIECE: usize, const QUIETS: bool>(move_list: &mut MoveList,
             BISHOP => bishop_attacks(idx, occupied),
             QUEEN => rook_attacks(idx, occupied) | bishop_attacks(idx, occupied),
             KING => KING_ATTACKS[idx],
-            _ => panic!("Not a valid usize in fn piece_moves_general: {PIECE}"),
+            _ => 0,
         };
         encode_moves(move_list, attacks & opps, from, MoveFlags::CAPTURE);
         if QUIETS {encode_moves(move_list, attacks & !occupied, from, MoveFlags::QUIET)}
