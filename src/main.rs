@@ -166,7 +166,7 @@ pub fn parse_fen(s: &str) -> Position {
     let vec: Vec<&str> = s.split_whitespace().collect();
     let mut pos: Position = Position { pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], side_to_move: 0, state: GameState::default(), nulls: 0, stack: Vec::new() };
 
-    // main part of fen -> bitboards
+    // main part of fen -> bitboards and mailbox
     let mut idx: usize = 63;
     let rows: Vec<&str> = vec[0].split('/').collect();
     for row in rows {

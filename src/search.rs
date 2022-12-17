@@ -112,7 +112,7 @@ fn search(pos: &mut Position, node_type: NodeType, stats: &mut SearchStats, mut 
     }
 
     // draw detection - ignoring draws by 50 move rule as it caused engine to
-    // make suboptimal moves if it thinks it is winning
+    // make suboptimal moves if it thinks it is winning, in an effort to avoid a draw
     if pos.is_draw_by_repetition(2 + (stats.ply == 0) as u8) || pos.is_draw_by_material() { return 0 }
 
     // mate distance pruning
@@ -120,12 +120,13 @@ fn search(pos: &mut Position, node_type: NodeType, stats: &mut SearchStats, mut 
     beta = min(beta, MAX - stats.ply as i16 - 1);
     if alpha >= beta { return alpha }
 
+    // get node type info
     let NodeType(pv, in_check, allow_null): NodeType = node_type;
 
     // check extensions
     depth += in_check as i8;
 
-    // qsearch at depth 0
+    // qsearch at depth 0 or when reached maximum search ply
     if depth <= 0 || stats.ply == MAX_PLY { return quiesce(pos, &mut stats.node_count, alpha, beta) }
 
     // count the node
@@ -138,7 +139,7 @@ fn search(pos: &mut Position, node_type: NodeType, stats: &mut SearchStats, mut 
         // write to hash only if this search is of greater depth than the hash entry
         write_to_hash = depth > res.depth;
 
-        // hash move for move ordering (immediate cutoff ~60% of the time there is one)
+        // hash move for move ordering
         hash_move = res.best_move;
 
         // hash score pruning
@@ -186,24 +187,27 @@ fn search(pos: &mut Position, node_type: NodeType, stats: &mut SearchStats, mut 
     let mut m_idx: usize = 0;
     let mut best_move: u16 = 0;
     let mut best_score: i16 = -MAX;
-    let mut count: u16 = 0;
+    let mut legal_moves: u16 = 0;
     while let Some((m, m_score)) = get_next_move(&mut moves, &mut move_scores, &mut m_idx) {
         // make move and skip if not legal
         if pos.do_move(m) { continue }
-        count += 1;
+        legal_moves += 1;
 
         // does the move give check?
         let gives_check: bool = pos.is_in_check();
 
         // late move reductions
-        let r: i8 = (can_lmr && !gives_check && count > 1 && m_score < 300) as i8;
+        let r: i8 = (can_lmr && !gives_check && legal_moves > 1 && m_score < 300) as i8;
 
-        // score move
-        let score: i16 = if count == 1 {
+        // score move via principle variation search
+        let score: i16 = if legal_moves == 1 {
+            // first move is searched w/ a full window and no reductions
             -search(pos, NodeType(pv, gives_check, false), stats, -beta, -alpha, depth - 1)
         } else {
+            // following moves are assumed to be worse and searched with a null window and reductions
             let zw_score: i16 = -search(pos, NodeType(false, gives_check, true), stats, -alpha - 1, -alpha, depth - 1 - r);
             if (alpha != beta - 1 || r > 0) && zw_score > alpha {
+                // if they are, in fact, not worse then a re-search with a full window and no reductions is done
                 -search(pos, NodeType(pv, gives_check, false), stats, -beta, -alpha, depth - 1)
             } else { zw_score }
         };
@@ -214,18 +218,13 @@ fn search(pos: &mut Position, node_type: NodeType, stats: &mut SearchStats, mut 
         if score > best_score {
             best_score = score;
             best_move = m;
-
-            // raise alpha
             if score > alpha {
                 alpha = score;
                 bound = Bound::EXACT;
-
-                // beta prune
                 if score >= beta {
+                    bound = Bound::LOWER;
                     // push to killer move table if not a capture
                     if m & 0b0100_0000_0000_0000 == 0 { kt_push(m, stats.ply) };
-
-                    bound = Bound::LOWER;
                     break
                 }
             }
@@ -237,7 +236,7 @@ fn search(pos: &mut Position, node_type: NodeType, stats: &mut SearchStats, mut 
     if stats.ply == 0 { stats.best_move = best_move }
 
     // check for (stale)mate
-    if count == 0 { return (in_check as i16) * (-MAX + stats.ply as i16) }
+    if legal_moves == 0 { return (in_check as i16) * (-MAX + stats.ply as i16) }
 
     // write to hash if appropriate
     if write_to_hash { tt_push(pos.state.zobrist, best_move, depth, bound, best_score, stats.ply) }
