@@ -53,7 +53,7 @@ pub struct MoveList {
 
 impl Default for MoveList {
     fn default() -> Self {
-        Self {list: unsafe {#[allow(clippy::uninit_assumed_init, invalid_value)] std::mem::MaybeUninit::uninit().assume_init()}, len: 0}
+        Self {list: [0; 252], len: 0}
     }
 }
 
@@ -207,14 +207,12 @@ impl Position {
         match flag {
             MoveFlags::EN_PASSANT => {
                 let pwn: usize = if opp == WHITE {to + 8} else {to - 8};
-                let p: u64 = bit!(pwn);
-                self.toggle(opp, PAWN, p);
+                self.toggle(opp, PAWN, bit!(pwn));
                 self.squares[pwn] = PAWN as u8;
             }
             MoveFlags::KNIGHT_PROMO => {
-                let promo_pc: u16 = ((flag >> 12) & 3) + 1;
                 self.pieces[moved_pc as usize] ^= t;
-                self.pieces[promo_pc as usize] ^= t;
+                self.pieces[(((flag >> 12) & 3) + 1) as usize] ^= t;
             }
             MoveFlags::KS_CASTLE | MoveFlags::QS_CASTLE => {
                 let (c, idx1, idx2): (u64, usize, usize) = CASTLE_MOVES[self.side_to_move][(flag == MoveFlags::KS_CASTLE) as usize];

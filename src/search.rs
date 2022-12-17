@@ -21,6 +21,11 @@ struct SearchStats {
     abort_signal: bool,
 }
 
+/// Search window for the node:
+/// - Lower bound (alpha)
+/// - Upper bound (beta)
+struct Window(i16, i16);
+
 impl Position {
     /// Piece-square table eval of the position
     #[inline(always)]
@@ -103,7 +108,7 @@ fn get_next_move(moves: &mut MoveList, move_scores: &mut MoveList, start_idx: &m
 /// Main search function:
 /// - Fail-soft negamax (alpha-beta pruning) framework
 /// - Principle variation search
-fn search(pos: &mut Position, node_type: NodeType, stats: &mut SearchStats, mut alpha: i16, mut beta: i16, mut depth: i8) -> i16 {
+fn search(pos: &mut Position, node_type: NodeType, stats: &mut SearchStats, window: Window, mut depth: i8) -> i16 {
     // search aborting
     if stats.abort_signal { return 0 }
     if stats.node_count & 2047 == 0 && stats.start_time.elapsed().as_millis() >= stats.allocated_time {
@@ -115,19 +120,20 @@ fn search(pos: &mut Position, node_type: NodeType, stats: &mut SearchStats, mut 
     // make suboptimal moves if it thinks it is winning, in an effort to avoid a draw
     if pos.is_draw_by_repetition(2 + (stats.ply == 0) as u8) || pos.is_draw_by_material() { return 0 }
 
+    // extract node info
+    let Window(mut alpha, mut beta): Window = window;
+    let NodeType(pv, in_check, allow_null): NodeType = node_type;
+
     // mate distance pruning
     alpha = max(alpha, -MAX + stats.ply as i16);
     beta = min(beta, MAX - stats.ply as i16 - 1);
     if alpha >= beta { return alpha }
 
-    // get node type info
-    let NodeType(pv, in_check, allow_null): NodeType = node_type;
-
     // check extensions
     depth += in_check as i8;
 
     // qsearch at depth 0
-    if depth <= 0 { return quiesce(pos, &mut stats.node_count, alpha, beta) }
+    if depth <= 0 { return quiesce(pos, &mut stats.node_count, window) }
 
     // count the node
     stats.node_count += 1;
@@ -164,15 +170,15 @@ fn search(pos: &mut Position, node_type: NodeType, stats: &mut SearchStats, mut 
         // null move pruning
         if allow_null && depth >= 3 && pos.state.phase >= 6 && lazy_eval >= beta {
             let ctx: (u16, u64) = pos.do_null();
-            let score: i16 = -search(pos, NodeType(false, false, false), stats, -beta, -beta + 1, depth - 3);
+            let score: i16 = -search(pos, NodeType(false, false, false), stats, Window(-beta, -beta + 1), depth - 3);
             pos.undo_null(ctx);
             if score >= beta {return score}
         }
     }
 
     // generating and scoring moves
-    let mut moves = MoveList::default();
-    let mut move_scores = MoveList::default();
+    let mut moves: MoveList = Default::default();
+    let mut move_scores: MoveList = Default::default();
     pos.gen_moves::<ALL>(&mut moves);
     pos.score_moves(&moves, &mut move_scores, hash_move, stats.ply);
 
@@ -202,13 +208,13 @@ fn search(pos: &mut Position, node_type: NodeType, stats: &mut SearchStats, mut 
         // score move via principle variation search
         let score: i16 = if legal_moves == 1 {
             // first move is searched w/ a full window and no reductions
-            -search(pos, NodeType(pv, gives_check, false), stats, -beta, -alpha, depth - 1)
+            -search(pos, NodeType(pv, gives_check, false), stats, Window(-beta, -alpha), depth - 1)
         } else {
             // following moves are assumed to be worse and searched with a null window and reductions
-            let zw_score: i16 = -search(pos, NodeType(false, gives_check, true), stats, -alpha - 1, -alpha, depth - 1 - r);
+            let zw_score: i16 = -search(pos, NodeType(false, gives_check, true), stats, Window(-alpha - 1, -alpha), depth - 1 - r);
             if (alpha != beta - 1 || r > 0) && zw_score > alpha {
                 // if they are, in fact, not worse then a re-search with a full window and no reductions are done
-                -search(pos, NodeType(pv, gives_check, false), stats, -beta, -alpha, depth - 1)
+                -search(pos, NodeType(pv, gives_check, false), stats, Window(-beta, -alpha), depth - 1)
             } else { zw_score }
         };
 
@@ -249,9 +255,12 @@ fn search(pos: &mut Position, node_type: NodeType, stats: &mut SearchStats, mut 
 /// - Fail-soft
 /// - Searches capture sequences to reduce horizon effect
 /// - Delta pruning
-fn quiesce(pos: &mut Position, node_count: &mut u64, mut alpha: i16, beta: i16) -> i16 {
+fn quiesce(pos: &mut Position, node_count: &mut u64, window: Window) -> i16 {
     // count all quiescent nodes
     *node_count += 1;
+
+    // extract node info
+    let Window(mut alpha, beta): Window = window;
 
     // static eval as an initial guess
     let mut stand_pat: i16 = pos.lazy_eval();
@@ -261,8 +270,8 @@ fn quiesce(pos: &mut Position, node_count: &mut u64, mut alpha: i16, beta: i16) 
     if alpha < stand_pat { alpha = stand_pat }
 
     // generate and score moves
-    let mut captures = MoveList::default();
-    let mut scores = MoveList::default();
+    let mut captures: MoveList = Default::default();
+    let mut scores: MoveList = Default::default();
     pos.gen_moves::<CAPTURES>(&mut captures);
     pos.score_captures(&captures, &mut scores);
 
@@ -277,7 +286,7 @@ fn quiesce(pos: &mut Position, node_count: &mut u64, mut alpha: i16, beta: i16) 
 
         // make move and skip if not legal
         if pos.do_move(m) { continue }
-        let score: i16 = -quiesce(pos, node_count, -beta, -alpha);
+        let score: i16 = -quiesce(pos, node_count, Window(-beta, -alpha));
         pos.undo_move();
 
         // alpha-beta pruning
@@ -289,8 +298,6 @@ fn quiesce(pos: &mut Position, node_count: &mut u64, mut alpha: i16, beta: i16) 
             }
         }
     }
-
-    // fail-soft
     stand_pat
 }
 
@@ -308,7 +315,7 @@ pub fn go(pos: &mut Position, allocated_time: u128, allocated_depth: i8) {
         let in_check: bool = pos.is_in_check();
 
         // get score
-        let score: i16 = search(pos, NodeType(true, in_check, false), &mut stats, -MAX, MAX, d + 1);
+        let score: i16 = search(pos, NodeType(true, in_check, false), &mut stats, Window(-MAX, MAX), d + 1);
 
         // end search if out of time
         let t: u128 = stats.start_time.elapsed().as_millis();
