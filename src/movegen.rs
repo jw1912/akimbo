@@ -8,7 +8,7 @@ pub struct MoveList {
 
 impl Default for MoveList {
     fn default() -> Self {
-        // safe because initialised elements kept track of by "self.len",
+        // safe because initialised elements kept track of by .len field,
         // and all cases of indexing into the array constrained by "for i in 0..moves.len"
         // so never accessing an uninitialised element
         Self { list: unsafe {#[allow(clippy::uninit_assumed_init)] MaybeUninit::uninit().assume_init()}, len: 0 }

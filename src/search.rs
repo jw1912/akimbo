@@ -2,7 +2,8 @@ use super::{from, to, consts::*, position::*, tables::*, movegen::*, u16_to_uci}
 use std::{cmp::{min, max}, time::Instant};
 
 /// Determines what is done in the node:
-/// 1. PV node - if node is on the current principle variation line, no agressive pruniong, etc
+/// 1. PV node - if node is on the current principle variation line,
+/// no agressive pruning or reductions, etc
 /// 2. In check - node should be extended and no pruning if in check
 /// 3. Allow null - whether null move pruning should be allowed
 struct NodeType(bool, bool, bool);
@@ -18,6 +19,7 @@ struct Window(i16, i16);
 /// - ply for correct checkmate scores
 /// - best_move for sending to the gui
 pub struct SearchContext {
+    pub hash_table: HashTable,
     killer_table: KillerTable,
     pub allocated_time: u128,
     start_time: Instant,
@@ -28,9 +30,11 @@ pub struct SearchContext {
 }
 
 impl SearchContext{
-    pub fn new(killer_table: KillerTable) -> Self {
-        Self { killer_table, start_time: Instant::now(), allocated_time: 1000, node_count: 0, best_move: 0, ply: 0, abort_signal: false }
+    /// Constructs a new instance, given hash and killer tables.
+    pub fn new(hash_table: HashTable, killer_table: KillerTable) -> Self {
+        Self { hash_table, killer_table, start_time: Instant::now(), allocated_time: 1000, node_count: 0, best_move: 0, ply: 0, abort_signal: false }
     }
+
     fn reset(&mut self) {
         self.start_time = Instant::now();
         self.node_count = 0;
@@ -41,7 +45,7 @@ impl SearchContext{
 }
 
 impl Position {
-    /// Piece-square table eval of the position
+    /// Piece-square table eval of the position.
     #[inline(always)]
     fn lazy_eval(&self) -> i16 {
         let phase: i32 = std::cmp::min(self.state.phase as i32, TPHASE);
@@ -49,7 +53,7 @@ impl Position {
     }
 
     /// Scores a capture based first on the value of the victim of the capture,
-    /// then on the piece capturing
+    /// then on the piece capturing.
     fn mvv_lva(&self, m: u16) -> u16 {
         let from_idx: usize = from!(m);
         let to_idx: usize = to!(m);
@@ -78,13 +82,13 @@ impl Position {
         }
     }
 
-    /// Scores an arbitrary list of moves
+    /// Scores an arbitrary list of moves.
     fn score_moves(&self, moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, ply: i16, kt: &KillerTable) {
-        let killers: [u16; 3] = kt.get(ply);
+        let killers: [u16; 3] = kt.0[ply as usize];
         for i in 0..moves.len { move_scores.push(self.score_move(moves.list[i], hash_move, killers)) }
     }
 
-    /// Scores a list of moves, given they are all captures
+    /// Scores a list of moves, given they are all captures.
     fn score_captures(&self, moves: &MoveList, move_scores: &mut MoveList) {
         for i in 0..moves.len { move_scores.push(self.mvv_lva(moves.list[i])) }
     }
@@ -93,10 +97,8 @@ impl Position {
 /// O(n^2) algorithm to incrementally sort the move list as needed.
 fn pick_move(moves: &mut MoveList, move_scores: &mut MoveList, start_idx: &mut usize) -> Option<(u16, u16)> {
     let m_idx: usize = *start_idx;
-
     // no moves left
     if m_idx == move_scores.len {return None}
-
     // go through remaining moves
     let mut best_idx: usize = m_idx;
     let mut best_score: u16 = 0;
@@ -107,15 +109,12 @@ fn pick_move(moves: &mut MoveList, move_scores: &mut MoveList, start_idx: &mut u
             best_idx = i;
         }
     }
-
     // best move
     let m: u16 = moves.list[best_idx];
-
     // swap first remaining move with best move found and increment starting point
     move_scores.list.swap(best_idx, m_idx);
     moves.list.swap(best_idx, m_idx);
     *start_idx += 1;
-
     Some((m, best_score))
 }
 
@@ -155,7 +154,7 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
     // probing hash table
     let mut hash_move: u16 = 0;
     let mut write_to_hash: bool = true;
-    if let Some(res) = tt_probe(pos.state.zobrist, ctx.ply) {
+    if let Some(res) = ctx.hash_table.probe(pos.state.zobrist, ctx.ply) {
         // write to hash only if this search is of greater depth than the hash entry
         write_to_hash = depth > res.depth;
 
@@ -259,7 +258,7 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
     if legal_moves == 0 { return (in_check as i16) * (-MAX + ctx.ply as i16) }
 
     // write to hash if appropriate
-    if write_to_hash { tt_push(pos.state.zobrist, best_move, depth, bound, best_score, ctx.ply) }
+    if write_to_hash { ctx.hash_table.push(pos.state.zobrist, best_move, depth, bound, best_score, ctx.ply) }
 
     // fail-soft
     best_score

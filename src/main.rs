@@ -9,7 +9,7 @@ mod search;
 
 use std::{io::stdin, time::Instant};
 use consts::*;
-use tables::{tt_clear, tt_resize, KillerTable};
+use tables::{HashTable, KillerTable};
 use position::{Position, GameState};
 use movegen::{ALL, MoveList};
 use search::{go, SearchContext};
@@ -21,8 +21,7 @@ fn main() {
 
     // initialise position
     let mut pos: Position = parse_fen(STARTPOS);
-    let mut ctx: SearchContext = SearchContext::new(KillerTable::new());
-    tt_resize(1);
+    let mut ctx: SearchContext = SearchContext::new(HashTable::new(), KillerTable([[0; 3]; MAX_PLY as usize]));
 
     // awaits input
     loop {
@@ -40,12 +39,12 @@ fn main() {
             "isready" => println!("readyok"),
             "ucinewgame" => {
                 pos = parse_fen(STARTPOS);
-                tt_clear();
+                ctx.hash_table.clear();
             },
             "setoption" => {
                 match commands[..] {
-                    ["setoption", "name", "Hash", "value", x] => tt_resize(parse!(usize, x, 1)),
-                    ["setoption", "name", "Clear", "Hash"] => tt_clear(),
+                    ["setoption", "name", "Hash", "value", x] => ctx.hash_table.resize(parse!(usize, x, 1)),
+                    ["setoption", "name", "Clear", "Hash"] => ctx.hash_table.clear(),
                     _ => {},
                 }
             },
