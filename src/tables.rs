@@ -1,4 +1,4 @@
-use super::{consts::{MATE_THRESHOLD, MAX_PLY}, search::PLY};
+use super::consts::{MATE_THRESHOLD, MAX_PLY};
 
 /// Hash Table
 pub static mut TT: Vec<[HashEntry; 8]> = Vec::new();
@@ -43,7 +43,7 @@ pub fn tt_clear() {
 /// 1. Prioritise replacing entries for the same position (key) that have lower depth.
 /// 2. Fill empty entries in bucket.
 /// 3. Replace lowest depth entry in bucket.
-pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i16) {
+pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i16, ply: i8) {
     unsafe {
     let key: u16 = (zobrist >> 48) as u16;
     let idx: usize = (zobrist as usize) & (TT.len() - 1);
@@ -61,29 +61,29 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
             continue;
         }
     }
-    score += if score > MATE_THRESHOLD {PLY} else if score < -MATE_THRESHOLD {-PLY} else {0} as i16;
+    score += if score > MATE_THRESHOLD {ply} else if score < -MATE_THRESHOLD {-ply} else {0} as i16;
     bucket[desired_idx] = HashEntry {key, best_move, depth, bound, score };
     }
 }
 
-pub fn tt_probe(zobrist: u64) -> Option<HashEntry> {
-    unsafe{
+pub fn tt_probe(zobrist: u64, ply: i8) -> Option<HashEntry> {
+    unsafe {
     let key: u16 = (zobrist >> 48) as u16;
-    let idx: usize = (zobrist as usize) & (TT.len() - 1);
+    let idx: usize = (zobrist as usize) & (TT_SIZE - 1);
     let bucket: &[HashEntry; 8] = &TT[idx];
     for entry in bucket {
         if entry.key == key {
             let mut res: HashEntry = *entry;
-            res.score += if res.score > MATE_THRESHOLD {-PLY} else if res.score < -MATE_THRESHOLD {PLY} else {0} as i16;
+            res.score += if res.score > MATE_THRESHOLD {-ply} else if res.score < -MATE_THRESHOLD {ply} else {0} as i16;
             return Some(res);
         }
     }}
     None
 }
 
-pub fn kt_push(m: u16) {
+pub fn kt_push(m: u16, p: i8) {
     unsafe {
-    let ply: usize = PLY as usize - 1;
+    let ply: usize = p as usize - 1;
     let new: u16 = if KT[ply].contains(&m) {KT[ply][2]} else {m};
     KT[ply][2] = KT[ply][1];
     KT[ply][1] = KT[ply][0];

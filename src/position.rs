@@ -9,6 +9,12 @@ macro_rules! to {($m:expr) => {($m & 63) as usize}}
 #[macro_export]
 macro_rules! bit {($x:expr) => {1 << $x}}
 
+/// Main position struct:
+/// - Holds all information needed for the board state
+/// - 6 piece bitboards and 2 colour bitboards
+/// - Mailbox array for finding pieces quickly
+/// - Incrementally updated zobrist hash, phase and endgame and midgame
+/// piece-square table scores
 pub struct Position {
     pub pieces: [u64; 6],
     pub sides: [u64; 2],
@@ -19,6 +25,8 @@ pub struct Position {
     pub stack: Vec<MoveState>,
 }
 
+/// Stuff that is copied from the board state during making a move,
+/// as it either cannot be reversed or is too expensive to be reversed.
 #[derive(Clone, Copy, Default)]
 pub struct GameState {
     pub zobrist: u64,
@@ -56,11 +64,11 @@ impl MoveList {
         self.len += 1;
     }
 }
+
 impl Position {
     #[inline(always)]
     pub fn is_square_attacked(&self, idx: usize, side: usize, occ: u64) -> bool {
-        let other: usize = side ^ 1;
-        let s: u64 = self.sides[other];
+        let s: u64 = self.sides[side ^ 1];
         let opp_queen: u64 = self.pieces[QUEEN] & s;
         (KNIGHT_ATTACKS[idx] & self.pieces[KNIGHT] & s > 0)
         || (KING_ATTACKS[idx] & self.pieces[KING] & s > 0)
@@ -69,7 +77,6 @@ impl Position {
         || (bishop_attacks(idx, occ) & (self.pieces[BISHOP] & s | opp_queen) > 0)
     }
 
-    #[inline(always)]
     pub fn is_in_check(&self) -> bool {
         let king_idx: usize = lsb!(self.pieces[KING] & self.sides[self.side_to_move]) as usize;
         self.is_square_attacked(king_idx, self.side_to_move, self.sides[0] | self.sides[1])
@@ -260,11 +267,6 @@ impl Position {
             }
         }
         false
-    }
-
-    #[inline(always)]
-    pub fn is_draw_by_50(&self) -> bool {
-        self.state.halfmove_clock >= 100
     }
 
     /// Is there a FIDE draw by insufficient material?

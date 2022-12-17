@@ -2,6 +2,7 @@ use crate::{lsb, pop, position::Position};
 
 pub static ZVALS: ZobristVals = ZobristVals::init();
 
+/// Holds random hash values for each aspect of the board position
 pub struct ZobristVals {
     pub pieces: [[[u64; 64]; 6]; 2],
     pub castle: [u64; 4],
@@ -9,6 +10,7 @@ pub struct ZobristVals {
     pub side: u64,
 }
 
+/// Simple pseudo-random number generator
 const fn xor_shift(mut seed: u64) -> u64 {
     seed ^= seed << 13;
     seed ^= seed >> 7;
@@ -23,6 +25,7 @@ impl ZobristVals {
         if current & update == 0 { return 0 }
         self.castle[lsb!(update) as usize]
     }
+
     /// Initialises ZVALS.
     pub const fn init() -> Self {
         let mut seed: u64 = 180620142;

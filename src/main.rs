@@ -12,7 +12,7 @@ use consts::*;
 use tables::{tt_clear, tt_resize, kt_clear};
 use position::{Position, MoveList, GameState};
 use movegen::ALL;
-use search::{DEPTH, TIME, go};
+use search::go;
 
 macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().unwrap_or($else)}}
 
@@ -80,14 +80,12 @@ fn parse_perft(pos: &mut Position, commands: Vec<&str>) {
 }
 
 fn parse_go(pos: &mut Position, commands: Vec<&str>) {
-    unsafe{
     #[derive(PartialEq)]
-    enum Tokens {None, Depth, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
+    enum Tokens {None, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
     let mut token: Tokens = Tokens::None;
-    let (mut times, mut moves_to_go): ([u64; 2], Option<u16>) = ([0, 0], None);
+    let (mut times, mut moves_to_go, mut time): ([u64; 2], Option<u16>, u128) = ([0, 0], None, 1000);
     for command in commands {
         match command {
-            "depth" => token = Tokens::Depth,
             "movetime" => token = Tokens::Movetime,
             "wtime" => token = Tokens::WTime,
             "btime" => token = Tokens::BTime,
@@ -97,11 +95,7 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>) {
             _ => {
                 match token {
                     Tokens::None => {},
-                    Tokens::Depth => {
-                        DEPTH = parse!(i8, command, 1);
-                        TIME = u128::MAX;
-                    },
-                    Tokens::Movetime => TIME = parse!(i64, command, 1000) as u128 - 10,
+                    Tokens::Movetime => time = parse!(i64, command, 1000) as u128 - 10,
                     Tokens::WTime => times[0] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
                     Tokens::BTime => times[1] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
                     Tokens::MovesToGo => moves_to_go = Some(parse!(u16, command, 40)),
@@ -111,9 +105,9 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>) {
         }
     }
     if times[pos.side_to_move] != 0 {
-        TIME = times[pos.side_to_move] as u128 / (if let Some(mtg) = moves_to_go {mtg as u128} else {2 * (pos.state.phase as u128 + 1)}) - 10;
-    }}
-    go(pos);
+        time = times[pos.side_to_move] as u128 / (if let Some(mtg) = moves_to_go {mtg as u128} else {2 * (pos.state.phase as u128 + 1)}) - 10;
+    }
+    go(pos, time);
 }
 
 fn parse_position(pos: &mut Position, commands: Vec<&str>) {
@@ -172,7 +166,7 @@ pub fn parse_fen(s: &str) -> Position {
     let vec: Vec<&str> = s.split_whitespace().collect();
     let mut pos: Position = Position { pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], side_to_move: 0, state: GameState::default(), nulls: 0, stack: Vec::new() };
 
-    // main part of fen -> bitboapos
+    // main part of fen -> bitboards
     let mut idx: usize = 63;
     let rows: Vec<&str> = vec[0].split('/').collect();
     for row in rows {

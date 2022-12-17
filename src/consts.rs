@@ -3,7 +3,7 @@ pub const NAME: &str = env!("CARGO_PKG_NAME");
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 
-// piece vals
+// piece/side indices
 pub const PAWN: usize = 0;
 pub const KNIGHT: usize = 1;
 pub const BISHOP: usize = 2;

@@ -177,20 +177,12 @@ pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
 
 #[inline(always)]
 fn shift<const SIDE: usize, const AMOUNT: u8>(bb: u64) -> u64 {
-    match SIDE {
-        WHITE => bb >> AMOUNT,
-        BLACK => bb << AMOUNT,
-        _ => panic!("Invalid side in fn shift!"),
-    }
+    if SIDE == WHITE {bb >> AMOUNT} else {bb << AMOUNT}
 }
 
 #[inline(always)]
 fn idx_shift<const SIDE: usize, const AMOUNT: u16>(idx: u16) -> u16 {
-    match SIDE {
-        WHITE => idx + AMOUNT,
-        BLACK => idx - AMOUNT,
-        _ => panic!("Invalid side in fn shift!"),
-    }
+    if SIDE == WHITE {idx + AMOUNT} else {idx - AMOUNT}
 }
 
 fn pawn_pushes<const SIDE: usize>(move_list: &mut MoveList, occupied: u64, pawns: u64) {
