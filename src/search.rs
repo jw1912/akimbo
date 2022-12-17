@@ -17,7 +17,7 @@ struct SearchStats {
     allocated_time: u128,
     node_count: u64,
     best_move: u16,
-    ply: i8,
+    ply: i16,
     abort_signal: bool,
 }
 
@@ -60,7 +60,7 @@ impl Position {
     }
 
     /// Scores an arbitrary list of moves
-    fn score_moves(&self, moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, ply: i8) {
+    fn score_moves(&self, moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, ply: i16) {
         let killers: [u16; 3] = kt_get(ply);
         for i in 0..moves.len { move_scores.push(self.score_move(moves.list[i], hash_move, killers)) }
     }
@@ -126,8 +126,8 @@ fn search(pos: &mut Position, node_type: NodeType, stats: &mut SearchStats, mut 
     // check extensions
     depth += in_check as i8;
 
-    // qsearch at depth 0 or when reached maximum search ply
-    if depth <= 0 || stats.ply == MAX_PLY { return quiesce(pos, &mut stats.node_count, alpha, beta) }
+    // qsearch at depth 0
+    if depth <= 0 { return quiesce(pos, &mut stats.node_count, alpha, beta) }
 
     // count the node
     stats.node_count += 1;
@@ -297,13 +297,13 @@ fn quiesce(pos: &mut Position, node_count: &mut u64, mut alpha: i16, beta: i16) 
 /// Root search function:
 /// - Iterative deepening
 /// - Handles uci output
-pub fn go(pos: &mut Position, allocated_time: u128) {
+pub fn go(pos: &mut Position, allocated_time: u128, allocated_depth: i8) {
     // initialise values
     let mut stats: SearchStats = SearchStats { start_time: Instant::now(), node_count: 0, best_move: 0, ply: 0, abort_signal: false, allocated_time };
     let mut best_move: u16 = 0;
 
     // iterative deepening loop
-    for d in 0..MAX_PLY {
+    for d in 0..allocated_depth {
         // determine if in check
         let in_check: bool = pos.is_in_check();
 
