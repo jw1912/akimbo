@@ -1,4 +1,24 @@
-use super::{consts::*, position::{MoveList, Position}};
+use std::mem::MaybeUninit;
+use super::{consts::*, position::Position};
+
+pub struct MoveList {
+    pub list: [u16; 252],
+    pub len: usize,
+}
+
+impl Default for MoveList {
+    fn default() -> Self {
+        Self { list: unsafe {#[allow(clippy::uninit_assumed_init)] MaybeUninit::uninit().assume_init()}, len: 0 }
+    }
+}
+
+impl MoveList {
+    #[inline(always)]
+    pub fn push(&mut self, m: u16) {
+        self.list[self.len] = m;
+        self.len += 1;
+    }
+}
 
 /// Forward bitscan.
 #[macro_export]

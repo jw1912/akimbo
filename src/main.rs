@@ -10,8 +10,8 @@ mod search;
 use std::{io::stdin, time::Instant};
 use consts::*;
 use tables::{tt_clear, tt_resize, kt_clear};
-use position::{Position, MoveList, GameState};
-use movegen::ALL;
+use position::{Position, GameState};
+use movegen::{ALL, MoveList};
 use search::go;
 
 macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().unwrap_or($else)}}
