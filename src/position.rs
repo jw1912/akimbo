@@ -105,43 +105,36 @@ impl Position {
     }
 
     pub fn do_move(&mut self, m: u16) -> bool {
-        let opp: usize = self.side_to_move ^ 1;
-
         // move data
         let from: usize = from!(m);
         let to: usize = to!(m);
         let f: u64 = bit!(from);
         let t: u64 = bit!(to);
         let moved_pc: u8 = self.squares[from];
+        let mpc: usize = moved_pc as usize;
         let captured_pc: u8 = self.squares[to];
         let flag: u16 = m & MoveFlags::ALL;
         let rights: u8 = self.state.castle_rights;
+        let opp: usize = self.side_to_move ^ 1;
 
-        // initial updates
+        // updates
         self.stack.push(MoveState { state: self.state, m, moved_pc, captured_pc});
-        self.toggle(self.side_to_move, moved_pc as usize, f | t);
-        self.remove(from, self.side_to_move, moved_pc as usize);
-        self.add(to, self.side_to_move, moved_pc as usize);
+        self.toggle(self.side_to_move, mpc, f | t);
+        self.remove(from, self.side_to_move, mpc);
+        self.add(to, self.side_to_move, mpc);
         self.squares[from] = EMPTY as u8;
         self.squares[to] = moved_pc;
         if self.state.en_passant_sq > 0 {self.state.zobrist ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
         self.state.en_passant_sq = 0;
         self.state.zobrist ^= ZVALS.side;
-
-        // captures
         if captured_pc != EMPTY as u8 {
             let cpc: usize = captured_pc as usize;
             self.toggle(opp, cpc, t);
             self.remove(to, opp, cpc);
             self.state.phase -= PHASE_VALS[cpc];
-            if captured_pc == ROOK as u8 {
-                self.state.castle_rights &= CASTLE_RIGHTS[to];
-            }
+            if captured_pc == ROOK as u8 {self.state.castle_rights &= CASTLE_RIGHTS[to]}
         }
-
         if moved_pc == KING as u8 || moved_pc == ROOK as u8 {self.state.castle_rights &= CASTLE_RIGHTS[from]}
-
-        // piece-specific updates
         match flag {
             MoveFlags::EN_PASSANT => {
                 let pwn: usize = if opp == WHITE {to + 8} else {to - 8};
@@ -156,7 +149,7 @@ impl Position {
             }
             MoveFlags::KNIGHT_PROMO => {
                 let ppc: usize = (((flag >> 12) & 3) + 1) as usize;
-                self.pieces[moved_pc as usize] ^= t;
+                self.pieces[mpc] ^= t;
                 self.pieces[ppc] ^= t;
                 self.squares[to] = ppc as u8;
                 self.state.phase += PHASE_VALS[ppc];
@@ -172,6 +165,8 @@ impl Position {
             }
             _ => {}
         }
+        self.state.halfmove_clock = (moved_pc > PAWN as u8 && flag != MoveFlags::CAPTURE) as u8 * (self.state.halfmove_clock + 1);
+        self.side_to_move ^= 1;
 
         // castle hashes
         let mut changed_castle: u8 = rights & !self.state.castle_rights;
@@ -181,10 +176,6 @@ impl Position {
             pop!(changed_castle)
         }
 
-        // final updates
-        self.state.halfmove_clock = (moved_pc > PAWN as u8 && flag != MoveFlags::CAPTURE) as u8 * (self.state.halfmove_clock + 1);
-        self.side_to_move ^= 1;
-
         // is legal?
         let king_idx: usize = lsb!(self.pieces[KING] & self.sides[opp ^ 1]) as usize;
         let invalid: bool = self.is_square_attacked(king_idx, opp ^ 1, self.sides[0] | self.sides[1]);
@@ -193,9 +184,7 @@ impl Position {
     }
 
     pub fn undo_move(&mut self) {
-        let opp: usize = self.side_to_move;
-
-        // restore state
+        // pop state
         let state: MoveState = self.stack.pop().unwrap();
 
         // move data
@@ -206,6 +195,7 @@ impl Position {
         let f: u64 = bit!(from);
         let t: u64 = bit!(to);
         let flag: u16 = state.m & MoveFlags::ALL;
+        let opp: usize = self.side_to_move;
 
         // updates
         self.side_to_move ^= 1;
@@ -257,8 +247,7 @@ impl Position {
         let l: usize = self.stack.len();
         if l < 6 || self.nulls > 0 { return false }
         let to: usize = l - 1;
-        let mut from: usize = l.wrapping_sub(self.state.halfmove_clock as usize);
-        if from > 1024 { from = 0 }
+        let from: usize = l.saturating_sub(self.state.halfmove_clock as usize);
         let mut repetitions_count: u8 = 1;
         for i in (from..to).rev().step_by(2) {
             if self.stack[i].state.zobrist == self.state.zobrist {
