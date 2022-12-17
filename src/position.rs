@@ -1,13 +1,11 @@
-use super::{lsb, pop, consts::*, movegen::{bishop_attacks, rook_attacks}, zobrist::ZVALS};
+use super::{lsb, consts::*, movegen::{bishop_attacks, rook_attacks}, zobrist::ZVALS};
 
 #[macro_export]
 macro_rules! from {($m:expr) => {(($m >> 6) & 63) as usize}}
-
 #[macro_export]
 macro_rules! to {($m:expr) => {($m & 63) as usize}}
-
-#[macro_export]
 macro_rules! bit {($x:expr) => {1 << $x}}
+macro_rules! pop {($x:expr) => {$x &= $x - 1}}
 
 /// Main position struct:
 /// - Holds all information needed for the board state
@@ -273,5 +271,29 @@ impl Position {
             }
         }
         res
+    }
+
+    /// Calculate the zobrist hash value for the current position, from scratch.
+    pub fn hash(&self) -> u64 {
+        let mut zobrist: u64 = 0;
+        for (i, side) in self.sides.iter().enumerate() {
+            for (j, &pc) in self.pieces.iter().enumerate() {
+                let mut piece: u64 = pc & side;
+                while piece > 0 {
+                    let idx: usize = lsb!(piece) as usize;
+                    zobrist ^= ZVALS.pieces[i][j][idx];
+                    pop!(piece)
+                }
+            }
+        }
+        let mut castle_rights: u8 = self.state.castle_rights;
+        while castle_rights > 0 {
+            let ls1b: u8 = castle_rights & castle_rights.wrapping_neg();
+            zobrist ^= ZVALS.castle_hash(0b1111, ls1b);
+            pop!(castle_rights)
+        }
+        if self.state.en_passant_sq > 0 {zobrist ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
+        if self.side_to_move == 0 {zobrist ^= ZVALS.side;}
+        zobrist
     }
 }

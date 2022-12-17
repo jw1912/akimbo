@@ -11,7 +11,7 @@ use std::{io::stdin, time::Instant};
 use consts::*;
 use tables::{HashTable, KillerTable};
 use position::{Position, GameState};
-use movegen::{ALL, MoveList};
+use movegen::MoveList;
 use search::{go, SearchContext};
 
 macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().unwrap_or($else)}}

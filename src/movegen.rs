@@ -1,6 +1,11 @@
 use std::mem::MaybeUninit;
 use super::{consts::*, position::Position};
 
+/// Forward bitscan.
+#[macro_export]
+macro_rules! lsb {($x:expr) => {$x.trailing_zeros() as u16}}
+macro_rules! pop_lsb {($idx:expr, $x:expr) => {$idx = $x.trailing_zeros() as u16; $x &= $x - 1}}
+
 pub struct MoveList {
     pub list: [u16; 252],
     pub len: usize,
@@ -22,22 +27,6 @@ impl MoveList {
         self.len += 1;
     }
 }
-
-/// Forward bitscan.
-#[macro_export]
-macro_rules! lsb {($x:expr) => {$x.trailing_zeros() as u16}}
-
-/// Reverse bitscan.
-macro_rules! msb {($x:expr) => {63 ^ $x.leading_zeros() as u16}}
-
-/// Popping the least significant bit from a number.
-#[macro_export]
-macro_rules! pop {($x:expr) => {$x &= $x - 1}}
-
-macro_rules! pop_lsb {($idx:expr, $x:expr) => {$idx = $x.trailing_zeros() as u16; $x &= $x - 1}}
-
-pub const ALL: bool = true;
-pub const CAPTURES: bool = false;
 
 #[inline(always)]
 fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16) {
@@ -169,7 +158,7 @@ pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
     easts ^= EAST[sq];
     let mut wests: u64 = WEST[idx];
     blockers = wests & occupied;
-    sq = msb!(blockers | LSB) as usize;
+    sq = (63 ^ (blockers | LSB).leading_zeros()) as usize;
     wests ^= WEST[sq];
 
     forward | easts | wests

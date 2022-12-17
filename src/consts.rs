@@ -3,6 +3,10 @@ pub const NAME: &str = env!("CARGO_PKG_NAME");
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 
+// Types of move to be generated
+pub const ALL: bool = true;
+pub const CAPTURES: bool = false;
+
 /// The type of bound determined by the hash entry when it was searched.
 pub struct Bound;
 impl Bound {

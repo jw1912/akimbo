@@ -1,4 +1,4 @@
-use crate::{lsb, pop, position::Position};
+use crate::lsb;
 
 pub static ZVALS: ZobristVals = ZobristVals::init();
 
@@ -53,31 +53,5 @@ impl ZobristVals {
         while idx < 6 {seed = xor_shift(seed); vals.castle[idx - 2] = seed; idx += 1;}
         while idx < 14 {seed = xor_shift(seed); vals.en_passant[idx - 6] = seed; idx += 1;}
         vals
-    }
-}
-
-impl Position {
-    /// Calculate the zobrist hash value for the current position, from scratch.
-    pub fn hash(&self) -> u64 {
-        let mut zobrist: u64 = 0;
-        for (i, side) in self.sides.iter().enumerate() {
-            for (j, &pc) in self.pieces.iter().enumerate() {
-                let mut piece: u64 = pc & side;
-                while piece > 0 {
-                    let idx: usize = lsb!(piece) as usize;
-                    zobrist ^= ZVALS.pieces[i][j][idx];
-                    pop!(piece)
-                }
-            }
-        }
-        let mut castle_rights: u8 = self.state.castle_rights;
-        while castle_rights > 0 {
-            let ls1b: u8 = castle_rights & castle_rights.wrapping_neg();
-            zobrist ^= ZVALS.castle_hash(0b1111, ls1b);
-            pop!(castle_rights)
-        }
-        if self.state.en_passant_sq > 0 {zobrist ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
-        if self.side_to_move == 0 {zobrist ^= ZVALS.side;}
-        zobrist
     }
 }

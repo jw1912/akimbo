@@ -55,10 +55,8 @@ impl Position {
     /// Scores a capture based first on the value of the victim of the capture,
     /// then on the piece capturing.
     fn mvv_lva(&self, m: u16) -> u16 {
-        let from_idx: usize = from!(m);
-        let to_idx: usize = to!(m);
-        let moved_pc: usize = self.squares[from_idx] as usize;
-        let captured_pc: usize = self.squares[to_idx] as usize;
+        let moved_pc: usize = self.squares[from!(m)] as usize;
+        let captured_pc: usize = self.squares[to!(m)] as usize;
         MVV_LVA[captured_pc][moved_pc]
     }
 
