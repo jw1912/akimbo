@@ -207,7 +207,7 @@ fn search(pos: &mut Position, node_type: NodeType, stats: &mut SearchStats, mut 
             // following moves are assumed to be worse and searched with a null window and reductions
             let zw_score: i16 = -search(pos, NodeType(false, gives_check, true), stats, -alpha - 1, -alpha, depth - 1 - r);
             if (alpha != beta - 1 || r > 0) && zw_score > alpha {
-                // if they are, in fact, not worse then a re-search with a full window and no reductions is done
+                // if they are, in fact, not worse then a re-search with a full window and no reductions are done
                 -search(pos, NodeType(pv, gives_check, false), stats, -beta, -alpha, depth - 1)
             } else { zw_score }
         };
