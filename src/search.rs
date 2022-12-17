@@ -1,4 +1,4 @@
-use super::{from, to, consts::*, position::*, tables::*, movegen::*, u16_to_uci};
+use super::{consts::*, position::*, tables::*, movegen::*, u16_to_uci};
 use std::{cmp::{min, max}, time::Instant};
 
 /// Determines what is done in the node:
@@ -13,11 +13,7 @@ struct NodeType(bool, bool, bool);
 /// - Upper bound (beta)
 struct Window(i16, i16);
 
-/// Holds information needed for uci compatibility:
-/// - start_time, allocated_time and abort_signal for ending search when time limit is reached
-/// - node_count for outputting nodes and nps
-/// - ply for correct checkmate scores
-/// - best_move for sending to the gui
+/// Contains everything needed for a search.
 pub struct SearchContext {
     pub hash_table: HashTable,
     killer_table: KillerTable,
@@ -50,14 +46,6 @@ impl Position {
     fn lazy_eval(&self) -> i16 {
         let phase: i32 = std::cmp::min(self.state.phase as i32, TPHASE);
         SIDE_FACTOR[self.side_to_move] * ((phase * self.state.mg as i32 + (TPHASE - phase) * self.state.eg as i32) / TPHASE) as i16
-    }
-
-    /// Scores a capture based first on the value of the victim of the capture,
-    /// then on the piece capturing.
-    fn mvv_lva(&self, m: u16) -> u16 {
-        let moved_pc: usize = self.squares[from!(m)] as usize;
-        let captured_pc: usize = self.squares[to!(m)] as usize;
-        MVV_LVA[captured_pc][moved_pc]
     }
 
     /// Scores a move.

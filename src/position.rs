@@ -1,8 +1,6 @@
 use super::{lsb, consts::*, movegen::{bishop_attacks, rook_attacks}, zobrist::ZVALS};
 
-#[macro_export]
 macro_rules! from {($m:expr) => {(($m >> 6) & 63) as usize}}
-#[macro_export]
 macro_rules! to {($m:expr) => {($m & 63) as usize}}
 macro_rules! bit {($x:expr) => {1 << $x}}
 macro_rules! pop {($x:expr) => {$x &= $x - 1}}
@@ -295,5 +293,13 @@ impl Position {
         if self.state.en_passant_sq > 0 {zobrist ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
         if self.side_to_move == 0 {zobrist ^= ZVALS.side;}
         zobrist
+    }
+
+    /// Scores a capture based first on the value of the victim of the capture,
+    /// then on the piece capturing.
+    pub fn mvv_lva(&self, m: u16) -> u16 {
+        let moved_pc: usize = self.squares[from!(m)] as usize;
+        let captured_pc: usize = self.squares[to!(m)] as usize;
+        MVV_LVA[captured_pc][moved_pc]
     }
 }
