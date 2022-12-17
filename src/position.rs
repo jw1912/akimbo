@@ -84,7 +84,7 @@ impl Position {
     #[inline(always)]
     fn add(&mut self, from: usize, side: usize, piece: usize) {
         let indx = from ^ (56 * (side == 0) as usize);
-        self.state.zobrist ^= unsafe{ZVALS.pieces[side][piece][from]};
+        self.state.zobrist ^= ZVALS.pieces[side][piece][from];
         self.state.mg += SIDE_FACTOR[side] * PST_MG[piece][indx];
         self.state.eg += SIDE_FACTOR[side] * PST_EG[piece][indx];
     }
@@ -92,13 +92,12 @@ impl Position {
     #[inline(always)]
     fn remove(&mut self, from: usize, side: usize, piece: usize) {
         let indx = from ^ (56 * (side == 0) as usize);
-        self.state.zobrist ^= unsafe{ZVALS.pieces[side][piece][from]};
+        self.state.zobrist ^= ZVALS.pieces[side][piece][from];
         self.state.mg -= SIDE_FACTOR[side] * PST_MG[piece][indx];
         self.state.eg -= SIDE_FACTOR[side] * PST_EG[piece][indx];
     }
 
     pub fn do_move(&mut self, m: u16) -> bool {
-        unsafe {
         let opp: usize = self.side_to_move ^ 1;
 
         // move data
@@ -184,7 +183,6 @@ impl Position {
         let invalid: bool = self.is_square_attacked(king_idx, opp ^ 1, self.sides[0] | self.sides[1]);
         if invalid { self.undo_move() }
         invalid
-        }
     }
 
     pub fn undo_move(&mut self) {
@@ -234,10 +232,10 @@ impl Position {
         self.nulls += 1;
         let enp: u16 = self.state.en_passant_sq;
         let hash: u64 = self.state.zobrist;
-        self.state.zobrist ^= (enp > 0) as u64 * unsafe{ZVALS.en_passant[(enp & 7) as usize]};
+        self.state.zobrist ^= (enp > 0) as u64 * ZVALS.en_passant[(enp & 7) as usize];
         self.state.en_passant_sq = 0;
         self.side_to_move ^= 1;
-        self.state.zobrist ^= unsafe{ZVALS.side};
+        self.state.zobrist ^= ZVALS.side;
         (enp, hash)
     }
 

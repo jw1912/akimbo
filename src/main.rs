@@ -13,7 +13,6 @@ use tables::{tt_clear, tt_resize, kt_clear};
 use position::{Position, MoveList, GameState};
 use movegen::ALL;
 use search::{DEPTH, TIME, go};
-use zobrist::{ZVALS, ZobristVals};
 
 macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().unwrap_or($else)}}
 
@@ -23,7 +22,6 @@ fn main() {
     // initialise position
     let mut pos: Position = parse_fen(STARTPOS);
     tt_resize(1);
-    unsafe{ZVALS = ZobristVals::init()}
 
     // awaits input
     loop {
