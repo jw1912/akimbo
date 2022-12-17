@@ -83,6 +83,7 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) {
     enum Tokens {None, Depth, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
     let mut token: Tokens = Tokens::None;
     let (mut times, mut moves_to_go, mut depth): ([u64; 2], Option<u16>, i8) = ([0, 0], None, i8::MAX);
+    ctx.allocated_time = 1000;
     for command in commands {
         match command {
             "depth" => token = Tokens::Depth,

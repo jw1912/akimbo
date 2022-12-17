@@ -146,7 +146,7 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
     depth += in_check as i8;
 
     // qsearch at depth 0
-    if depth <= 0 { return quiesce(pos, &mut ctx.node_count, w) }
+    if depth <= 0 { return qsearch(pos, Window(alpha, beta), &mut ctx.node_count) }
 
     // count the node
     ctx.node_count += 1;
@@ -191,9 +191,9 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
 
     // generating and scoring moves
     let mut moves: MoveList = Default::default();
-    let mut move_scores: MoveList = Default::default();
+    let mut scores: MoveList = Default::default();
     pos.gen_moves::<ALL>(&mut moves);
-    pos.score_moves(&moves, &mut move_scores, hash_move, ctx.ply, &ctx.killer_table);
+    pos.score_moves(&moves, &mut scores, hash_move, ctx.ply, &ctx.killer_table);
 
     // if no cutoff or alpha improvements are achieved then score is an upper bound
     let mut bound: u8 = Bound::UPPER;
@@ -207,7 +207,7 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
     let mut best_move: u16 = 0;
     let mut best_score: i16 = -MAX;
     let mut legal_moves: u16 = 0;
-    while let Some((m, m_score)) = pick_move(&mut moves, &mut move_scores, &mut m_idx) {
+    while let Some((m, m_score)) = pick_move(&mut moves, &mut scores, &mut m_idx) {
         // make move and skip if not legal
         if pos.do_move(m) { continue }
         legal_moves += 1;
@@ -223,10 +223,10 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
             // first move is searched w/ a full window and no reductions
             -search(pos, NodeType(pv, gives_check, false), Window(-beta, -alpha), depth - 1, ctx)
         } else {
-            // following moves are assumed to be worse and searched with a null window and reductions
+            // following moves are assumed to be worse and searched with a null window and all reductions/pruning
             let zw_score: i16 = -search(pos, NodeType(false, gives_check, true), Window(-alpha - 1, -alpha), depth - 1 - r, ctx);
             if (alpha != beta - 1 || r > 0) && zw_score > alpha {
-                // if they are, in fact, not worse then a re-search with a full window and no reductions are done
+                // if they are, in fact, not worse then a re-search with a full window and no reductions/pruning
                 -search(pos, NodeType(pv, gives_check, false), Window(-beta, -alpha), depth - 1, ctx)
             } else { zw_score }
         };
@@ -268,7 +268,7 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
 /// - Fail-soft
 /// - Searches capture sequences to reduce horizon effect
 /// - Delta pruning
-fn quiesce(pos: &mut Position, node_count: &mut u64, window: Window) -> i16 {
+fn qsearch(pos: &mut Position, window: Window, node_count: &mut u64) -> i16 {
     // count all quiescent nodes
     *node_count += 1;
 
@@ -299,7 +299,7 @@ fn quiesce(pos: &mut Position, node_count: &mut u64, window: Window) -> i16 {
 
         // make move and skip if not legal
         if pos.do_move(m) { continue }
-        let score: i16 = -quiesce(pos, node_count, Window(-beta, -alpha));
+        let score: i16 = -qsearch(pos, Window(-beta, -alpha), node_count);
         pos.undo_move();
 
         // alpha-beta pruning
