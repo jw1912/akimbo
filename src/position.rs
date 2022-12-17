@@ -1,12 +1,5 @@
 use super::{lsb, pop, consts::*, movegen::{bishop_attacks, rook_attacks}, zobrist::ZVALS};
 
-/// The position is stored as global state.
-pub static mut POS: Position = Position {
-    pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], side_to_move: 0,
-    state: GameState { zobrist: 0, phase: 0, mg: 0, eg: 0, en_passant_sq: 0, halfmove_clock: 0, castle_rights: 0 },
-    nulls: 0, stack: Vec::new()
-};
-
 #[macro_export]
 macro_rules! from {($m:expr) => {(($m >> 6) & 63) as usize}}
 
@@ -294,7 +287,7 @@ impl Position {
 
     /// Calculates the midgame and endgame piece-square table evaluations and the game
     /// phase of the current position from scratch.
-    pub fn calc(&self) -> (i16, i16, i16) {
+    pub fn evals(&self) -> (i16, i16, i16) {
         let mut res: (i16, i16, i16) = (0,0,0);
         for (i, side) in self.sides.iter().enumerate() {
             let factor: i16 = SIDE_FACTOR[i];

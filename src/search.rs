@@ -114,7 +114,7 @@ unsafe fn pvs(pos: &mut Position, pv: bool, mut alpha: i16, mut beta: i16, mut d
     // probing hash table
     let mut hash_move: u16 = 0;
     let mut write_to_hash: bool = true;
-    if let Some(res) = tt_probe(POS.state.zobrist) {
+    if let Some(res) = tt_probe(pos.state.zobrist) {
         // write to hash only if this search is of greater depth than the hash entry
         write_to_hash = depth > res.depth;
 
@@ -123,7 +123,7 @@ unsafe fn pvs(pos: &mut Position, pv: bool, mut alpha: i16, mut beta: i16, mut d
 
         // hash score pruning
         // not at root, with shallower hash entries or near 50 move draws
-        if PLY > 0 && POS.state.halfmove_clock <= 90 && res.depth >= depth &&
+        if PLY > 0 && pos.state.halfmove_clock <= 90 && res.depth >= depth &&
             match res.bound {
                 Bound::EXACT => { !pv }, // want nice pv lines
                 Bound::LOWER => { res.score >= beta },
@@ -141,7 +141,7 @@ unsafe fn pvs(pos: &mut Position, pv: bool, mut alpha: i16, mut beta: i16, mut d
         if depth <= 8 && lazy_eval >= beta + 120 * depth as i16 { return lazy_eval - 120 * depth as i16 }
 
         // null move pruning
-        if allow_null && depth >= 3 && POS.state.phase >= 6 && lazy_eval >= beta {
+        if allow_null && depth >= 3 && pos.state.phase >= 6 && lazy_eval >= beta {
             let ctx: (u16, u64) = pos.do_null();
             let score: i16 = -pvs(pos, false, -beta, -beta + 1, depth - 3, false, false);
             pos.undo_null(ctx);
@@ -219,7 +219,7 @@ unsafe fn pvs(pos: &mut Position, pv: bool, mut alpha: i16, mut beta: i16, mut d
     if count == 0 { return (in_check as i16) * (-MAX + PLY as i16) }
 
     // write to hash if appropriate
-    if write_to_hash { tt_push(POS.state.zobrist, best_move, depth, bound, best_score) }
+    if write_to_hash { tt_push(pos.state.zobrist, best_move, depth, bound, best_score) }
 
     // fail-soft
     best_score
@@ -270,7 +270,7 @@ unsafe fn quiesce(pos: &mut Position, mut alpha: i16, beta: i16) -> i16 {
     stand_pat
 }
 
-pub fn go() {
+pub fn go(pos: &mut Position) {
     unsafe {
     // initialise values
     NODES = 0;
@@ -281,10 +281,10 @@ pub fn go() {
     // iterative deepening loop
     for d in 0..DEPTH {
         // determine if in check
-        let in_check: bool = POS.is_in_check();
+        let in_check: bool = pos.is_in_check();
 
         // get score
-        let score: i16 = pvs(&mut POS, true, -MAX, MAX, d + 1, in_check, false);
+        let score: i16 = pvs(pos, true, -MAX, MAX, d + 1, in_check, false);
 
         // end search if out of time
         let t: u128 = START_TIME.unwrap().elapsed().as_millis();
