@@ -35,7 +35,7 @@ pub fn tt_resize(mut size: usize) {
 }
 
 pub fn tt_clear() {
-    unsafe {TT = vec![Default::default(); TT_SIZE]}
+    unsafe{TT = vec![Default::default(); TT_SIZE]}
 }
 
 /// Push a search result to the hash table.
@@ -44,10 +44,9 @@ pub fn tt_clear() {
 /// 2. Fill empty entries in bucket.
 /// 3. Replace lowest depth entry in bucket.
 pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i16, ply: i8) {
-    unsafe {
     let key: u16 = (zobrist >> 48) as u16;
-    let idx: usize = (zobrist as usize) & (TT.len() - 1);
-    let bucket: &mut [HashEntry] = &mut TT[idx];
+    let idx: usize = (zobrist as usize) & (unsafe{TT_SIZE} - 1);
+    let bucket: &mut [HashEntry] = unsafe{&mut TT[idx]};
     let mut desired_idx: usize = usize::MAX;
     let mut smallest_depth: i8 = i8::MAX;
     for (entry_idx, &entry) in bucket.iter().enumerate() {
@@ -63,34 +62,37 @@ pub fn tt_push(zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i1
     }
     score += if score > MATE_THRESHOLD {ply} else if score < -MATE_THRESHOLD {-ply} else {0} as i16;
     bucket[desired_idx] = HashEntry {key, best_move, depth, bound, score };
-    }
 }
 
 pub fn tt_probe(zobrist: u64, ply: i8) -> Option<HashEntry> {
-    unsafe {
     let key: u16 = (zobrist >> 48) as u16;
-    let idx: usize = (zobrist as usize) & (TT_SIZE - 1);
-    let bucket: &[HashEntry; 8] = &TT[idx];
+    let idx: usize = (zobrist as usize) & (unsafe{TT_SIZE} - 1);
+    let bucket: &[HashEntry; 8] = unsafe{&TT[idx]};
     for entry in bucket {
         if entry.key == key {
             let mut res: HashEntry = *entry;
             res.score += if res.score > MATE_THRESHOLD {-ply} else if res.score < -MATE_THRESHOLD {ply} else {0} as i16;
             return Some(res);
         }
-    }}
+    }
     None
 }
 
 pub fn kt_push(m: u16, p: i8) {
     unsafe {
-    let ply: usize = p as usize - 1;
-    let new: u16 = if KT[ply].contains(&m) {KT[ply][2]} else {m};
-    KT[ply][2] = KT[ply][1];
-    KT[ply][1] = KT[ply][0];
-    KT[ply][0] = new;
+        let ply: usize = p as usize - 1;
+        let new: u16 = if KT[ply].contains(&m) {KT[ply][2]} else {m};
+        KT[ply][2] = KT[ply][1];
+        KT[ply][1] = KT[ply][0];
+        KT[ply][0] = new;
     }
 }
 
 pub fn kt_clear() {
     unsafe{KT = [[0; 3]; MAX_PLY as usize]}
+}
+
+#[inline(always)]
+pub fn kt_get(ply: i8) -> [u16; 3] {
+    unsafe{KT[ply as usize]}
 }

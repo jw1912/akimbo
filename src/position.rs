@@ -47,7 +47,7 @@ pub struct MoveState {
 }
 
 pub struct MoveList {
-    pub list: [u16; 256],
+    pub list: [u16; 252],
     pub len: usize,
 }
 

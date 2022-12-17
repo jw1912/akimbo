@@ -61,7 +61,7 @@ impl Position {
 
     /// Scores an arbitrary list of moves
     fn score_moves(&self, moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, ply: i8) {
-        let killers: [u16; 3] = unsafe{KT[ply as usize]};
+        let killers: [u16; 3] = kt_get(ply);
         for i in 0..moves.len { move_scores.push(self.score_move(moves.list[i], hash_move, killers)) }
     }
 
