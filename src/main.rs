@@ -10,10 +10,9 @@ mod search;
 use std::{io::stdin, time::Instant};
 use consts::*;
 use tables::{tt_clear, tt_resize, kt_clear};
-use position::{POS, MoveList, do_move, undo_move, GameState, calc};
-use movegen::{gen_moves, ALL};
-use search::{DEPTH, TIME, go};
-use zobrist::{ZVALS, ZobristVals};
+use position::{Position, MoveList, GameState};
+use movegen::ALL;
+use search::go;
 
 macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().unwrap_or($else)}}
 
@@ -21,9 +20,8 @@ fn main() {
     println!("{NAME}, created by {AUTHOR}");
 
     // initialise position
-    parse_fen(STARTPOS);
+    let mut pos: Position = parse_fen(STARTPOS);
     tt_resize(1);
-    unsafe{ZVALS = ZobristVals::init()}
 
     // awaits input
     loop {
@@ -40,7 +38,7 @@ fn main() {
             }
             "isready" => println!("readyok"),
             "ucinewgame" => {
-                parse_fen(STARTPOS);
+                pos = parse_fen(STARTPOS);
                 tt_clear();
                 kt_clear();
             },
@@ -51,45 +49,43 @@ fn main() {
                     _ => {},
                 }
             },
-            "go" => parse_go(commands),
-            "position" => parse_position(commands),
-            "perft" => parse_perft(commands),
+            "go" => parse_go(&mut pos, commands),
+            "position" => parse_position(&mut pos, commands),
+            "perft" => parse_perft(&mut pos, commands),
             _ => {},
         }
     }
 }
 
-fn perft(depth_left: u8) -> u64 {
+fn perft(pos: &mut Position, depth_left: u8) -> u64 {
     let mut moves = MoveList::default();
-    gen_moves::<ALL>(&mut moves);
+    pos.gen_moves::<ALL>(&mut moves);
     let mut positions: u64 = 0;
     for m_idx in 0..moves.len {
         let m: u16 = moves.list[m_idx];
-        if do_move(m) { continue }
-        positions += if depth_left > 1 {perft(depth_left - 1)} else {1};
-        undo_move();
+        if pos.do_move(m) { continue }
+        positions += if depth_left > 1 {perft(pos, depth_left - 1)} else {1};
+        pos.undo_move();
     }
     positions
 }
 
-fn parse_perft(commands: Vec<&str>) {
+fn parse_perft(pos: &mut Position, commands: Vec<&str>) {
     for d in 0..parse!(u8, commands[1], 0) + 1 {
         let now = Instant::now();
-        let count: u64 = perft(d);
+        let count: u64 = perft(pos, d);
         let time = now.elapsed();
         println!("info depth {} time {} nodes {count} Mnps {:.2}", d, time.as_millis(), count as f64 / time.as_micros() as f64);
     }
 }
 
-fn parse_go(commands: Vec<&str>) {
-    unsafe{
+fn parse_go(pos: &mut Position, commands: Vec<&str>) {
     #[derive(PartialEq)]
-    enum Tokens {None, Depth, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
+    enum Tokens {None, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
     let mut token: Tokens = Tokens::None;
-    let (mut times, mut moves_to_go): ([u64; 2], Option<u16>) = ([0, 0], None);
+    let (mut times, mut moves_to_go, mut time): ([u64; 2], Option<u16>, u128) = ([0, 0], None, 1000);
     for command in commands {
         match command {
-            "depth" => token = Tokens::Depth,
             "movetime" => token = Tokens::Movetime,
             "wtime" => token = Tokens::WTime,
             "btime" => token = Tokens::BTime,
@@ -99,11 +95,7 @@ fn parse_go(commands: Vec<&str>) {
             _ => {
                 match token {
                     Tokens::None => {},
-                    Tokens::Depth => {
-                        DEPTH = parse!(i8, command, 1);
-                        TIME = u128::MAX;
-                    },
-                    Tokens::Movetime => TIME = parse!(i64, command, 1000) as u128 - 10,
+                    Tokens::Movetime => time = parse!(i64, command, 1000) as u128 - 10,
                     Tokens::WTime => times[0] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
                     Tokens::BTime => times[1] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
                     Tokens::MovesToGo => moves_to_go = Some(parse!(u16, command, 40)),
@@ -112,13 +104,13 @@ fn parse_go(commands: Vec<&str>) {
             },
         }
     }
-    if times[POS.side_to_move] != 0 {
-        TIME = times[POS.side_to_move] as u128 / (if let Some(mtg) = moves_to_go {mtg as u128} else {2 * (POS.state.phase as u128 + 1)}) - 10;
-    }}
-    go();
+    if times[pos.side_to_move] != 0 {
+        time = times[pos.side_to_move] as u128 / (if let Some(mtg) = moves_to_go {mtg as u128} else {2 * (pos.state.phase as u128 + 1)}) - 10;
+    }
+    go(pos, time);
 }
 
-fn parse_position(commands: Vec<&str>) {
+fn parse_position(pos: &mut Position, commands: Vec<&str>) {
     enum Tokens {Nothing, Fen, Moves}
     let mut fen = String::from("");
     let mut moves: Vec<String> = Vec::new();
@@ -126,9 +118,9 @@ fn parse_position(commands: Vec<&str>) {
     for command in commands {
         match command {
             "position" => (),
-            "startpos" => parse_fen(STARTPOS),
-            "kiwipete" => parse_fen(KIWIPETE),
-            "lasker" => parse_fen(LASKER),
+            "startpos" => *pos = parse_fen(STARTPOS),
+            "kiwipete" => *pos = parse_fen(KIWIPETE),
+            "lasker" => *pos = parse_fen(LASKER),
             "fen" => token = Tokens::Fen,
             "moves" => token = Tokens::Moves,
             _ => match token {
@@ -138,8 +130,8 @@ fn parse_position(commands: Vec<&str>) {
             },
         }
     }
-    if !fen.is_empty() {parse_fen(&fen)}
-    for m in moves {do_move(uci_to_u16(&m));}
+    if !fen.is_empty() {*pos = parse_fen(&fen)}
+    for m in moves {pos.do_move(uci_to_u16(pos, &m));}
 }
 
 macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", char::from_u32(($idx & 7) as u32 + 97).unwrap(), ($idx >> 3) + 1)}}
@@ -155,14 +147,14 @@ pub fn u16_to_uci(m: &u16) -> String {
     format!("{}{}{} ", idx_to_sq!((m >> 6) & 0b111111), idx_to_sq!(m & 0b111111), promo)
 }
 
-pub fn uci_to_u16(m: &str) -> u16 {
+pub fn uci_to_u16(pos: &Position, m: &str) -> u16 {
     let l: usize = m.len();
     let from: u16 = sq_to_idx(&m[0..2]);
     let to: u16 = sq_to_idx(&m[2..4]);
     let mut no_flags: u16 = (from << 6) | to;
     no_flags |= match m.chars().nth(4).unwrap_or('f') {'n' => 0x8000, 'b' => 0x9000, 'r' => 0xA000, 'q' => 0xB000, _ => 0};
     let mut possible_moves = MoveList::default();
-    gen_moves::<ALL>(&mut possible_moves);
+    pos.gen_moves::<ALL>(&mut possible_moves);
     for m_idx in 0..possible_moves.len {
         let um: u16 = possible_moves.list[m_idx];
         if no_flags & TWELVE == um & TWELVE && (l < 5 || no_flags & !TWELVE == um & 0xB000) {return um;}
@@ -170,17 +162,11 @@ pub fn uci_to_u16(m: &str) -> u16 {
     panic!("invalid move list!");
 }
 
-pub fn parse_fen(s: &str) {
-    unsafe {
+pub fn parse_fen(s: &str) -> Position {
     let vec: Vec<&str> = s.split_whitespace().collect();
+    let mut pos: Position = Position { pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], side_to_move: 0, state: GameState::default(), nulls: 0, stack: Vec::new() };
 
-    // reset POS
-    POS.pieces = [0; 6];
-    POS.squares = [EMPTY as u8; 64];
-    POS.sides = [0; 2];
-    POS.side_to_move = match vec[1] { "w" => WHITE, "b" => BLACK, _ => panic!("") };
-
-    // main part of fen -> bitboards
+    // main part of fen -> bitboards and mailbox
     let mut idx: usize = 63;
     let rows: Vec<&str> = vec[0].split('/').collect();
     for row in rows {
@@ -189,8 +175,9 @@ pub fn parse_fen(s: &str) {
             if !ch.is_numeric() {
                 let idx2: usize = ['P','N','B','R','Q','K','p','n','b','r','q','k'].iter().position(|&element| element == ch).unwrap_or(6);
                 let (col, pc): (usize, usize) = ((idx2 > 5) as usize, idx2 - 6 * ((idx2 > 5) as usize));
-                toggle!(col, pc, 1 << idx);
-                POS.squares[idx] = pc as u8;
+                pos.sides[col] ^= 1 << idx;
+                pos.pieces[pc] ^= 1 << idx;
+                pos.squares[idx] = pc as u8;
                 idx -= (idx > 0) as usize;
             } else {
                 let len: usize = parse!(usize, ch.to_string(), 8);
@@ -206,12 +193,10 @@ pub fn parse_fen(s: &str) {
     }
     let en_passant_sq: u16 = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
     let halfmove_clock: u8 = parse!(u8, vec.get(4).unwrap_or(&"0"), 0);
-    let (phase, mg, eg): (i16, i16, i16) = calc();
+    let (phase, mg, eg): (i16, i16, i16) = pos.evals();
 
     // set state
-    POS.state = GameState {zobrist: 0, phase, mg, eg,en_passant_sq, halfmove_clock, castle_rights};
-    POS.fullmove_counter = parse!(u16, vec.get(5).unwrap_or(&"1"), 1);
-    POS.state.zobrist = zobrist::calc();
-    POS.stack.clear();
-    }
+    pos.state = GameState {zobrist: 0, phase, mg, eg,en_passant_sq, halfmove_clock, castle_rights};
+    pos.state.zobrist = pos.hash();
+    pos
 }
