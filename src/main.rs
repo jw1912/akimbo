@@ -197,7 +197,7 @@ fn parse_fen(s: &str) -> Position {
     let (phase, mg, eg): (i16, i16, i16) = pos.evals();
 
     // set state
-    pos.state = GameState {zobrist: 0, phase, mg, eg,en_passant_sq, halfmove_clock, castle_rights};
+    pos.state = GameState {zobrist: 0, phase, mg, eg, en_passant_sq, halfmove_clock, castle_rights};
     pos.state.zobrist = pos.hash();
     pos
 }
