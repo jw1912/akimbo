@@ -185,12 +185,10 @@ pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
     diag | anti
 }
 
-#[inline(always)]
 fn shift<const SIDE: usize, const AMOUNT: u8>(bb: u64) -> u64 {
     if SIDE == WHITE {bb >> AMOUNT} else {bb << AMOUNT}
 }
 
-#[inline(always)]
 fn idx_shift<const SIDE: usize, const AMOUNT: u16>(idx: u16) -> u16 {
     if SIDE == WHITE {idx + AMOUNT} else {idx - AMOUNT}
 }

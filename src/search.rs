@@ -272,13 +272,10 @@ fn qsearch(pos: &mut Position, window: Window, node_count: &mut u64) -> i16 {
     pos.gen_moves::<CAPTURES>(&mut captures);
     pos.score_captures(&captures, &mut scores);
 
-    // delta pruning margin
-    let margin: i16 = stand_pat + 200;
-
     // go through moves
     while let Some((m, m_score)) = pick_move(&mut captures, &mut scores) {
         // delta pruning
-        if margin + m_score as i16 / 5 < alpha { break }
+        if stand_pat + m_score as i16 / 5 + 200 < alpha { break }
 
         // make move and skip if not legal
         if pos.do_move(m) { continue }
