@@ -1,4 +1,4 @@
-use super::{consts::*, position::*, tables::*, movegen::*, u16_to_uci};
+use super::{consts::*, position::Position, tables::{HashTable, KillerTable}, movegen::MoveList,u16_to_uci};
 use std::{cmp::{min, max}, time::Instant};
 
 /// Determines what is done in the node:
@@ -6,11 +6,13 @@ use std::{cmp::{min, max}, time::Instant};
 /// no agressive pruning or reductions, etc
 /// 2. In check - node should be extended and no pruning if in check
 /// 3. Allow null - whether null move pruning should be allowed
+#[derive(Clone, Copy)]
 struct NodeType(bool, bool, bool);
 
 /// Search window for the node:
 /// - Lower bound (alpha)
 /// - Upper bound (beta)
+#[derive(Clone, Copy)]
 struct Window(i16, i16);
 
 /// Contains everything needed for a search.
@@ -42,7 +44,7 @@ impl SearchContext{
 
 impl Position {
     /// Piece-square table eval of the position.
-    #[inline(always)]
+    #[inline]
     fn lazy_eval(&self) -> i16 {
         let phase: i32 = std::cmp::min(self.state.phase as i32, TPHASE);
         SIDE_FACTOR[self.side_to_move] * ((phase * self.state.mg as i32 + (TPHASE - phase) * self.state.eg as i32) / TPHASE) as i16
@@ -117,19 +119,19 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
 
     // draw detection - ignoring draws by 50 move rule as it caused engine to
     // make suboptimal moves if it thinks it is winning, in an effort to avoid a draw
-    if pos.is_draw_by_repetition(2 + (ctx.ply == 0) as u8) || pos.is_draw_by_material() { return 0 }
+    if pos.is_draw_by_repetition(2 + u8::from(ctx.ply == 0)) || pos.is_draw_by_material() { return 0 }
 
     // extract node info
     let Window(mut alpha, mut beta): Window = w;
     let NodeType(pv, in_check, allow_null): NodeType = nt;
 
     // mate distance pruning
-    alpha = max(alpha, -MAX + ctx.ply as i16);
-    beta = min(beta, MAX - ctx.ply as i16 - 1);
+    alpha = max(alpha, -MAX + ctx.ply);
+    beta = min(beta, MAX - ctx.ply - 1);
     if alpha >= beta { return alpha }
 
     // check extensions
-    depth += in_check as i8;
+    depth += i8::from(in_check);
 
     // qsearch at depth 0
     if depth <= 0 { return qsearch(pos, Window(alpha, beta), &mut ctx.node_count) }
@@ -164,7 +166,7 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
         let lazy_eval: i16 = pos.lazy_eval();
 
         // reverse futility pruning
-        if depth <= 8 && lazy_eval >= beta + 120 * depth as i16 { return lazy_eval - 120 * depth as i16 }
+        if depth <= 8 && lazy_eval >= beta + 120 * i16::from(depth) { return lazy_eval - 120 * i16::from(depth) }
 
         // null move pruning
         if allow_null && depth >= 3 && pos.state.phase >= 6 && lazy_eval >= beta {
@@ -176,8 +178,8 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
     }
 
     // generating and scoring moves
-    let mut moves: MoveList = Default::default();
-    let mut scores: MoveList = Default::default();
+    let mut moves: MoveList = MoveList::default();
+    let mut scores: MoveList = MoveList::default();
     pos.gen_moves::<ALL>(&mut moves);
     pos.score_moves(&moves, &mut scores, hash_move, ctx.ply, &ctx.killer_table);
 
@@ -202,7 +204,7 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
         let gives_check: bool = pos.is_in_check();
 
         // late move reductions
-        let r: i8 = (can_lmr && !gives_check && legal_moves > 1 && m_score < 300) as i8;
+        let r: i8 = i8::from(can_lmr && !gives_check && legal_moves > 1 && m_score < 300);
 
         // score move via principle variation search
         let score: i16 = if legal_moves == 1 {
@@ -241,7 +243,7 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
     if ctx.ply == 0 { ctx.best_move = best_move }
 
     // check for (stale)mate
-    if legal_moves == 0 { return (in_check as i16) * (-MAX + ctx.ply as i16) }
+    if legal_moves == 0 { return i16::from(in_check) * (-MAX + ctx.ply) }
 
     // write to hash if appropriate
     if write_to_hash { ctx.hash_table.push(pos.state.zobrist, best_move, depth, bound, best_score, ctx.ply) }
@@ -269,8 +271,8 @@ fn qsearch(pos: &mut Position, window: Window, node_count: &mut u64) -> i16 {
     if alpha < stand_pat { alpha = stand_pat }
 
     // generate and score moves
-    let mut captures: MoveList = Default::default();
-    let mut scores: MoveList = Default::default();
+    let mut captures: MoveList = MoveList::default();
+    let mut scores: MoveList = MoveList::default();
     pos.gen_moves::<CAPTURES>(&mut captures);
     pos.score_captures(&captures, &mut scores);
 
@@ -323,17 +325,18 @@ pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
         best_move = ctx.best_move;
 
         // uci output for the gui
-        let (stype, sval): (&str, i16) = match score.abs() >= MATE_THRESHOLD {
-            true => ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2),
-            false => ("cp", score)
+        let (stype, sval): (&str, i16) = if score.abs() >= MATE_THRESHOLD {
+            ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2)
+        } else {
+            ("cp", score)
         };
         let nps: u32 = ((ctx.node_count as f64) * 1000.0 / (t as f64)) as u32;
-        let pv_str: String = u16_to_uci(&best_move);
+        let pv_str: String = u16_to_uci(best_move);
         println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d, stype, sval, t, ctx.node_count, nps, pv_str);
 
         // stop searching if mate found
         if score.abs() >= MATE_THRESHOLD { break }
     }
-    println!("bestmove {}", u16_to_uci(&best_move));
+    println!("bestmove {}", u16_to_uci(best_move));
     ctx.killer_table.clear();
 }

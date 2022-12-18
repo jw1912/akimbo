@@ -28,7 +28,7 @@ impl ZobristVals {
 
     /// Initialises ZVALS.
     pub const fn init() -> Self {
-        let mut seed: u64 = 180620142;
+        let mut seed: u64 = 180_620_142;
         seed = xor_shift(seed);
         let mut vals: ZobristVals = Self {
             pieces: [[[0; 64]; 6]; 2],

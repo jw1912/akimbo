@@ -16,7 +16,7 @@ impl Default for MoveList {
         // safe because initialised elements kept track of by .len field,
         // and all cases of indexing into the array constrained by "for i in 0..moves.len"
         // so never accessing an uninitialised element
-        Self { list: unsafe {#[allow(clippy::uninit_assumed_init)] MaybeUninit::uninit().assume_init()}, len: 0 }
+        Self { list: unsafe {#[allow(clippy::uninit_assumed_init, invalid_value)] MaybeUninit::uninit().assume_init()}, len: 0 }
     }
 }
 
@@ -57,25 +57,25 @@ impl Position {
         piece_moves::<KING  , QUIETS>(move_list, occupied, friendly, opps, self.pieces[KING]);
     }
 
-    #[inline(always)]
+    #[inline]
     fn castles(&self, move_list: &mut MoveList, occupied: u64) {
         if self.side_to_move == WHITE {
             if self.state.castle_rights & CastleRights::WHITE_QS > 0 && occupied & (B1C1D1) == 0
                 && !self.is_square_attacked(3, WHITE, occupied) {
-                move_list.push(MoveFlags::QS_CASTLE | 2 | 4 << 6)
+                move_list.push(MoveFlags::QS_CASTLE | 2 | 4 << 6);
             }
             if self.state.castle_rights & CastleRights::WHITE_KS > 0 && occupied & (F1G1) == 0
                 && !self.is_square_attacked(5, WHITE, occupied) {
-                move_list.push(MoveFlags::KS_CASTLE | 6 | 4 << 6)
+                move_list.push(MoveFlags::KS_CASTLE | 6 | 4 << 6);
             }
         } else {
             if self.state.castle_rights & CastleRights::BLACK_QS > 0 && occupied & (B8C8D8) == 0
                 && !self.is_square_attacked(59, BLACK, occupied) {
-                move_list.push(MoveFlags::QS_CASTLE | 58 | 60 << 6)
+                move_list.push(MoveFlags::QS_CASTLE | 58 | 60 << 6);
             }
             if self.state.castle_rights & CastleRights::BLACK_KS > 0 && occupied & (F8G8) == 0
                 && !self.is_square_attacked(61, BLACK, occupied) {
-                move_list.push(MoveFlags::KS_CASTLE | 62 | 60 << 6)
+                move_list.push(MoveFlags::KS_CASTLE | 62 | 60 << 6);
             }
         }
     }
@@ -102,7 +102,7 @@ fn piece_moves<const PIECE: usize, const QUIETS: bool>(move_list: &mut MoveList,
     }
 }
 
-#[inline(always)]
+#[inline]
 fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents: u64, side: usize) {
     let mut from: u16;
     let mut attacks: u64;
@@ -129,7 +129,7 @@ fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents: u64, s
     }
 }
 
-#[inline(always)]
+#[inline]
 fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16, side: usize) {
     let mut attackers: u64 = PAWN_ATTACKS[side ^ 1][sq as usize] & pawns;
     let mut cidx: u16;
@@ -139,7 +139,7 @@ fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16, side: usize) {
     }
 }
 
-#[inline(always)]
+#[inline]
 pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
     let masks: Mask = MASKS[idx];
 
@@ -164,7 +164,7 @@ pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
     forward | easts | wests
 }
 
-#[inline(always)]
+#[inline]
 pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
     let masks: Mask = MASKS[idx];
 

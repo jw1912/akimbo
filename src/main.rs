@@ -8,7 +8,7 @@ mod tables;
 mod search;
 
 use std::{io::stdin, time::Instant};
-use consts::*;
+use consts::{ALL, AUTHOR, CastleRights, EMPTY, KIWIPETE, LASKER, MAX_PLY, NAME, STARTPOS, TWELVE, VERSION};
 use tables::{HashTable, KillerTable};
 use position::{Position, GameState};
 use movegen::MoveList;
@@ -27,8 +27,8 @@ fn main() {
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
-        let commands: Vec<&str> = input.split(' ').map(|v| v.trim()).collect();
-        match commands[0] {
+        let commands: Vec<&str> = input.split(' ').map(str::trim).collect();
+        match *commands.first().unwrap_or(&"oops") {
             "uci" => {
                 println!("id name {NAME} {VERSION}");
                 println!("id author {AUTHOR}");
@@ -50,7 +50,7 @@ fn main() {
             },
             "go" => parse_go(&mut pos, commands, &mut ctx),
             "position" => parse_position(&mut pos, commands),
-            "perft" => parse_perft(&mut pos, commands),
+            "perft" => parse_perft(&mut pos, &commands),
             _ => {},
         }
     }
@@ -69,8 +69,8 @@ fn perft(pos: &mut Position, depth_left: u8) -> u64 {
     positions
 }
 
-fn parse_perft(pos: &mut Position, commands: Vec<&str>) {
-    for d in 0..parse!(u8, commands[1], 0) + 1 {
+fn parse_perft(pos: &mut Position, commands: &[&str]) {
+    for d in 0..=parse!(u8, commands[1], 0) {
         let now = Instant::now();
         let count: u64 = perft(pos, d);
         let time = now.elapsed();
@@ -113,7 +113,7 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) {
 
 fn parse_position(pos: &mut Position, commands: Vec<&str>) {
     enum Tokens {Nothing, Fen, Moves}
-    let mut fen = String::from("");
+    let mut fen = String::new();
     let mut moves: Vec<String> = Vec::new();
     let mut token: Tokens = Tokens::Nothing;
     for command in commands {
@@ -143,12 +143,12 @@ fn sq_to_idx(sq: &str) -> u16 {
     8 * parse!(u16, chs[1].to_string(), 0) + chs[0] as u16 - 105
 }
 
-pub fn u16_to_uci(m: &u16) -> String {
+fn u16_to_uci(m: u16) -> String {
     let promo: &str = if m & 0b1000_0000_0000_0000 > 0 {["n","b","r","q"][((m >> 12) & 0b11) as usize]} else {""};
-    format!("{}{}{} ", idx_to_sq!((m >> 6) & 0b111111), idx_to_sq!(m & 0b111111), promo)
+    format!("{}{}{} ", idx_to_sq!((m >> 6) & 63), idx_to_sq!(m & 63), promo)
 }
 
-pub fn uci_to_u16(pos: &Position, m: &str) -> u16 {
+fn uci_to_u16(pos: &Position, m: &str) -> u16 {
     let l: usize = m.len();
     let from: u16 = sq_to_idx(&m[0..2]);
     let to: u16 = sq_to_idx(&m[2..4]);
@@ -163,7 +163,7 @@ pub fn uci_to_u16(pos: &Position, m: &str) -> u16 {
     panic!("invalid move list!");
 }
 
-pub fn parse_fen(s: &str) -> Position {
+fn parse_fen(s: &str) -> Position {
     let vec: Vec<&str> = s.split_whitespace().collect();
     let mut pos: Position = Position { pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], side_to_move: 0, state: GameState::default(), nulls: 0, stack: Vec::new() };
 
@@ -173,16 +173,16 @@ pub fn parse_fen(s: &str) -> Position {
     for row in rows {
         for ch in row.chars().rev() {
             if ch == '/' { continue }
-            if !ch.is_numeric() {
+            if ch.is_numeric() {
+                let len: usize = parse!(usize, ch.to_string(), 8);
+                idx -= usize::from(idx >= len) * len;
+            } else {
                 let idx2: usize = ['P','N','B','R','Q','K','p','n','b','r','q','k'].iter().position(|&element| element == ch).unwrap_or(6);
-                let (col, pc): (usize, usize) = ((idx2 > 5) as usize, idx2 - 6 * ((idx2 > 5) as usize));
+                let (col, pc): (usize, usize) = (usize::from(idx2 > 5), idx2 - 6 * usize::from(idx2 > 5));
                 pos.sides[col] ^= 1 << idx;
                 pos.pieces[pc] ^= 1 << idx;
                 pos.squares[idx] = pc as u8;
-                idx -= (idx > 0) as usize;
-            } else {
-                let len: usize = parse!(usize, ch.to_string(), 8);
-                idx -= (idx >= len) as usize * len;
+                idx -= usize::from(idx > 0);
             }
         }
     }

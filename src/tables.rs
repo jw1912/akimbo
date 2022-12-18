@@ -31,7 +31,7 @@ impl HashTable {
 
     /// Resets all hash entries to 0.
     pub fn clear(&mut self) {
-        for bucket in &mut self.table { *bucket = [Default::default(); 8]}
+        for bucket in &mut self.table { *bucket = [HashEntry::default(); 8]}
     }
 
     /// Push a search result to the hash table.
@@ -57,7 +57,7 @@ impl HashTable {
             }
         }
         score += if score > MATE_THRESHOLD {ply} else if score < -MATE_THRESHOLD {-ply} else {0};
-        bucket[desired_idx] = HashEntry {key, best_move, depth, bound, score };
+        bucket[desired_idx] = HashEntry { key, best_move, score, depth, bound };
     }
 
     /// Probes the hash table for an entry matching the provided hash value, returning first match.

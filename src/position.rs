@@ -43,7 +43,7 @@ pub struct MoveState {
 }
 
 impl Position {
-    #[inline(always)]
+    #[inline]
     pub fn is_square_attacked(&self, idx: usize, side: usize, occ: u64) -> bool {
         let s: u64 = self.sides[side ^ 1];
         let opp_queen: u64 = self.pieces[QUEEN] & s;
@@ -62,7 +62,7 @@ impl Position {
     #[inline(always)]
     fn toggle(&mut self, side: usize, piece: usize, bit: u64) {
         self.pieces[piece] ^= bit;
-        self.sides[side] ^= bit
+        self.sides[side] ^= bit;
     }
 
     #[inline(always)]
@@ -134,7 +134,7 @@ impl Position {
                 self.add(to, self.side_to_move, ppc);
             }
             MoveFlags::KS_CASTLE | MoveFlags::QS_CASTLE => {
-                let (c, idx1, idx2): (u64, usize, usize) = CASTLE_MOVES[self.side_to_move][(flag == MoveFlags::KS_CASTLE) as usize];
+                let (c, idx1, idx2): (u64, usize, usize) = CASTLE_MOVES[self.side_to_move][usize::from(flag == MoveFlags::KS_CASTLE)];
                 self.squares.swap(idx1, idx2);
                 self.toggle(self.side_to_move, ROOK, c);
                 self.remove(idx1, self.side_to_move, ROOK);
@@ -150,7 +150,7 @@ impl Position {
         while changed_castle > 0 {
             let ls1b: u8 = changed_castle & changed_castle.wrapping_neg();
             self.state.zobrist ^= ZVALS.castle_hash(rights, ls1b);
-            pop!(changed_castle)
+            pop!(changed_castle);
         }
 
         // is legal?
@@ -204,7 +204,7 @@ impl Position {
         self.nulls += 1;
         let enp: u16 = self.state.en_passant_sq;
         let hash: u64 = self.state.zobrist;
-        self.state.zobrist ^= (enp > 0) as u64 * ZVALS.en_passant[(enp & 7) as usize];
+        self.state.zobrist ^= u64::from(enp > 0) * ZVALS.en_passant[(enp & 7) as usize];
         self.state.en_passant_sq = 0;
         self.side_to_move ^= 1;
         self.state.zobrist ^= ZVALS.side;
@@ -234,15 +234,15 @@ impl Position {
     }
 
     /// Is there a FIDE draw by insufficient material?
-    ///  - KvK
-    ///  - KvKN or KvKB
-    ///  - KBvKB and both bishops the same colour
+    ///  - ``KvK``
+    ///  - ``KvKN`` or ``KvKB``
+    ///  - ``KBvKB`` and both bishops the same colour
     pub fn is_draw_by_material(&self) -> bool {
         let pawns: u64 = self.pieces[PAWN];
         if pawns == 0 && self.state.phase <= 2 {
             if self.state.phase == 2 {
                 let bishops: u64 = self.pieces[BISHOP];
-                return bishops & self.sides[0] != bishops && bishops & self.sides[1] != bishops && (bishops & 0x55AA55AA55AA55AA == bishops || bishops & 0xAA55AA55AA55AA55 == bishops)
+                return bishops & self.sides[0] != bishops && bishops & self.sides[1] != bishops && (bishops & 0x55AA_55AA_55AA_55AA == bishops || bishops & 0xAA55_AA55_AA55_AA55 == bishops)
             }
             return true
         }
@@ -261,7 +261,7 @@ impl Position {
                 res.0 += PHASE_VALS[j] * count;
                 while pcs > 0 {
                     let idx: usize = lsb!(pcs) as usize;
-                    let white: usize = (i == 0) as usize * 56;
+                    let white: usize = usize::from(i == 0) * 56;
                     res.1 += factor * PST_MG[j][idx ^ white];
                     res.2 += factor * PST_EG[j][idx ^ white];
                     pop!(pcs);
@@ -280,7 +280,7 @@ impl Position {
                 while piece > 0 {
                     let idx: usize = lsb!(piece) as usize;
                     zobrist ^= ZVALS.pieces[i][j][idx];
-                    pop!(piece)
+                    pop!(piece);
                 }
             }
         }
@@ -288,7 +288,7 @@ impl Position {
         while castle_rights > 0 {
             let ls1b: u8 = castle_rights & castle_rights.wrapping_neg();
             zobrist ^= ZVALS.castle_hash(0b1111, ls1b);
-            pop!(castle_rights)
+            pop!(castle_rights);
         }
         if self.state.en_passant_sq > 0 {zobrist ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
         if self.side_to_move == 0 {zobrist ^= ZVALS.side;}
