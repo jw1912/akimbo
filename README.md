@@ -3,6 +3,7 @@
 akimbo is a UCI compatible chess engine written in Rust.
 
 ### TODO (before first release)
+- Add back pv lines
 - FRC support
 - Syzygy tablebase support (maybe)
 

@@ -83,7 +83,7 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) {
     enum Tokens {None, Depth, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
     let mut token: Tokens = Tokens::None;
     let (mut times, mut moves_to_go, mut depth): ([u64; 2], Option<u16>, i8) = ([0, 0], None, i8::MAX);
-    ctx.allocated_time = 1000;
+    ctx.alloc_time = 1000;
     for command in commands {
         match command {
             "depth" => token = Tokens::Depth,
@@ -96,7 +96,7 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) {
             _ => {
                 match token {
                     Tokens::Depth => depth = parse!(i8, command, 1),
-                    Tokens::Movetime => ctx.allocated_time = parse!(i64, command, 1000) as u128 - 10,
+                    Tokens::Movetime => ctx.alloc_time = parse!(i64, command, 1000) as u128 - 10,
                     Tokens::WTime => times[0] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
                     Tokens::BTime => times[1] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
                     Tokens::MovesToGo => moves_to_go = Some(parse!(u16, command, 40)),
@@ -106,7 +106,7 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) {
         }
     }
     if times[pos.side_to_move] != 0 {
-        ctx.allocated_time = times[pos.side_to_move] as u128 / (if let Some(mtg) = moves_to_go {mtg as u128} else {2 * (pos.state.phase as u128 + 1)}) - 10;
+        ctx.alloc_time = times[pos.side_to_move] as u128 / (if let Some(mtg) = moves_to_go {mtg as u128} else {2 * (pos.state.phase as u128 + 1)}) - 10;
     }
     go(pos, depth, ctx);
 }

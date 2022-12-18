@@ -6,32 +6,41 @@ use std::{cmp::{min, max}, time::Instant};
 /// no agressive pruning or reductions, etc
 /// 2. In check - node should be extended and no pruning if in check
 /// 3. Allow null - whether null move pruning should be allowed
-struct NodeType(bool, bool, bool);
+#[derive(Clone, Copy)]
+struct NodeType(u8);
+impl NodeType {
+    fn decode(nt: Self) -> (bool, bool, bool) {
+        (nt.0 & 4 > 0, nt.0 & 2 > 0, nt.0 & 1 > 0)
+    }
+    fn encode(pv: bool, check: bool, null: bool) -> Self {
+        Self(4 * u8::from(pv) + 2 * u8::from(check) + u8::from(null))
+    }
+}
 
 /// Contains everything needed for a search.
 pub struct SearchContext {
     pub hash_table: HashTable,
     killer_table: KillerTable,
-    pub allocated_time: u128,
-    start_time: Instant,
-    node_count: u64,
+    pub alloc_time: u128,
+    time: Instant,
+    nodes: u64,
     best_move: u16,
     ply: i16,
-    abort_signal: bool,
+    abort: bool,
 }
 
 impl SearchContext{
     /// Constructs a new instance, given hash and killer tables.
     pub fn new(hash_table: HashTable, killer_table: KillerTable) -> Self {
-        Self { hash_table, killer_table, start_time: Instant::now(), allocated_time: 1000, node_count: 0, best_move: 0, ply: 0, abort_signal: false }
+        Self { hash_table, killer_table, time: Instant::now(), alloc_time: 1000, nodes: 0, best_move: 0, ply: 0, abort: false }
     }
 
     fn reset(&mut self) {
-        self.start_time = Instant::now();
-        self.node_count = 0;
+        self.time = Instant::now();
+        self.nodes = 0;
         self.best_move = 0;
         self.ply = 0;
-        self.abort_signal = false;
+        self.abort = false;
     }
 }
 
@@ -102,9 +111,9 @@ fn pick_move(moves: &mut MoveList, scores: &mut MoveList) -> Option<(u16, u16)> 
 /// - Principle variation search
 fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut depth: i8, ctx: &mut SearchContext) -> i16 {
     // search aborting
-    if ctx.abort_signal { return 0 }
-    if ctx.node_count & 2047 == 0 && ctx.start_time.elapsed().as_millis() >= ctx.allocated_time {
-        ctx.abort_signal = true;
+    if ctx.abort { return 0 }
+    if ctx.nodes & 2047 == 0 && ctx.time.elapsed().as_millis() >= ctx.alloc_time {
+        ctx.abort = true;
         return 0
     }
 
@@ -113,7 +122,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     if pos.is_draw_by_repetition(2 + u8::from(ctx.ply == 0)) || pos.is_draw_by_material() { return 0 }
 
     // extract node info
-    let NodeType(pv, in_check, allow_null): NodeType = nt;
+    let (pv, in_check, allow_null): (bool, bool, bool) = NodeType::decode(nt);
 
     // mate distance pruning
     alpha = max(alpha, -MAX + ctx.ply);
@@ -124,10 +133,10 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     depth += i8::from(in_check);
 
     // qsearch at depth 0
-    if depth <= 0 { return qsearch(pos, alpha, beta, &mut ctx.node_count) }
+    if depth <= 0 { return qsearch(pos, alpha, beta, &mut ctx.nodes) }
 
     // count the node
-    ctx.node_count += 1;
+    ctx.nodes += 1;
 
     // probing hash table
     let mut hash_move: u16 = 0;
@@ -162,7 +171,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
         // null move pruning
         if allow_null && depth >= 3 && pos.state.phase >= 6 && lazy_eval >= beta {
             let copy: (u16, u64) = pos.do_null();
-            let score: i16 = -search(pos, NodeType(false, false, false), -beta, -beta + 1, depth - 3, ctx);
+            let score: i16 = -search(pos, NodeType::encode(false, false, false), -beta, -beta + 1, depth - 3, ctx);
             pos.undo_null(copy);
             if score >= beta {return score}
         }
@@ -199,13 +208,13 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
         // score move via principle variation search
         let score: i16 = if legal_moves == 1 {
             // first move is searched with a full window and no reductions
-            -search(pos, NodeType(pv, gives_check, false), -beta, -alpha, depth - 1, ctx)
+            -search(pos, NodeType::encode(pv, gives_check, false), -beta, -alpha, depth - 1, ctx)
         } else {
             // following moves are assumed to be worse and searched with a null window and all reductions/pruning
-            let zw_score: i16 = -search(pos, NodeType(false, gives_check, true), -alpha - 1, -alpha, depth - 1 - reduction, ctx);
+            let zw_score: i16 = -search(pos, NodeType::encode(false, gives_check, true), -alpha - 1, -alpha, depth - 1 - reduction, ctx);
             if (alpha != beta - 1 || reduction > 0) && zw_score > alpha {
                 // if they are, in fact, not worse then a re-search with a full window and no reductions/pruning
-                -search(pos, NodeType(pv, gives_check, false), -beta, -alpha, depth - 1, ctx)
+                -search(pos, NodeType::encode(pv, gives_check, false), -beta, -alpha, depth - 1, ctx)
             } else { zw_score }
         };
 
@@ -249,7 +258,6 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
 fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, node_count: &mut u64) -> i16 {
     // count all quiescent nodes
     *node_count += 1;
-
 
     // static eval as an initial guess
     let mut stand_pat: i16 = pos.lazy_eval();
@@ -299,11 +307,11 @@ pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
         let in_check: bool = pos.is_in_check();
 
         // get score
-        let score: i16 = search(pos, NodeType(true, in_check, false), -MAX, MAX, d, ctx);
+        let score: i16 = search(pos, NodeType::encode(true, in_check, false), -MAX, MAX, d, ctx);
 
         // end search if out of time
-        let t: u128 = ctx.start_time.elapsed().as_millis();
-        if t >= ctx.allocated_time || ctx.abort_signal { break }
+        let t: u128 = ctx.time.elapsed().as_millis();
+        if t >= ctx.alloc_time || ctx.abort { break }
 
         // update best move
         best_move = ctx.best_move;
@@ -314,9 +322,9 @@ pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
         } else {
             ("cp", score)
         };
-        let nps: u32 = ((ctx.node_count as f64) * 1000.0 / (t as f64)) as u32;
+        let nps: u32 = ((ctx.nodes as f64) * 1000.0 / (t as f64)) as u32;
         let pv_str: String = u16_to_uci(best_move);
-        println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d, stype, sval, t, ctx.node_count, nps, pv_str);
+        println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d, stype, sval, t, ctx.nodes, nps, pv_str);
 
         // stop searching if mate found
         if score.abs() >= MATE_THRESHOLD { break }
