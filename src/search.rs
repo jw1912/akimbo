@@ -118,8 +118,8 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
     if pos.is_draw_by_repetition(2 + u8::from(ctx.ply == 0)) || pos.is_draw_by_material() { return 0 }
 
     // extract node info
-    let Window(mut alpha, mut beta): Window = w;
     let NodeType(pv, in_check, allow_null): NodeType = nt;
+    let Window(mut alpha, mut beta): Window = w;
 
     // mate distance pruning
     alpha = max(alpha, -MAX + ctx.ply);
@@ -200,7 +200,7 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
         let gives_check: bool = pos.is_in_check();
 
         // late move reductions
-        let r: i8 = i8::from(can_lmr && !gives_check && legal_moves > 1 && m_score < 300);
+        let reduction: i8 = i8::from(can_lmr && !gives_check && legal_moves > 1 && m_score < 300);
 
         // score move via principle variation search
         let score: i16 = if legal_moves == 1 {
@@ -208,8 +208,8 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
             -search(pos, NodeType(pv, gives_check, false), Window(-beta, -alpha), depth - 1, ctx)
         } else {
             // following moves are assumed to be worse and searched with a null window and all reductions/pruning
-            let zw_score: i16 = -search(pos, NodeType(false, gives_check, true), Window(-alpha - 1, -alpha), depth - 1 - r, ctx);
-            if (alpha != beta - 1 || r > 0) && zw_score > alpha {
+            let zw_score: i16 = -search(pos, NodeType(false, gives_check, true), Window(-alpha - 1, -alpha), depth - 1 - reduction, ctx);
+            if (alpha != beta - 1 || reduction > 0) && zw_score > alpha {
                 // if they are, in fact, not worse then a re-search with a full window and no reductions/pruning
                 -search(pos, NodeType(pv, gives_check, false), Window(-beta, -alpha), depth - 1, ctx)
             } else { zw_score }

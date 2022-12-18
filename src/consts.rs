@@ -84,7 +84,7 @@ pub const F8G8: u64 = 0x6000000000000000;
 pub static CASTLE_RIGHTS: [u8; 64] = [7, 15, 15, 15, 3, 15, 15, 11, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 13, 15, 15, 15, 12, 15, 15, 14];
 
 // search/eval
-pub const MAX_PLY: i8 = i8::MAX;
+pub const MAX_PLY: i8 = i8::MAX - 8;
 pub const MAX: i16 = 30000;
 pub const MATE_THRESHOLD: i16 = MAX - u8::MAX as i16;
 pub const SIDE_FACTOR: [i16; 3] = [1, -1, 0];
