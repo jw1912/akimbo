@@ -57,7 +57,7 @@ impl Position {
         piece_moves::<KING  , QUIETS>(move_list, occupied, friendly, opps, self.pieces[KING]);
     }
 
-    #[inline]
+    #[inline(always)]
     fn castles(&self, move_list: &mut MoveList, occupied: u64) {
         if self.side_to_move == WHITE {
             if self.state.castle_rights & CastleRights::WHITE_QS > 0 && occupied & (B1C1D1) == 0
@@ -102,7 +102,7 @@ fn piece_moves<const PIECE: usize, const QUIETS: bool>(move_list: &mut MoveList,
     }
 }
 
-#[inline]
+#[inline(always)]
 fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents: u64, side: usize) {
     let mut from: u16;
     let mut attacks: u64;
@@ -129,7 +129,7 @@ fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents: u64, s
     }
 }
 
-#[inline]
+#[inline(always)]
 fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16, side: usize) {
     let mut attackers: u64 = PAWN_ATTACKS[side ^ 1][sq as usize] & pawns;
     let mut cidx: u16;
@@ -139,52 +139,50 @@ fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16, side: usize) {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
     let masks: Mask = MASKS[idx];
 
     // file
-    let mut forward: u64 = occupied & masks.file;
-    let mut reverse: u64 = forward.swap_bytes();
-    forward -= masks.bitmask;
+    let mut file: u64 = occupied & masks.file;
+    let mut reverse: u64 = file.swap_bytes();
+    file -= masks.bitmask;
     reverse -= masks.bitmask.swap_bytes();
-    forward ^= reverse.swap_bytes();
-    forward &= masks.file;
+    file ^= reverse.swap_bytes();
+    file &= masks.file;
 
     // rank
-    let mut easts: u64 = EAST[idx];
-    let mut blockers: u64 = easts & occupied;
-    let mut sq: usize = lsb!(blockers | MSB) as usize;
-    easts ^= EAST[sq];
-    let mut wests: u64 = WEST[idx];
-    blockers = wests & occupied;
-    sq = (63 ^ (blockers | LSB).leading_zeros()) as usize;
-    wests ^= WEST[sq];
+    let mut east: u64 = EAST[idx];
+    let mut sq: usize = lsb!((east & occupied) | MSB) as usize;
+    east ^= EAST[sq];
+    let mut west: u64 = WEST[idx];
+    sq = (63 ^ ((west & occupied) | LSB).leading_zeros()) as usize;
+    west ^= WEST[sq];
 
-    forward | easts | wests
+    file | east | west
 }
 
-#[inline]
+#[inline(always)]
 pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
     let masks: Mask = MASKS[idx];
 
     // diagonal
-    let mut forward: u64 = occ & masks.diag;
-    let mut reverse: u64 = forward.swap_bytes();
-    forward -= masks.bitmask;
-    reverse -= masks.bitmask.swap_bytes();
-    forward ^= reverse.swap_bytes();
-    forward &= masks.diag;
+    let mut diag: u64 = occ & masks.diag;
+    let mut rev: u64 = diag.swap_bytes();
+    diag -= masks.bitmask;
+    rev -= masks.bitmask.swap_bytes();
+    diag ^= rev.swap_bytes();
+    diag &= masks.diag;
 
     // antidiagonal
-    let mut forward2: u64 = occ & masks.antidiag;
-    let mut reverse2: u64 = forward2.swap_bytes();
-    forward2 -= masks.bitmask;
-    reverse2 -= masks.bitmask.swap_bytes();
-    forward2 ^= reverse2.swap_bytes();
-    forward2 &= masks.antidiag;
+    let mut anti: u64 = occ & masks.antidiag;
+    rev = anti.swap_bytes();
+    anti -= masks.bitmask;
+    rev -= masks.bitmask.swap_bytes();
+    anti ^= rev.swap_bytes();
+    anti &= masks.antidiag;
 
-    forward | forward2
+    diag | anti
 }
 
 #[inline(always)]

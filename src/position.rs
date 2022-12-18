@@ -43,7 +43,7 @@ pub struct MoveState {
 }
 
 impl Position {
-    #[inline]
+    #[inline(always)]
     pub fn is_square_attacked(&self, idx: usize, side: usize, occ: u64) -> bool {
         let s: u64 = self.sides[side ^ 1];
         let opp_queen: u64 = self.pieces[QUEEN] & s;

@@ -6,13 +6,11 @@ use std::{cmp::{min, max}, time::Instant};
 /// no agressive pruning or reductions, etc
 /// 2. In check - node should be extended and no pruning if in check
 /// 3. Allow null - whether null move pruning should be allowed
-#[derive(Clone, Copy)]
 struct NodeType(bool, bool, bool);
 
 /// Search window for the node:
 /// - Lower bound (alpha)
 /// - Upper bound (beta)
-#[derive(Clone, Copy)]
 struct Window(i16, i16);
 
 /// Contains everything needed for a search.
@@ -83,27 +81,25 @@ impl Position {
 }
 
 /// O(n^2) algorithm to incrementally sort the move list as needed.
-fn pick_move(moves: &mut MoveList, move_scores: &mut MoveList, start_idx: &mut usize) -> Option<(u16, u16)> {
-    let m_idx: usize = *start_idx;
+fn pick_move(moves: &mut MoveList, scores: &mut MoveList) -> Option<(u16, u16)> {
     // no moves left
-    if m_idx == move_scores.len {return None}
+    if scores.len == 0 {return None}
     // go through remaining moves
-    let mut best_idx: usize = m_idx;
+    let mut best_idx: usize = 0;
     let mut best_score: u16 = 0;
-    for i in m_idx..move_scores.len {
-        let score: u16 = move_scores.list[i];
+    let mut score: u16;
+    for i in 0..scores.len {
+        score = scores.list[i];
         if score > best_score {
             best_score = score;
             best_idx = i;
         }
     }
-    // best move
-    let m: u16 = moves.list[best_idx];
     // swap first remaining move with best move found and increment starting point
-    move_scores.list.swap(best_idx, m_idx);
-    moves.list.swap(best_idx, m_idx);
-    *start_idx += 1;
-    Some((m, best_score))
+    scores.len -= 1;
+    scores.list.swap(best_idx, scores.len);
+    moves.list.swap(best_idx, scores.len);
+    Some((moves.list[scores.len], best_score))
 }
 
 /// Main search function:
@@ -166,7 +162,8 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
         let lazy_eval: i16 = pos.lazy_eval();
 
         // reverse futility pruning
-        if depth <= 8 && lazy_eval >= beta + 120 * i16::from(depth) { return lazy_eval - 120 * i16::from(depth) }
+        let margin: i16 = lazy_eval - 120 * i16::from(depth);
+        if depth <= 8 && margin >= beta { return margin }
 
         // null move pruning
         if allow_null && depth >= 3 && pos.state.phase >= 6 && lazy_eval >= beta {
@@ -191,11 +188,10 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
 
     // going through moves
     ctx.ply += 1;
-    let mut m_idx: usize = 0;
     let mut best_move: u16 = 0;
     let mut best_score: i16 = -MAX;
     let mut legal_moves: u16 = 0;
-    while let Some((m, m_score)) = pick_move(&mut moves, &mut scores, &mut m_idx) {
+    while let Some((m, m_score)) = pick_move(&mut moves, &mut scores) {
         // make move and skip if not legal
         if pos.do_move(m) { continue }
         legal_moves += 1;
@@ -208,7 +204,7 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
 
         // score move via principle variation search
         let score: i16 = if legal_moves == 1 {
-            // first move is searched w/ a full window and no reductions
+            // first move is searched with a full window and no reductions
             -search(pos, NodeType(pv, gives_check, false), Window(-beta, -alpha), depth - 1, ctx)
         } else {
             // following moves are assumed to be worse and searched with a null window and all reductions/pruning
@@ -280,8 +276,7 @@ fn qsearch(pos: &mut Position, window: Window, node_count: &mut u64) -> i16 {
     let margin: i16 = stand_pat + 200;
 
     // go through moves
-    let mut m_idx: usize = 0;
-    while let Some((m, m_score)) = pick_move(&mut captures, &mut scores, &mut m_idx) {
+    while let Some((m, m_score)) = pick_move(&mut captures, &mut scores) {
         // delta pruning
         if margin + m_score as i16 / 5 < alpha { break }
 
