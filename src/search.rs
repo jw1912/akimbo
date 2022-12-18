@@ -8,11 +8,6 @@ use std::{cmp::{min, max}, time::Instant};
 /// 3. Allow null - whether null move pruning should be allowed
 struct NodeType(bool, bool, bool);
 
-/// Search window for the node:
-/// - Lower bound (alpha)
-/// - Upper bound (beta)
-struct Window(i16, i16);
-
 /// Contains everything needed for a search.
 pub struct SearchContext {
     pub hash_table: HashTable,
@@ -105,7 +100,7 @@ fn pick_move(moves: &mut MoveList, scores: &mut MoveList) -> Option<(u16, u16)> 
 /// Main search function:
 /// - Fail-soft negamax (alpha-beta pruning) framework
 /// - Principle variation search
-fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut SearchContext) -> i16 {
+fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut depth: i8, ctx: &mut SearchContext) -> i16 {
     // search aborting
     if ctx.abort_signal { return 0 }
     if ctx.node_count & 2047 == 0 && ctx.start_time.elapsed().as_millis() >= ctx.allocated_time {
@@ -119,7 +114,6 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
 
     // extract node info
     let NodeType(pv, in_check, allow_null): NodeType = nt;
-    let Window(mut alpha, mut beta): Window = w;
 
     // mate distance pruning
     alpha = max(alpha, -MAX + ctx.ply);
@@ -130,7 +124,7 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
     depth += i8::from(in_check);
 
     // qsearch at depth 0
-    if depth <= 0 { return qsearch(pos, Window(alpha, beta), &mut ctx.node_count) }
+    if depth <= 0 { return qsearch(pos, alpha, beta, &mut ctx.node_count) }
 
     // count the node
     ctx.node_count += 1;
@@ -168,7 +162,7 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
         // null move pruning
         if allow_null && depth >= 3 && pos.state.phase >= 6 && lazy_eval >= beta {
             let copy: (u16, u64) = pos.do_null();
-            let score: i16 = -search(pos, NodeType(false, false, false), Window(-beta, -beta + 1), depth - 3, ctx);
+            let score: i16 = -search(pos, NodeType(false, false, false), -beta, -beta + 1, depth - 3, ctx);
             pos.undo_null(copy);
             if score >= beta {return score}
         }
@@ -205,13 +199,13 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
         // score move via principle variation search
         let score: i16 = if legal_moves == 1 {
             // first move is searched with a full window and no reductions
-            -search(pos, NodeType(pv, gives_check, false), Window(-beta, -alpha), depth - 1, ctx)
+            -search(pos, NodeType(pv, gives_check, false), -beta, -alpha, depth - 1, ctx)
         } else {
             // following moves are assumed to be worse and searched with a null window and all reductions/pruning
-            let zw_score: i16 = -search(pos, NodeType(false, gives_check, true), Window(-alpha - 1, -alpha), depth - 1 - reduction, ctx);
+            let zw_score: i16 = -search(pos, NodeType(false, gives_check, true), -alpha - 1, -alpha, depth - 1 - reduction, ctx);
             if (alpha != beta - 1 || reduction > 0) && zw_score > alpha {
                 // if they are, in fact, not worse then a re-search with a full window and no reductions/pruning
-                -search(pos, NodeType(pv, gives_check, false), Window(-beta, -alpha), depth - 1, ctx)
+                -search(pos, NodeType(pv, gives_check, false), -beta, -alpha, depth - 1, ctx)
             } else { zw_score }
         };
 
@@ -252,12 +246,10 @@ fn search(pos: &mut Position, nt: NodeType, w: Window, mut depth: i8, ctx: &mut 
 /// - Fail-soft
 /// - Searches capture sequences to reduce horizon effect
 /// - Delta pruning
-fn qsearch(pos: &mut Position, window: Window, node_count: &mut u64) -> i16 {
+fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, node_count: &mut u64) -> i16 {
     // count all quiescent nodes
     *node_count += 1;
 
-    // extract node info
-    let Window(mut alpha, beta): Window = window;
 
     // static eval as an initial guess
     let mut stand_pat: i16 = pos.lazy_eval();
@@ -279,7 +271,7 @@ fn qsearch(pos: &mut Position, window: Window, node_count: &mut u64) -> i16 {
 
         // make move and skip if not legal
         if pos.do_move(m) { continue }
-        let score: i16 = -qsearch(pos, Window(-beta, -alpha), node_count);
+        let score: i16 = -qsearch(pos, -beta, -alpha, node_count);
         pos.undo_move();
 
         // alpha-beta pruning
@@ -307,7 +299,7 @@ pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
         let in_check: bool = pos.is_in_check();
 
         // get score
-        let score: i16 = search(pos, NodeType(true, in_check, false), Window(-MAX, MAX), d, ctx);
+        let score: i16 = search(pos, NodeType(true, in_check, false), -MAX, MAX, d, ctx);
 
         // end search if out of time
         let t: u128 = ctx.start_time.elapsed().as_millis();
