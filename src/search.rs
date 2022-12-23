@@ -48,7 +48,7 @@ impl Position {
     /// Piece-square table eval of the position.
     #[inline]
     fn lazy_eval(&self) -> i16 {
-        let phase: i32 = std::cmp::min(self.state.phase as i32, TPHASE);
+        let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
         SIDE_FACTOR[self.side_to_move] * ((phase * self.state.mg as i32 + (TPHASE - phase) * self.state.eg as i32) / TPHASE) as i16
     }
 
@@ -169,7 +169,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
         if depth <= 8 && margin >= beta { return margin }
 
         // null move pruning
-        if allow_null && depth >= 3 && pos.state.phase >= 6 && lazy_eval >= beta {
+        if allow_null && depth >= 3 && pos.phase >= 6 && lazy_eval >= beta {
             let copy: (u16, u64) = pos.do_null();
             let score: i16 = -search(pos, NodeType::encode(false, false, false), -beta, -beta + 1, depth - 3, ctx);
             pos.undo_null(copy);
