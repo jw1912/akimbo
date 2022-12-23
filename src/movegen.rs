@@ -40,16 +40,17 @@ fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16
 
 impl Position {
     pub fn gen_moves<const QUIETS: bool>(&self, move_list: &mut MoveList) {
+        let side: usize = usize::from(self.c);
         let occupied: u64 = self.sides[0] | self.sides[1];
-        let friendly: u64 = self.sides[self.c];
-        let opps: u64 = self.sides[self.c ^ 1];
-        let pawns: u64 = self.pieces[PAWN] & self.sides[self.c];
+        let friendly: u64 = self.sides[side];
+        let opps: u64 = self.sides[side ^ 1];
+        let pawns: u64 = self.pieces[PAWN] & self.sides[side];
         if QUIETS {
-            if self.c == WHITE {pawn_pushes::<WHITE>(move_list, occupied, pawns)} else {pawn_pushes::<BLACK>(move_list, occupied, pawns)}
-            if self.state.castle_rights & CastleRights::SIDES[self.c] > 0 && !self.is_in_check() {self.castles(move_list, occupied)}
+            if self.c {pawn_pushes::<BLACK>(move_list, occupied, pawns)} else {pawn_pushes::<WHITE>(move_list, occupied, pawns)}
+            if self.state.castle_rights & CastleRights::SIDES[side] > 0 && !self.is_in_check() {self.castles(move_list, occupied)}
         }
-        pawn_captures(move_list, pawns, opps, self.c);
-        if self.state.en_passant_sq > 0 {en_passants(move_list, pawns, self.state.en_passant_sq, self.c)}
+        pawn_captures(move_list, pawns, opps, side);
+        if self.state.en_passant_sq > 0 {en_passants(move_list, pawns, self.state.en_passant_sq, side)}
         piece_moves::<KNIGHT, QUIETS>(move_list, occupied, friendly, opps, self.pieces[KNIGHT]);
         piece_moves::<BISHOP, QUIETS>(move_list, occupied, friendly, opps, self.pieces[BISHOP]);
         piece_moves::<ROOK  , QUIETS>(move_list, occupied, friendly, opps, self.pieces[ROOK]);
@@ -59,16 +60,7 @@ impl Position {
 
     #[inline(always)]
     fn castles(&self, move_list: &mut MoveList, occupied: u64) {
-        if self.c == WHITE {
-            if self.state.castle_rights & CastleRights::WHITE_QS > 0 && occupied & (B1C1D1) == 0
-                && !self.is_square_attacked(3, WHITE, occupied) {
-                move_list.push(MoveFlags::QS_CASTLE | 2 | 4 << 6);
-            }
-            if self.state.castle_rights & CastleRights::WHITE_KS > 0 && occupied & (F1G1) == 0
-                && !self.is_square_attacked(5, WHITE, occupied) {
-                move_list.push(MoveFlags::KS_CASTLE | 6 | 4 << 6);
-            }
-        } else {
+        if self.c {
             if self.state.castle_rights & CastleRights::BLACK_QS > 0 && occupied & (B8C8D8) == 0
                 && !self.is_square_attacked(59, BLACK, occupied) {
                 move_list.push(MoveFlags::QS_CASTLE | 58 | 60 << 6);
@@ -76,6 +68,15 @@ impl Position {
             if self.state.castle_rights & CastleRights::BLACK_KS > 0 && occupied & (F8G8) == 0
                 && !self.is_square_attacked(61, BLACK, occupied) {
                 move_list.push(MoveFlags::KS_CASTLE | 62 | 60 << 6);
+            }
+        } else {
+            if self.state.castle_rights & CastleRights::WHITE_QS > 0 && occupied & (B1C1D1) == 0
+                && !self.is_square_attacked(3, WHITE, occupied) {
+                move_list.push(MoveFlags::QS_CASTLE | 2 | 4 << 6);
+            }
+            if self.state.castle_rights & CastleRights::WHITE_KS > 0 && occupied & (F1G1) == 0
+                && !self.is_square_attacked(5, WHITE, occupied) {
+                move_list.push(MoveFlags::KS_CASTLE | 6 | 4 << 6);
             }
         }
     }

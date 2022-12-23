@@ -105,8 +105,8 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) {
             },
         }
     }
-    if times[pos.c] != 0 {
-        ctx.alloc_time = times[pos.c] as u128 / (if let Some(mtg) = moves_to_go {mtg as u128} else {2 * (pos.phase as u128 + 1)}) - 10;
+    if times[usize::from(pos.c)] != 0 {
+        ctx.alloc_time = times[usize::from(pos.c)] as u128 / (if let Some(mtg) = moves_to_go {mtg as u128} else {2 * (pos.phase as u128 + 1)}) - 10;
     }
     go(pos, depth, ctx);
 }
@@ -165,7 +165,7 @@ fn uci_to_u16(pos: &Position, m: &str) -> u16 {
 
 fn parse_fen(s: &str) -> Position {
     let vec: Vec<&str> = s.split_whitespace().collect();
-    let mut pos: Position = Position { pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: 0, state: GameState::default(), nulls: 0, stack: Vec::new(), phase: 0 };
+    let mut pos: Position = Position { pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: false, state: GameState::default(), nulls: 0, stack: Vec::new(), phase: 0 };
 
     // main part of fen -> bitboards and mailbox
     let mut idx: usize = 63;
@@ -197,6 +197,7 @@ fn parse_fen(s: &str) -> Position {
     let (phase, mg, eg): (i16, i16, i16) = pos.evals();
 
     // set state
+    pos.c = vec[1] == "b";
     pos.phase = phase;
     pos.state = GameState {zobrist: 0, mg, eg, en_passant_sq, halfmove_clock, castle_rights};
     pos.state.zobrist = pos.hash();
