@@ -10,7 +10,7 @@ mod search;
 use std::{io::stdin, time::{Duration, Instant}};
 use consts::{ALL, AUTHOR, CastleRights, EMPTY, KIWIPETE, LASKER, MAX_PLY, NAME, STARTPOS, TWELVE, VERSION, POSITIONS};
 use tables::{HashTable, KillerTable};
-use position::{Position, GameState};
+use position::{Position, State};
 use movegen::MoveList;
 use search::{go, SearchContext};
 
@@ -184,7 +184,7 @@ fn uci_to_u16(pos: &Position, m: &str) -> u16 {
 
 fn parse_fen(s: &str) -> Position {
     let vec: Vec<&str> = s.split_whitespace().collect();
-    let mut pos: Position = Position { pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: false, state: GameState::default(), nulls: 0, stack: Vec::new(), phase: 0 };
+    let mut pos: Position = Position { pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: false, state: State::default(), nulls: 0, stack: Vec::new(), phase: 0 };
 
     // main part of fen -> bitboards and mailbox
     let mut idx: usize = 63;
@@ -218,7 +218,7 @@ fn parse_fen(s: &str) -> Position {
     // set state
     pos.c = vec[1] == "b";
     pos.phase = phase;
-    pos.state = GameState {zobrist: 0, mg, eg, en_passant_sq, halfmove_clock, castle_rights};
+    pos.state = State {zobrist: 0, mg, eg, en_passant_sq, halfmove_clock, castle_rights};
     pos.state.zobrist = pos.hash();
     pos
 }

@@ -16,16 +16,16 @@ pub struct Position {
     pub sides: [u64; 2],
     pub squares: [u8; 64],
     pub c: bool,
-    pub state: GameState,
+    pub state: State,
     pub phase: i16,
     pub nulls: u8,
-    pub stack: Vec<MoveState>,
+    pub stack: Vec<MoveContext>,
 }
 
 /// Stuff that is copied from the board state during making a move,
 /// as it either cannot be reversed or is too expensive to be reversed.
 #[derive(Clone, Copy, Default)]
-pub struct GameState {
+pub struct State {
     pub zobrist: u64,
     pub mg: i16,
     pub eg: i16,
@@ -35,8 +35,8 @@ pub struct GameState {
 }
 
 #[derive(Clone, Copy)]
-pub struct MoveState {
-    state: GameState,
+pub struct MoveContext {
+    state: State,
     m: u16,
     moved_pc: u8,
     captured_pc: u8,
@@ -95,7 +95,7 @@ impl Position {
         let side: usize = usize::from(self.c);
 
         // updates
-        self.stack.push(MoveState { state: self.state, m, moved_pc, captured_pc});
+        self.stack.push(MoveContext { state: self.state, m, moved_pc, captured_pc});
         self.toggle(side, mpc, f | t);
         self.remove(from, side, mpc);
         self.add(to, side, mpc);
@@ -162,7 +162,7 @@ impl Position {
 
     pub fn undo_move(&mut self) {
         // pop state
-        let state: MoveState = self.stack.pop().unwrap();
+        let state: MoveContext = self.stack.pop().unwrap();
 
         // move data
         let from: usize = from!(state.m);

@@ -141,49 +141,39 @@ fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16, side: usize) {
 }
 
 #[inline(always)]
-pub fn rook_attacks(idx: usize, occupied: u64) -> u64 {
-    let masks: Mask = MASKS[idx];
+pub fn rook_attacks(idx: usize, occ: u64) -> u64 {
+    let m: Mask = RMASKS[idx];
+    let mut f: u64 = occ & m.file;
+    let mut r: u64 = f.swap_bytes();
+    f -= m.bit;
+    r -= m.bit.swap_bytes();
+    f ^= r.swap_bytes();
+    f &= m.file;
+    let mut e: u64 = m.right & occ;
+    r = e & e.wrapping_neg();
+    e = (r ^ (r - m.bit)) & m.right;
+    let w: u64 = m.left ^ WEST[(((m.left & occ)| 1).leading_zeros() ^ 63) as usize];
 
-    // file
-    let mut file: u64 = occupied & masks.file;
-    let mut reverse: u64 = file.swap_bytes();
-    file -= masks.bitmask;
-    reverse -= masks.bitmask.swap_bytes();
-    file ^= reverse.swap_bytes();
-    file &= masks.file;
-
-    // rank
-    let mut east: u64 = EAST[idx];
-    let mut sq: usize = lsb!((east & occupied) | MSB) as usize;
-    east ^= EAST[sq];
-    let mut west: u64 = WEST[idx];
-    sq = (63 ^ ((west & occupied) | LSB).leading_zeros()) as usize;
-    west ^= WEST[sq];
-
-    file | east | west
+    f | e | w
 }
 
 #[inline(always)]
 pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
-    let masks: Mask = MASKS[idx];
+    let m: Mask = BMASKS[idx];
+    let mut f: u64 = occ & m.right;
+    let mut r: u64 = f.swap_bytes();
+    f -= m.bit;
+    r -= m.file;
+    f ^= r.swap_bytes();
+    f &= m.right;
+    let mut f2: u64 = occ & m.left;
+    r = f2.swap_bytes();
+    f2 -= m.bit;
+    r -= m.file;
+    f2 ^= r.swap_bytes();
+    f2 &= m.left;
 
-    // diagonal
-    let mut diag: u64 = occ & masks.diag;
-    let mut rev: u64 = diag.swap_bytes();
-    diag -= masks.bitmask;
-    rev -= masks.bitmask.swap_bytes();
-    diag ^= rev.swap_bytes();
-    diag &= masks.diag;
-
-    // antidiagonal
-    let mut anti: u64 = occ & masks.antidiag;
-    rev = anti.swap_bytes();
-    anti -= masks.bitmask;
-    rev -= masks.bitmask.swap_bytes();
-    anti ^= rev.swap_bytes();
-    anti &= masks.antidiag;
-
-    diag | anti
+    f | f2
 }
 
 fn shift<const SIDE: usize, const AMOUNT: u8>(bb: u64) -> u64 {
