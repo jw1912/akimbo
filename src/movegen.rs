@@ -41,15 +41,15 @@ fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16
 impl Position {
     pub fn gen_moves<const QUIETS: bool>(&self, move_list: &mut MoveList) {
         let occupied: u64 = self.sides[0] | self.sides[1];
-        let friendly: u64 = self.sides[self.side_to_move];
-        let opps: u64 = self.sides[self.side_to_move ^ 1];
-        let pawns: u64 = self.pieces[PAWN] & self.sides[self.side_to_move];
+        let friendly: u64 = self.sides[self.c];
+        let opps: u64 = self.sides[self.c ^ 1];
+        let pawns: u64 = self.pieces[PAWN] & self.sides[self.c];
         if QUIETS {
-            if self.side_to_move == WHITE {pawn_pushes::<WHITE>(move_list, occupied, pawns)} else {pawn_pushes::<BLACK>(move_list, occupied, pawns)}
-            if self.state.castle_rights & CastleRights::SIDES[self.side_to_move] > 0 && !self.is_in_check() {self.castles(move_list, occupied)}
+            if self.c == WHITE {pawn_pushes::<WHITE>(move_list, occupied, pawns)} else {pawn_pushes::<BLACK>(move_list, occupied, pawns)}
+            if self.state.castle_rights & CastleRights::SIDES[self.c] > 0 && !self.is_in_check() {self.castles(move_list, occupied)}
         }
-        pawn_captures(move_list, pawns, opps, self.side_to_move);
-        if self.state.en_passant_sq > 0 {en_passants(move_list, pawns, self.state.en_passant_sq, self.side_to_move)}
+        pawn_captures(move_list, pawns, opps, self.c);
+        if self.state.en_passant_sq > 0 {en_passants(move_list, pawns, self.state.en_passant_sq, self.c)}
         piece_moves::<KNIGHT, QUIETS>(move_list, occupied, friendly, opps, self.pieces[KNIGHT]);
         piece_moves::<BISHOP, QUIETS>(move_list, occupied, friendly, opps, self.pieces[BISHOP]);
         piece_moves::<ROOK  , QUIETS>(move_list, occupied, friendly, opps, self.pieces[ROOK]);
@@ -59,7 +59,7 @@ impl Position {
 
     #[inline(always)]
     fn castles(&self, move_list: &mut MoveList, occupied: u64) {
-        if self.side_to_move == WHITE {
+        if self.c == WHITE {
             if self.state.castle_rights & CastleRights::WHITE_QS > 0 && occupied & (B1C1D1) == 0
                 && !self.is_square_attacked(3, WHITE, occupied) {
                 move_list.push(MoveFlags::QS_CASTLE | 2 | 4 << 6);

@@ -87,7 +87,7 @@ pub static CASTLE_RIGHTS: [u8; 64] = [7, 15, 15, 15, 3, 15, 15, 11, 15, 15, 15, 
 pub const MAX_PLY: i8 = i8::MAX - 8;
 pub const MAX: i16 = 30000;
 pub const MATE_THRESHOLD: i16 = MAX - u8::MAX as i16;
-pub const SIDE_FACTOR: [i16; 3] = [1, -1, 0];
+pub const SIDE_FACTOR: [i16; 2] = [1, -1];
 pub const PHASE_VALS: [i16; 7] = [0, 1, 1, 2, 4, 0, 0];
 pub const TPHASE: i32 = 24;
 

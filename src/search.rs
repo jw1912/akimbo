@@ -49,7 +49,7 @@ impl Position {
     #[inline]
     fn lazy_eval(&self) -> i16 {
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
-        SIDE_FACTOR[self.side_to_move] * ((phase * self.state.mg as i32 + (TPHASE - phase) * self.state.eg as i32) / TPHASE) as i16
+        SIDE_FACTOR[self.c] * ((phase * self.state.mg as i32 + (TPHASE - phase) * self.state.eg as i32) / TPHASE) as i16
     }
 
     /// Scores a move.
