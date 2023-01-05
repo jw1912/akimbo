@@ -234,8 +234,8 @@ impl Position {
         let pawns: u64 = self.pieces[PAWN];
         if pawns == 0 && self.phase <= 2 {
             if self.phase == 2 {
-                let bishops: u64 = self.pieces[BISHOP];
-                return bishops & self.sides[0] != bishops && bishops & self.sides[1] != bishops && (bishops & 0x55AA_55AA_55AA_55AA == bishops || bishops & 0xAA55_AA55_AA55_AA55 == bishops)
+                let b: u64 = self.pieces[BISHOP];
+                return b & self.sides[0] != b && b & self.sides[1] != b && (b & 0x55AA_55AA_55AA_55AA == b || b & 0xAA55_AA55_AA55_AA55 == b)
             }
             return true
         }
