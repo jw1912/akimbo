@@ -1,17 +1,9 @@
 use super::{consts::*, position::Position, tables::{HashTable, KillerTable}, movegen::MoveList,u16_to_uci};
 use std::{cmp::{min, max}, time::Instant};
 
-/// Determines what is done in the node:
-/// 1. PV node - if node is on the current principle variation line,
-/// no agressive pruning or reductions, etc
-/// 2. In check - node should be extended and no pruning if in check
-/// 3. Allow null - whether null move pruning should be allowed
-#[derive(Clone, Copy)]
+/// Determines what is done in the node
 struct NodeType(u8);
 impl NodeType {
-    fn decode(nt: Self) -> (bool, bool, bool) {
-        (nt.0 & 4 > 0, nt.0 & 2 > 0, nt.0 & 1 > 0)
-    }
     fn encode(pv: bool, check: bool, null: bool) -> Self {
         Self(4 * u8::from(pv) + 2 * u8::from(check) + u8::from(null))
     }
@@ -53,12 +45,7 @@ impl Position {
     }
 
     /// Scores a move.
-    /// 1. Hash move
-    /// 2. Captures, sorted by MVV-LVA
-    /// 3. Promotions
-    /// 4. Killer moves
-    /// 5. Quiet moves
-    fn score_move(&self, m: u16, hash_move: u16, killers: [u16; 3]) -> u16 {
+    fn score_move(&self, m: u16, hash_move: u16, killers: &[u16; 3]) -> u16 {
         if m == hash_move {
             HASH_MOVE
         } else if m & 0b0100_0000_0000_0000 > 0 {
@@ -75,7 +62,7 @@ impl Position {
     /// Scores an arbitrary list of moves.
     fn score_moves(&self, moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, ply: i16, kt: &KillerTable) {
         let killers: [u16; 3] = kt.0[ply as usize];
-        for i in 0..moves.len { move_scores.push(self.score_move(moves.list[i], hash_move, killers)) }
+        for i in 0..moves.len { move_scores.push(self.score_move(moves.list[i], hash_move, &killers)) }
     }
 
     /// Scores a list of moves, given they are all captures.
@@ -86,24 +73,21 @@ impl Position {
 
 /// O(n^2) algorithm to incrementally sort the move list as needed.
 fn pick_move(moves: &mut MoveList, scores: &mut MoveList) -> Option<(u16, u16)> {
-    // no moves left
     if scores.len == 0 {return None}
-    // go through remaining moves
-    let mut best_idx: usize = 0;
-    let mut best_score: u16 = 0;
+    let mut idx: usize = 0;
+    let mut best: u16 = 0;
     let mut score: u16;
     for i in 0..scores.len {
         score = scores.list[i];
-        if score > best_score {
-            best_score = score;
-            best_idx = i;
+        if score > best {
+            best = score;
+            idx = i;
         }
     }
-    // swap first remaining move with best move found and increment starting point
     scores.len -= 1;
-    scores.list.swap(best_idx, scores.len);
-    moves.list.swap(best_idx, scores.len);
-    Some((moves.list[scores.len], best_score))
+    scores.list.swap(idx, scores.len);
+    moves.list.swap(idx, scores.len);
+    Some((moves.list[scores.len], best))
 }
 
 /// Main search function:
@@ -122,7 +106,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     if pos.is_draw_by_repetition(2 + u8::from(ctx.ply == 0)) || pos.is_draw_by_material() { return 0 }
 
     // extract node info
-    let (pv, in_check, allow_null): (bool, bool, bool) = NodeType::decode(nt);
+    let (pv, in_check, allow_null): (bool, bool, bool) = (nt.0 & 4 > 0, nt.0 & 2 > 0, nt.0 & 1 > 0);
 
     // mate distance pruning
     alpha = max(alpha, -MAX + ctx.ply);
@@ -203,7 +187,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
         let gives_check: bool = pos.is_in_check();
 
         // late move reductions
-        let reduction: i8 = i8::from(can_lmr && !gives_check && legal_moves > 1 && m_score < 300);
+        let reduce: i8 = i8::from(can_lmr && !gives_check && legal_moves > 1 && m_score < 300);
 
         // score move via principle variation search
         let score: i16 = if legal_moves == 1 {
@@ -211,8 +195,8 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
             -search(pos, NodeType::encode(pv, gives_check, false), -beta, -alpha, depth - 1, ctx)
         } else {
             // following moves are assumed to be worse and searched with a null window and all reductions/pruning
-            let zw_score: i16 = -search(pos, NodeType::encode(false, gives_check, true), -alpha - 1, -alpha, depth - 1 - reduction, ctx);
-            if (alpha != beta - 1 || reduction > 0) && zw_score > alpha {
+            let zw_score: i16 = -search(pos, NodeType::encode(false, gives_check, true), -alpha - 1, -alpha, depth - 1 - reduce, ctx);
+            if (alpha != beta - 1 || reduce > 0) && zw_score > alpha {
                 // if they are, in fact, not worse then a re-search with a full window and no reductions/pruning
                 -search(pos, NodeType::encode(pv, gives_check, false), -beta, -alpha, depth - 1, ctx)
             } else { zw_score }

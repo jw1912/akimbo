@@ -7,8 +7,8 @@ mod zobrist;
 mod tables;
 mod search;
 
-use std::{io::stdin, time::{Duration, Instant}};
-use consts::{ALL, AUTHOR, CastleRights, EMPTY, KIWIPETE, LASKER, MAX_PLY, NAME, STARTPOS, TWELVE, VERSION, POSITIONS};
+use std::{io::stdin, time::Instant};
+use consts::{ALL, AUTHOR, CastleRights, EMPTY, MAX_PLY, NAME, STARTPOS, TWELVE, VERSION};
 use tables::{HashTable, KillerTable};
 use position::{Position, State};
 use movegen::MoveList;
@@ -51,7 +51,6 @@ fn main() {
             "go" => parse_go(&mut pos, commands, &mut ctx),
             "position" => parse_position(&mut pos, commands),
             "perft" => parse_perft(&mut pos, &commands),
-            "perftsuite" => perft_suite(&mut pos),
             _ => {},
         }
     }
@@ -68,24 +67,6 @@ fn perft(pos: &mut Position, depth_left: u8) -> u64 {
         pos.undo_move();
     }
     positions
-}
-
-fn perft_suite(pos: &mut Position) {
-    let initial: Instant = Instant::now();
-    let mut total: u64 = 0;
-    for (fen, d, exp) in POSITIONS {
-        *pos = parse_fen(fen);
-        println!("Position: {fen}");
-        let now: Instant = Instant::now();
-        let count: u64 = perft(pos, d);
-        total += count;
-        assert_eq!(count, exp);
-        let dur: Duration = now.elapsed();
-        println!("depth {} time {} nodes {count} Mnps {:.2}\n", d, dur.as_millis(), count as f64 / dur.as_micros() as f64);
-    }
-    let dur: Duration = initial.elapsed();
-    println!("total time {} nodes {} nps {:.3}", dur.as_millis(), total, total as f64 / dur.as_micros() as f64)
-
 }
 
 fn parse_perft(pos: &mut Position, commands: &[&str]) {
@@ -139,8 +120,6 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
         match command {
             "position" => (),
             "startpos" => *pos = parse_fen(STARTPOS),
-            "kiwipete" => *pos = parse_fen(KIWIPETE),
-            "lasker" => *pos = parse_fen(LASKER),
             "fen" => token = Tokens::Fen,
             "moves" => token = Tokens::Moves,
             _ => match token {

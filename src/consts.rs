@@ -5,11 +5,11 @@ pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 
 // macro for calculating tables (until const fn pointers are stable)
 macro_rules! init {
-    ($init:stmt, $idx:expr, $initial:expr, $func:expr) => {{
-        let mut res = [$initial; 64];
-        $init
+    ($idx:ident, $init:expr, $($rest:tt)+) => {{
+        let mut res = [$init; 64];
+        let mut $idx = 0;
         while $idx < 64 {
-            res[$idx] = $func;
+            res[$idx] = {$($rest)+};
             $idx += 1;
         }
         res
@@ -85,16 +85,16 @@ pub const FILE: u64 = 0x0101010101010101;
 pub const NOTH: u64 = !(FILE << 7);
 
 // rook attacks on rank
-pub const WEST: [u64; 64] = init!(let mut idx = 0, idx, 0, ((1 << idx) - 1) & (0xFF << (idx & 56)));
+pub const WEST: [u64; 64] = init!(idx, 0, ((1 << idx) - 1) & (0xFF << (idx & 56)));
 
 // pawn attacks
 pub const PAWN_ATTACKS: [[u64; 64]; 2] = [
-    init!(let mut idx = 0, idx, 0, (((1 << idx) & !FILE) << 7) | (((1 << idx) & NOTH) << 9)),
-    init!(let mut idx = 0, idx, 0, (((1 << idx) & !FILE) >> 9) | (((1 << idx) & NOTH) >> 7)),
+    init!(idx, 0, (((1 << idx) & !FILE) << 7) | (((1 << idx) & NOTH) << 9)),
+    init!(idx, 0, (((1 << idx) & !FILE) >> 9) | (((1 << idx) & NOTH) >> 7)),
 ];
 
 // knight attacks
-pub const KNIGHT_ATTACKS: [u64; 64] = init!(let mut idx = 0, idx, 0, {
+pub const KNIGHT_ATTACKS: [u64; 64] = init!(idx, 0, {
     let n = 1 << idx;
     let h1 = ((n >> 1) & 0x7f7f7f7f7f7f7f7f) | ((n << 1) & 0xfefefefefefefefe);
     let h2 = ((n >> 2) & 0x3f3f3f3f3f3f3f3f) | ((n << 2) & 0xfcfcfcfcfcfcfcfc);
@@ -102,7 +102,7 @@ pub const KNIGHT_ATTACKS: [u64; 64] = init!(let mut idx = 0, idx, 0, {
 });
 
 // king attacks
-pub const KING_ATTACKS: [u64; 64] = init!(let mut idx = 0, idx, 0, {
+pub const KING_ATTACKS: [u64; 64] = init!(idx, 0, {
     let mut k = 1 << idx;
     k |= (k << 8) | (k >> 8);
     k |= ((k & !FILE) >> 1) | ((k & NOTH) << 1);
@@ -117,12 +117,12 @@ pub const DIAGS: [u64; 15] = [
 ];
 
 // masks for hyperbola quintessence rook and bishop attacks
-pub const BMASKS: [Mask; 64] = init!(let mut idx = 0, idx, Mask { bit: 0, right: 0, left: 0, file: 0 }, {
+pub const BMASKS: [Mask; 64] = init!(idx, Mask { bit: 0, right: 0, left: 0, file: 0 }, {
     let bit = 1 << idx;
     Mask { bit, right: bit ^ DIAGS[(7 + (idx & 7) - (idx >> 3))], left: bit ^ DIAGS[((idx & 7) + (idx >> 3))].swap_bytes(), file: bit.swap_bytes() }
 });
 
-pub const RMASKS: [Mask; 64] = init!(let mut idx = 0, idx, Mask { bit: 0, right: 0, left: 0, file: 0 }, {
+pub const RMASKS: [Mask; 64] = init!(idx, Mask { bit: 0, right: 0, left: 0, file: 0 }, {
     let bit = 1 << idx;
     let left = (bit - 1) & (0xFF << (idx & 56));
     Mask { bit, right: bit ^ left ^ (0xFF << (idx & 56)), left, file: bit ^ FILE << (idx & 7) }
@@ -134,7 +134,7 @@ pub const B1C1D1: u64 = 14;
 pub const F1G1: u64 = 96;
 pub const B8C8D8: u64 = 0x0E00000000000000;
 pub const F8G8: u64 = 0x6000000000000000;
-pub const CASTLE_RIGHTS: [u8; 64] = init!(let mut idx = 0, idx, 0, match idx {0 => 7, 4 => 3, 7 => 11, 56 => 13, 60 => 12, 63 => 14, _ => 15});
+pub const CASTLE_RIGHTS: [u8; 64] = init!(idx, 0, match idx {0 => 7, 4 => 3, 7 => 11, 56 => 13, 60 => 12, 63 => 14, _ => 15});
 
 // search/eval
 pub const MAX_PLY: i8 = i8::MAX - 8;
@@ -171,15 +171,6 @@ pub static PST_EG: [[i16; 64];6] = [
 
 // fen strings
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-pub const KIWIPETE: &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
-pub const LASKER: &str = "8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1";
-pub const POSITIONS: [(&str, u8, u64); 5] = [
-    ("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 6, 119_060_324),
-    ("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1", 5, 193_690_690),
-    ("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -", 7, 178_633_661),
-    ("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8", 5, 89_941_194),
-    ("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10", 5, 164_075_551),
-];
 
 // uci <-> u16
-pub const TWELVE: u16 = 0b0000_1111_1111_1111;
+pub const TWELVE: u16 = 0b1111_1111_1111;

@@ -238,9 +238,6 @@ impl Position {
     }
 
     /// Is there a FIDE draw by insufficient material?
-    ///  - ``KvK``
-    ///  - ``KvKN`` or ``KvKB``
-    ///  - ``KBvKB`` and both bishops the same colour
     pub fn is_draw_by_material(&self) -> bool {
         let pawns: u64 = self.pieces[PAWN];
         if pawns == 0 && self.phase <= 2 {
@@ -253,8 +250,7 @@ impl Position {
         false
     }
 
-    /// Calculates the midgame and endgame piece-square table evaluations and the game
-    /// phase of the current position from scratch.
+    /// Calculates the mg and eg evals and phase from scratch
     pub fn evals(&self) -> (i16, i16, i16) {
         let mut res: (i16, i16, i16) = (0,0,0);
         for (i, side) in self.sides.iter().enumerate() {
