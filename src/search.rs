@@ -22,7 +22,6 @@ pub struct SearchContext {
 }
 
 impl SearchContext{
-    /// Constructs a new instance, given hash and killer tables.
     pub fn new(hash_table: HashTable, killer_table: KillerTable) -> Self {
         Self { hash_table, killer_table, time: Instant::now(), alloc_time: 1000, nodes: 0, best_move: 0, ply: 0, abort: false }
     }
@@ -37,14 +36,12 @@ impl SearchContext{
 }
 
 impl Position {
-    /// Piece-square table eval of the position.
     #[inline]
     fn lazy_eval(&self) -> i16 {
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
         SIDE_FACTOR[usize::from(self.c)] * ((phase * self.state.mg as i32 + (TPHASE - phase) * self.state.eg as i32) / TPHASE) as i16
     }
 
-    /// Scores a move.
     fn score_move(&self, m: u16, hash_move: u16, killers: &[u16; 3]) -> u16 {
         if m == hash_move {
             HASH_MOVE
@@ -59,13 +56,11 @@ impl Position {
         }
     }
 
-    /// Scores an arbitrary list of moves.
     fn score_moves(&self, moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, ply: i16, kt: &KillerTable) {
         let killers: [u16; 3] = kt.0[ply as usize];
         for i in 0..moves.len { move_scores.push(self.score_move(moves.list[i], hash_move, &killers)) }
     }
 
-    /// Scores a list of moves, given they are all captures.
     fn score_captures(&self, moves: &MoveList, move_scores: &mut MoveList) {
         for i in 0..moves.len { move_scores.push(self.mvv_lva(moves.list[i])) }
     }

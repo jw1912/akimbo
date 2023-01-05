@@ -19,12 +19,8 @@ macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().u
 
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
-
-    // initialise position
     let mut pos: Position = parse_fen(STARTPOS);
     let mut ctx: SearchContext = SearchContext::new(HashTable::new(), KillerTable([[0; 3]; MAX_PLY as usize]));
-
-    // awaits input
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
@@ -166,7 +162,7 @@ fn parse_fen(s: &str) -> Position {
     let vec: Vec<&str> = s.split_whitespace().collect();
     let mut pos: Position = Position { pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: false, state: State::default(), nulls: 0, stack: Vec::new(), phase: 0 };
 
-    // main part of fen -> bitboards and mailbox
+    // board
     let mut idx: usize = 63;
     let rows: Vec<&str> = vec[0].split('/').collect();
     for row in rows {
@@ -190,7 +186,7 @@ fn parse_fen(s: &str) -> Position {
         }
     }
 
-    // calculate state
+    // state
     let mut rights: u8 = 0;
     for ch in vec[2].chars() {
         rights |= match ch {'Q' => CastleRights::WHITE_QS, 'K' => CastleRights::WHITE_KS, 'q' => CastleRights::BLACK_QS, 'k' => CastleRights::BLACK_KS, _ => 0};

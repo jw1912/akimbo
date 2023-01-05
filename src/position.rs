@@ -22,8 +22,6 @@ pub struct Position {
     pub stack: Vec<MoveContext>,
 }
 
-/// Stuff that is copied from the board state during making a move,
-/// as it either cannot be reversed or is too expensive to be reversed.
 #[derive(Clone, Copy, Default)]
 pub struct State {
     pub zobrist: u64,
@@ -82,7 +80,6 @@ impl Position {
     }
 
     pub fn do_move(&mut self, m: u16) -> bool {
-        // move data
         let from: usize = from!(m);
         let to: usize = to!(m);
         let f: u64 = bit!(from);
@@ -94,7 +91,6 @@ impl Position {
         let rights: u8 = self.state.castle_rights;
         let side: usize = usize::from(self.c);
 
-        // updates
         self.stack.push(MoveContext { state: self.state, m, moved_pc, captured_pc});
         self.toggle(side, mpc, f | t);
         self.remove(from, side, mpc);
@@ -145,14 +141,12 @@ impl Position {
         self.state.halfmove_clock = u8::from(moved_pc > PAWN as u8 && flag != MoveFlags::CAPTURE) * (self.state.halfmove_clock + 1);
         self.c = !self.c;
 
-        // castle hashes
         let mut changed_castle: u8 = rights & !self.state.castle_rights;
         while changed_castle > 0 {
             self.state.zobrist ^= ZVALS.castle[lsb!(changed_castle) as usize];
             pop!(changed_castle);
         }
 
-        // is legal?
         let king_idx: usize = lsb!(self.pieces[KING] & self.sides[side]) as usize;
         let invalid: bool = self.is_square_attacked(king_idx, side, self.sides[0] | self.sides[1]);
         if invalid { self.undo_move() }
@@ -160,10 +154,7 @@ impl Position {
     }
 
     pub fn undo_move(&mut self) {
-        // pop state
         let state: MoveContext = self.stack.pop().unwrap();
-
-        // move data
         let from: usize = from!(state.m);
         let to: usize = to!(state.m);
         let f: u64 = bit!(from);
@@ -172,7 +163,6 @@ impl Position {
         self.c = !self.c;
         let side: usize = usize::from(self.c);
 
-        // updates
         self.state = state.state;
         self.toggle(side, state.moved_pc as usize, f | t);
         self.squares[from] = state.moved_pc;
@@ -240,7 +230,6 @@ impl Position {
         false
     }
 
-    /// Is there a FIDE draw by insufficient material?
     pub fn material_draw(&self) -> bool {
         let pawns: u64 = self.pieces[PAWN];
         if pawns == 0 && self.phase <= 2 {
@@ -253,8 +242,6 @@ impl Position {
         false
     }
 
-    /// Scores a capture based first on the value of the victim of the capture,
-    /// then on the piece capturing.
     pub fn mvv_lva(&self, m: u16) -> u16 {
         let moved_pc: usize = self.squares[from!(m)] as usize;
         let captured_pc: usize = self.squares[to!(m)] as usize;
