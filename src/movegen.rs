@@ -4,7 +4,7 @@ use super::{consts::*, position::Position};
 /// Forward bitscan.
 #[macro_export]
 macro_rules! lsb {($x:expr) => {$x.trailing_zeros() as u16}}
-macro_rules! pop_lsb {($idx:expr, $x:expr) => {$idx = $x.trailing_zeros() as u16; $x &= $x - 1}}
+macro_rules! pop_lsb {($idx:expr, $x:expr) => {$idx = lsb!($x); $x &= $x - 1}}
 
 pub struct MoveList {
     pub list: [u16; 252],
