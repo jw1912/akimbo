@@ -253,50 +253,6 @@ impl Position {
         false
     }
 
-    /// Calculates the mg and eg evals and phase from scratch
-    pub fn evals(&self) -> (i16, i16, i16) {
-        let mut res: (i16, i16, i16) = (0,0,0);
-        for (i, side) in self.sides.iter().enumerate() {
-            let factor: i16 = SIDE_FACTOR[i];
-            for j in 0..6 {
-                let mut pcs: u64 = self.pieces[j] & side;
-                let count: i16 = pcs.count_ones() as i16;
-                res.0 += PHASE_VALS[j] * count;
-                while pcs > 0 {
-                    let idx: usize = lsb!(pcs) as usize;
-                    let white: usize = usize::from(i == 0) * 56;
-                    res.1 += factor * PST_MG[j][idx ^ white];
-                    res.2 += factor * PST_EG[j][idx ^ white];
-                    pop!(pcs);
-                }
-            }
-        }
-        res
-    }
-
-    /// Calculate the zobrist hash value for the current position, from scratch.
-    pub fn hash(&self) -> u64 {
-        let mut zobrist: u64 = 0;
-        for (i, side) in self.sides.iter().enumerate() {
-            for (j, &pc) in self.pieces.iter().enumerate() {
-                let mut piece: u64 = pc & side;
-                while piece > 0 {
-                    let idx: usize = lsb!(piece) as usize;
-                    zobrist ^= ZVALS.pieces[i][j][idx];
-                    pop!(piece);
-                }
-            }
-        }
-        let mut castle_rights: u8 = self.state.castle_rights;
-        while castle_rights > 0 {
-            zobrist ^= ZVALS.castle[lsb!(castle_rights) as usize];
-            pop!(castle_rights);
-        }
-        if self.state.en_passant_sq > 0 {zobrist ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
-        if !self.c {zobrist ^= ZVALS.side;}
-        zobrist
-    }
-
     /// Scores a capture based first on the value of the victim of the capture,
     /// then on the piece capturing.
     pub fn mvv_lva(&self, m: u16) -> u16 {
