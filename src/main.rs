@@ -13,6 +13,7 @@ use tables::{HashTable, KillerTable};
 use position::{Position, State};
 use movegen::MoveList;
 use search::{go, SearchContext};
+use zobrist::ZVALS;
 
 macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().unwrap_or($else)}}
 
@@ -183,20 +184,27 @@ fn parse_fen(s: &str) -> Position {
                 pos.phase += PHASE_VALS[pc];
                 pos.state.mg += SIDE_FACTOR[side] * PST_MG[pc][idx ^ (56 * usize::from(side == 0))];
                 pos.state.eg += SIDE_FACTOR[side] * PST_EG[pc][idx ^ (56 * usize::from(side == 0))];
+                pos.state.zobrist ^= ZVALS.pieces[side][pc][idx];
                 idx -= usize::from(idx > 0);
             }
         }
     }
 
     // calculate state
+    let mut rights: u8 = 0;
     for ch in vec[2].chars() {
-        pos.state.castle_rights |= match ch {'Q' => CastleRights::WHITE_QS, 'K' => CastleRights::WHITE_KS, 'q' => CastleRights::BLACK_QS, 'k' => CastleRights::BLACK_KS, _ => 0};
+        rights |= match ch {'Q' => CastleRights::WHITE_QS, 'K' => CastleRights::WHITE_KS, 'q' => CastleRights::BLACK_QS, 'k' => CastleRights::BLACK_KS, _ => 0};
     }
-    pos.state.en_passant_sq = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
+    pos.state.castle_rights = rights;
+    while rights > 0 {
+        pos.state.zobrist ^= ZVALS.castle[lsb!(rights) as usize];
+        rights &= rights - 1;
+    }
+    let enp: u16 = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
+    pos.state.en_passant_sq = enp;
     pos.state.halfmove_clock = parse!(u8, vec.get(4).unwrap_or(&"0"), 0);
-
-    // set state
     pos.c = vec[1] == "b";
-    pos.state.zobrist = pos.hash();
+    if enp > 0 {pos.state.zobrist ^= ZVALS.en_passant[(enp & 7) as usize]}
+    if !pos.c {pos.state.zobrist ^= ZVALS.side;}
     pos
 }

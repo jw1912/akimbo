@@ -253,29 +253,6 @@ impl Position {
         false
     }
 
-    /// Calculate the zobrist hash value for the current position, from scratch.
-    pub fn hash(&self) -> u64 {
-        let mut zobrist: u64 = 0;
-        for (i, side) in self.sides.iter().enumerate() {
-            for (j, &pc) in self.pieces.iter().enumerate() {
-                let mut piece: u64 = pc & side;
-                while piece > 0 {
-                    let idx: usize = lsb!(piece) as usize;
-                    zobrist ^= ZVALS.pieces[i][j][idx];
-                    pop!(piece);
-                }
-            }
-        }
-        let mut castle_rights: u8 = self.state.castle_rights;
-        while castle_rights > 0 {
-            zobrist ^= ZVALS.castle[lsb!(castle_rights) as usize];
-            pop!(castle_rights);
-        }
-        if self.state.en_passant_sq > 0 {zobrist ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
-        if !self.c {zobrist ^= ZVALS.side;}
-        zobrist
-    }
-
     /// Scores a capture based first on the value of the victim of the capture,
     /// then on the piece capturing.
     pub fn mvv_lva(&self, m: u16) -> u16 {
