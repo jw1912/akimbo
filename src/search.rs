@@ -229,7 +229,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     if legal_moves == 0 { return i16::from(in_check) * (-MAX + ctx.ply) }
 
     // write to hash if appropriate
-    if write_to_hash { ctx.hash_table.push(pos.state.zobrist, best_move, depth, bound, best_score, ctx.ply) }
+    if write_to_hash && !ctx.abort { ctx.hash_table.push(pos.state.zobrist, best_move, depth, bound, best_score, ctx.ply) }
 
     // fail-soft
     best_score

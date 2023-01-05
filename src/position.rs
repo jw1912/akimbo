@@ -148,8 +148,7 @@ impl Position {
         // castle hashes
         let mut changed_castle: u8 = rights & !self.state.castle_rights;
         while changed_castle > 0 {
-            let ls1b: u8 = changed_castle & changed_castle.wrapping_neg();
-            self.state.zobrist ^= ZVALS.castle_hash(rights, ls1b);
+            self.state.zobrist ^= ZVALS.castle[lsb!(changed_castle) as usize];
             pop!(changed_castle);
         }
 
@@ -290,8 +289,7 @@ impl Position {
         }
         let mut castle_rights: u8 = self.state.castle_rights;
         while castle_rights > 0 {
-            let ls1b: u8 = castle_rights & castle_rights.wrapping_neg();
-            zobrist ^= ZVALS.castle_hash(0b1111, ls1b);
+            zobrist ^= ZVALS.castle[lsb!(castle_rights) as usize];
             pop!(castle_rights);
         }
         if self.state.en_passant_sq > 0 {zobrist ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
