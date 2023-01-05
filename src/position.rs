@@ -253,27 +253,6 @@ impl Position {
         false
     }
 
-    /// Calculates the mg and eg evals and phase from scratch
-    pub fn evals(&self) -> (i16, i16, i16) {
-        let mut res: (i16, i16, i16) = (0,0,0);
-        for (i, side) in self.sides.iter().enumerate() {
-            let factor: i16 = SIDE_FACTOR[i];
-            for j in 0..6 {
-                let mut pcs: u64 = self.pieces[j] & side;
-                let count: i16 = pcs.count_ones() as i16;
-                res.0 += PHASE_VALS[j] * count;
-                while pcs > 0 {
-                    let idx: usize = lsb!(pcs) as usize;
-                    let white: usize = usize::from(i == 0) * 56;
-                    res.1 += factor * PST_MG[j][idx ^ white];
-                    res.2 += factor * PST_EG[j][idx ^ white];
-                    pop!(pcs);
-                }
-            }
-        }
-        res
-    }
-
     /// Calculate the zobrist hash value for the current position, from scratch.
     pub fn hash(&self) -> u64 {
         let mut zobrist: u64 = 0;

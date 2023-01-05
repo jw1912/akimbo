@@ -73,7 +73,6 @@ impl CastleRights {
     pub const BLACK_QS: u8 = 2;
     pub const BLACK_KS: u8 = 1;
     pub const SIDES: [u8; 2] = [Self::WHITE_KS | Self::WHITE_QS, Self::BLACK_KS | Self::BLACK_QS];
-    pub const NONE: u8 = 0;
 }
 
 // for promotions / double pushes

@@ -8,7 +8,7 @@ mod tables;
 mod search;
 
 use std::{io::stdin, time::Instant};
-use consts::{ALL, AUTHOR, CastleRights, EMPTY, MAX_PLY, NAME, STARTPOS, TWELVE, VERSION};
+use consts::*;
 use tables::{HashTable, KillerTable};
 use position::{Position, State};
 use movegen::MoveList;
@@ -176,28 +176,27 @@ fn parse_fen(s: &str) -> Position {
                 idx -= usize::from(idx >= len) * len;
             } else {
                 let idx2: usize = ['P','N','B','R','Q','K','p','n','b','r','q','k'].iter().position(|&element| element == ch).unwrap_or(6);
-                let (col, pc): (usize, usize) = (usize::from(idx2 > 5), idx2 - 6 * usize::from(idx2 > 5));
-                pos.sides[col] ^= 1 << idx;
+                let (side, pc): (usize, usize) = (usize::from(idx2 > 5), idx2 - 6 * usize::from(idx2 > 5));
+                pos.sides[side] ^= 1 << idx;
                 pos.pieces[pc] ^= 1 << idx;
                 pos.squares[idx] = pc as u8;
+                pos.phase += PHASE_VALS[pc];
+                pos.state.mg += SIDE_FACTOR[side] * PST_MG[pc][idx ^ (56 * usize::from(side == 0))];
+                pos.state.eg += SIDE_FACTOR[side] * PST_EG[pc][idx ^ (56 * usize::from(side == 0))];
                 idx -= usize::from(idx > 0);
             }
         }
     }
 
     // calculate state
-    let mut castle_rights: u8 = CastleRights::NONE;
     for ch in vec[2].chars() {
-        castle_rights |= match ch {'Q' => CastleRights::WHITE_QS, 'K' => CastleRights::WHITE_KS, 'q' => CastleRights::BLACK_QS, 'k' => CastleRights::BLACK_KS, _ => 0};
+        pos.state.castle_rights |= match ch {'Q' => CastleRights::WHITE_QS, 'K' => CastleRights::WHITE_KS, 'q' => CastleRights::BLACK_QS, 'k' => CastleRights::BLACK_KS, _ => 0};
     }
-    let en_passant_sq: u16 = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
-    let halfmove_clock: u8 = parse!(u8, vec.get(4).unwrap_or(&"0"), 0);
-    let (phase, mg, eg): (i16, i16, i16) = pos.evals();
+    pos.state.en_passant_sq = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
+    pos.state.halfmove_clock = parse!(u8, vec.get(4).unwrap_or(&"0"), 0);
 
     // set state
     pos.c = vec[1] == "b";
-    pos.phase = phase;
-    pos.state = State {zobrist: 0, mg, eg, en_passant_sq, halfmove_clock, castle_rights};
     pos.state.zobrist = pos.hash();
     pos
 }
