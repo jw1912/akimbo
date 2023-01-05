@@ -103,7 +103,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
 
     // draw detection - ignoring draws by 50 move rule as it caused engine to
     // make suboptimal moves if it thinks it is winning, in an effort to avoid a draw
-    if pos.is_draw_by_repetition(2 + u8::from(ctx.ply == 0)) || pos.is_draw_by_material() { return 0 }
+    if pos.fifty_draw() || pos.repetition_draw(2 + u8::from(ctx.ply == 0)) || pos.material_draw() { return 0 }
 
     // extract node info
     let (pv, in_check, allow_null): (bool, bool, bool) = (nt.0 & 4 > 0, nt.0 & 2 > 0, nt.0 & 1 > 0);

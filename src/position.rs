@@ -222,7 +222,11 @@ impl Position {
         self.c = !self.c;
     }
 
-    pub fn is_draw_by_repetition(&self, num: u8) -> bool {
+    pub fn fifty_draw(&self) -> bool {
+        self.state.halfmove_clock >= 100
+    }
+
+    pub fn repetition_draw(&self, num: u8) -> bool {
         let l: usize = self.stack.len();
         if l < 6 || self.nulls > 0 { return false }
         let to: usize = l - 1;
@@ -238,7 +242,7 @@ impl Position {
     }
 
     /// Is there a FIDE draw by insufficient material?
-    pub fn is_draw_by_material(&self) -> bool {
+    pub fn material_draw(&self) -> bool {
         let pawns: u64 = self.pieces[PAWN];
         if pawns == 0 && self.phase <= 2 {
             if self.phase == 2 {
