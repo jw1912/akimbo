@@ -128,7 +128,7 @@ pub const RMASKS: [Mask; 64] = init!(idx, Mask { bit: 0, right: 0, left: 0, file
 });
 
 // castling
-pub const CASTLE_MOVES: [[(u64, usize, usize);2];2] = [[(9, 0, 3), (160, 7, 5)], [(0x0900000000000000, 56, 59), (0xA000000000000000, 63, 61)]];
+pub const CASTLE_MOVES: [[usize; 2]; 2] = [[3, 5], [59, 61]];
 pub const CASTLE_RIGHTS: [u8; 64] = init!(idx, 0, match idx {0 => 7, 4 => 3, 7 => 11, 56 => 13, 60 => 12, 63 => 14, _ => 15});
 
 // search/eval

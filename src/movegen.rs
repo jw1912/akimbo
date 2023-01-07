@@ -73,26 +73,26 @@ impl Position {
         let ksq = lsb!(kbb);
         if self.c {
             if r & CastleRights::BLACK_QS > 0 {
-                let bit = 1 << (56 + self.castle.qr);
+                let bit = 1 << (56 + self.castle[0]);
                 if occ & ((kbb - bit) ^ bit) == 0 && self.path_legal((kbb - (1 << 58)) ^ (1 << 58), BLACK, occ) {
                     move_list.push(MoveFlags::QS_CASTLE | 58 | ksq << 6);
                 }
             }
             if r & CastleRights::BLACK_KS > 0 {
-                let bit = 1 << (56 + self.castle.kr);
+                let bit = 1 << (56 + self.castle[1]);
                 if occ & ((bit - kbb) ^ kbb) == 0 && self.path_legal(((1 << 62) - kbb) ^ kbb, BLACK, occ) {
                     move_list.push(MoveFlags::KS_CASTLE | 62 | ksq << 6);
                 }
             }
         } else {
             if r & CastleRights::WHITE_QS > 0 {
-                let bit = 1 << self.castle.qr;
+                let bit = 1 << self.castle[0];
                 if occ & ((kbb - bit) ^ bit) == 0 && self.path_legal((kbb - (1 << 2)) ^ (1 << 2), WHITE, occ) {
                     move_list.push(MoveFlags::QS_CASTLE | 2 | ksq << 6);
                 }
             }
             if r & CastleRights::WHITE_KS > 0 {
-                let bit = 1 << self.castle.kr;
+                let bit = 1 << self.castle[1];
                 if occ & ((bit - kbb) ^ kbb) == 0 && self.path_legal(((1 << 6) - kbb) ^ kbb, WHITE, occ) {
                     move_list.push(MoveFlags::KS_CASTLE | 6 | ksq << 6);
                 }

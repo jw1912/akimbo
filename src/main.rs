@@ -10,7 +10,7 @@ mod search;
 use std::{io::stdin, time::Instant};
 use consts::*;
 use tables::{HashTable, KillerTable};
-use position::{Position, State, CastleInfo};
+use position::{Position, State};
 use movegen::MoveList;
 use search::{go, SearchContext};
 use zobrist::ZVALS;
@@ -181,7 +181,7 @@ fn parse_fen(s: &str) -> Position {
     let vec: Vec<&str> = s.split_whitespace().collect();
     let mut pos: Position = Position {
         pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: false,
-        state: State::default(), nulls: 0, stack: Vec::new(), phase: 0, castle: CastleInfo::default()
+        state: State::default(), nulls: 0, stack: Vec::new(), phase: 0, castle: [0, 7]
     };
 
     // board

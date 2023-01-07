@@ -19,19 +19,8 @@ pub struct Position {
     pub state: State,
     pub phase: i16,
     pub nulls: u8,
-    pub castle: CastleInfo,
+    pub castle: [u8; 2],
     pub stack: Vec<MoveContext>,
-}
-
-pub struct CastleInfo {
-    pub qr: u8,
-    pub kr: u8,
-}
-
-impl Default for CastleInfo {
-    fn default() -> Self {
-        Self { qr: 0, kr: 7 }
-    }
 }
 
 #[derive(Clone, Copy, Default)]
@@ -133,11 +122,13 @@ impl Position {
                 self.state.zobrist ^= ZVALS.en_passant[to & 7];
             }
             MoveFlags::KS_CASTLE | MoveFlags::QS_CASTLE => {
-                let (c, idx1, idx2): (u64, usize, usize) = CASTLE_MOVES[side][usize::from(flag == MoveFlags::KS_CASTLE)];
-                self.squares.swap(idx1, idx2);
-                self.toggle(side, ROOK, c);
-                self.remove(idx1, side, ROOK);
-                self.add(idx2, side, ROOK);
+                let i: usize = (flag == MoveFlags::KS_CASTLE) as usize;
+                let sq: usize = 56 * usize::from(side == BLACK) + self.castle[i] as usize;
+                let idx: usize = CASTLE_MOVES[side][i];
+                self.squares.swap(idx, sq);
+                self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
+                self.remove(sq, side, ROOK);
+                self.add(idx, side, ROOK);
             }
             MoveFlags::KNIGHT_PROMO.. => {
                 let ppc: usize = (((flag >> 12) & 3) + 1) as usize;
@@ -191,9 +182,11 @@ impl Position {
                 self.squares[pwn] = PAWN as u8;
             }
             MoveFlags::KS_CASTLE | MoveFlags::QS_CASTLE => {
-                let (c, idx1, idx2): (u64, usize, usize) = CASTLE_MOVES[side][(flag == MoveFlags::KS_CASTLE) as usize];
-                self.squares.swap(idx1, idx2);
-                self.toggle(side, ROOK, c);
+                let i: usize = (flag == MoveFlags::KS_CASTLE) as usize;
+                let sq: usize = 56 * usize::from(side == BLACK) + self.castle[i] as usize;
+                let idx: usize = CASTLE_MOVES[side][i];
+                self.squares.swap(idx, sq);
+                self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
             }
             MoveFlags::KNIGHT_PROMO.. => {
                 let ppc: usize = (((flag >> 12) & 3) + 1) as usize;
