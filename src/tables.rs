@@ -29,7 +29,6 @@ impl HashTable {
         self.table = vec![Default::default(); self.num_buckets];
     }
 
-    /// Resets all hash entries to 0.
     pub fn clear(&mut self) {
         for bucket in &mut self.table { *bucket = [HashEntry::default(); 8]}
     }
@@ -76,7 +75,6 @@ impl HashTable {
     }
 }
 
-/// Killer Move Table.
 pub struct KillerTable(pub [[u16; 3]; MAX_PLY as usize]);
 impl KillerTable {
     pub fn push(&mut self, m: u16, p: i16) {

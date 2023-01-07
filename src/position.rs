@@ -19,6 +19,9 @@ pub struct Position {
     pub state: State,
     pub phase: i16,
     pub nulls: u8,
+    pub castle: [u8; 2],
+    pub chess960: bool,
+    pub castle_mask: [u8; 64],
     pub stack: Vec<MoveContext>,
 }
 
@@ -92,7 +95,7 @@ impl Position {
         let side: usize = usize::from(self.c);
 
         self.stack.push(MoveContext { state: self.state, m, moved_pc, captured_pc});
-        self.toggle(side, mpc, f | t);
+        self.toggle(side, mpc, f ^ t);
         self.remove(from, side, mpc);
         self.add(to, side, mpc);
         self.squares[from] = EMPTY as u8;
@@ -100,14 +103,13 @@ impl Position {
         if self.state.en_passant_sq > 0 {self.state.zobrist ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
         self.state.en_passant_sq = 0;
         self.state.zobrist ^= ZVALS.side;
-        if captured_pc != EMPTY as u8 {
+        if captured_pc != EMPTY as u8 && flag != MoveFlags::KS_CASTLE && flag != MoveFlags::QS_CASTLE {
             let cpc: usize = captured_pc as usize;
             self.toggle(side ^ 1, cpc, t);
             self.remove(to, side ^ 1, cpc);
             self.phase -= PHASE_VALS[cpc];
-            self.state.castle_rights &= CASTLE_RIGHTS[to];
         }
-        self.state.castle_rights &= CASTLE_RIGHTS[from];
+        self.state.castle_rights &= self.castle_mask[from] & self.castle_mask[to];
         match flag {
             MoveFlags::EN_PASSANT => {
                 let pwn: usize = if side == BLACK {to + 8} else {to - 8};
@@ -121,11 +123,14 @@ impl Position {
                 self.state.zobrist ^= ZVALS.en_passant[to & 7];
             }
             MoveFlags::KS_CASTLE | MoveFlags::QS_CASTLE => {
-                let (c, idx1, idx2): (u64, usize, usize) = CASTLE_MOVES[side][usize::from(flag == MoveFlags::KS_CASTLE)];
-                self.squares.swap(idx1, idx2);
-                self.toggle(side, ROOK, c);
-                self.remove(idx1, side, ROOK);
-                self.add(idx2, side, ROOK);
+                let i: usize = (flag == MoveFlags::KS_CASTLE) as usize;
+                let sq: usize = 56 * usize::from(side == BLACK) + self.castle[i] as usize;
+                let idx: usize = CASTLE_MOVES[side][i];
+                self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
+                self.remove(sq, side, ROOK);
+                self.squares[sq] = if to == sq {KING as u8} else {EMPTY as u8};
+                self.squares[idx] = ROOK as u8;
+                self.add(idx, side, ROOK);
             }
             MoveFlags::KNIGHT_PROMO.. => {
                 let ppc: usize = (((flag >> 12) & 3) + 1) as usize;
@@ -164,10 +169,10 @@ impl Position {
         let side: usize = usize::from(self.c);
 
         self.state = state.state;
-        self.toggle(side, state.moved_pc as usize, f | t);
+        self.toggle(side, state.moved_pc as usize, f ^ t);
         self.squares[from] = state.moved_pc;
         self.squares[to] = state.captured_pc;
-        if state.captured_pc != EMPTY as u8 {
+        if state.captured_pc != EMPTY as u8 && flag != MoveFlags::KS_CASTLE && flag != MoveFlags::QS_CASTLE {
             let cpc: usize = state.captured_pc as usize;
             self.toggle(side ^ 1, cpc, t);
             self.phase += PHASE_VALS[cpc];
@@ -179,9 +184,12 @@ impl Position {
                 self.squares[pwn] = PAWN as u8;
             }
             MoveFlags::KS_CASTLE | MoveFlags::QS_CASTLE => {
-                let (c, idx1, idx2): (u64, usize, usize) = CASTLE_MOVES[side][(flag == MoveFlags::KS_CASTLE) as usize];
-                self.squares.swap(idx1, idx2);
-                self.toggle(side, ROOK, c);
+                let i: usize = (flag == MoveFlags::KS_CASTLE) as usize;
+                let sq: usize = 56 * usize::from(side == BLACK) + self.castle[i] as usize;
+                let idx: usize = CASTLE_MOVES[side][i];
+                self.squares[idx] = if from == idx {KING as u8} else {EMPTY as u8};
+                self.squares[sq] = ROOK as u8;
+                self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
             }
             MoveFlags::KNIGHT_PROMO.. => {
                 let ppc: usize = (((flag >> 12) & 3) + 1) as usize;
@@ -234,8 +242,8 @@ impl Position {
         let pawns: u64 = self.pieces[PAWN];
         if pawns == 0 && self.phase <= 2 {
             if self.phase == 2 {
-                let bishops: u64 = self.pieces[BISHOP];
-                return bishops & self.sides[0] != bishops && bishops & self.sides[1] != bishops && (bishops & 0x55AA_55AA_55AA_55AA == bishops || bishops & 0xAA55_AA55_AA55_AA55 == bishops)
+                let b: u64 = self.pieces[BISHOP];
+                return b & self.sides[0] != b && b & self.sides[1] != b && (b & 0x55AA_55AA_55AA_55AA == b || b & 0xAA55_AA55_AA55_AA55 == b)
             }
             return true
         }
