@@ -51,8 +51,7 @@ fn main() {
             "perft" => parse_perft(&mut pos, &commands),
             "perftsuite" => perft_suite(false),
             "frcsuite" => perft_suite(true),
-            "display" => display_position(&pos),
-            _ => {},
+            _ => println!("unknown command"),
         }
     }
 }
@@ -130,23 +129,6 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) {
     go(pos, depth, ctx);
 }
 
-fn display_position(pos: &Position) {
-    for rank in (0..8).rev() {
-        let mut s = String::from("");
-        for file in 0..8 {
-            let idx = (8 * rank + file) as usize;
-            let pc = pos.squares[idx];
-            let pcs = if (1 << idx) & pos.sides[0] > 0 {
-                ["P ", "N ", "B ", "R ", "Q ", "K ", ". "]
-            } else {
-                ["p ", "n ", "b ", "r ", "q ", "k ", ". "]
-            };
-            s.push_str(pcs[pc as usize]);
-        }
-        println!("{s}");
-    }
-}
-
 fn parse_position(pos: &mut Position, commands: Vec<&str>) {
     enum Tokens {Nothing, Fen, Moves}
     let mut fen = String::new();
@@ -180,16 +162,13 @@ fn sq_to_idx(sq: &str) -> u16 {
 
 fn u16_to_uci(p: &Position, m: u16) -> String {
     let flag: u16 = m & 0xF000;
-    match flag {
-        MoveFlags::QS_CASTLE | MoveFlags::KS_CASTLE => {
+    if p.chess960 && (flag == MoveFlags::QS_CASTLE || flag == MoveFlags::KS_CASTLE) {
             let from: u16 = (m >> 6) & 63;
             let rook: u16 = p.castle[(flag == MoveFlags::KS_CASTLE) as usize] as u16 + 56 * (from / 56);
             format!("{}{} ", idx_to_sq!(from), idx_to_sq!(rook))
-        }
-        _ => {
-            let promo: &str = if m & 0b1000_0000_0000_0000 > 0 {["n","b","r","q"][((m >> 12) & 0b11) as usize]} else {""};
-            format!("{}{}{} ", idx_to_sq!((m >> 6) & 63), idx_to_sq!(m & 63), promo)
-        }
+    } else {
+        let promo: &str = if m & 0b1000_0000_0000_0000 > 0 {["n","b","r","q"][((m >> 12) & 0b11) as usize]} else {""};
+        format!("{}{}{} ", idx_to_sq!((m >> 6) & 63), idx_to_sq!(m & 63), promo)
     }
 }
 
@@ -198,7 +177,7 @@ fn uci_to_u16(pos: &Position, m: &str) -> u16 {
     let from: u16 = sq_to_idx(&m[0..2]);
     let mut to: u16 = sq_to_idx(&m[2..4]);
     let mut castle: u16 = 0;
-    if pos.sides[usize::from(pos.c)] & (1 << to) > 0 {
+    if pos.chess960 && pos.sides[usize::from(pos.c)] & (1 << to) > 0 {
         if to == pos.castle[0] as u16 + 56 * (from / 56) {
             to = 2 + 56 * (from / 56);
             castle = MoveFlags::QS_CASTLE;
@@ -223,7 +202,7 @@ fn parse_fen(s: &str) -> Position {
     let vec: Vec<&str> = s.split_whitespace().collect();
     let mut pos: Position = Position {
         pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: false, state: State::default(),
-        nulls: 0, stack: Vec::new(), phase: 0, castle: [0, 7], castle_mask: [15; 64],
+        nulls: 0, stack: Vec::new(), phase: 0, castle: [0, 7], castle_mask: [15; 64], chess960: false,
     };
 
     // board
@@ -262,6 +241,7 @@ fn parse_fen(s: &str) -> Position {
             b'q' => CastleRights::BLACK_QS,
             b'k' => CastleRights::BLACK_KS,
             b'A'..=b'H' => {
+                pos.chess960 = true;
                 king_col = wkc as usize;
                 let rook_col: u8 = ch - b'A';
                 if rook_col < wkc {
@@ -273,6 +253,7 @@ fn parse_fen(s: &str) -> Position {
                 }
             }
             b'a'..=b'h' => {
+                pos.chess960 = true;
                 king_col = bkc as usize;
                 let rook_col: u8 = ch - b'a';
                 if rook_col < bkc {

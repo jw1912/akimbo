@@ -1,5 +1,3 @@
-use crate::{u16_to_uci, display_position};
-
 use super::{lsb, consts::*, movegen::{bishop_attacks, rook_attacks}, zobrist::ZVALS};
 
 macro_rules! from {($m:expr) => {(($m >> 6) & 63) as usize}}
@@ -22,6 +20,7 @@ pub struct Position {
     pub phase: i16,
     pub nulls: u8,
     pub castle: [u8; 2],
+    pub chess960: bool,
     pub castle_mask: [u8; 64],
     pub stack: Vec<MoveContext>,
 }
@@ -89,13 +88,6 @@ impl Position {
         let f: u64 = bit!(from);
         let t: u64 = bit!(to);
         let moved_pc: u8 = self.squares[from];
-        if moved_pc == EMPTY as u8 {
-            for st in &self.stack {
-                println!("{}", u16_to_uci(self, st.m));
-            }
-            println!("{}", u16_to_uci(self, m));
-            display_position(self);
-        }
         let mpc: usize = moved_pc as usize;
         let captured_pc: u8 = self.squares[to];
         let flag: u16 = m & MoveFlags::ALL;
