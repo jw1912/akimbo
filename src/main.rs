@@ -29,6 +29,7 @@ fn main() {
             "uci" => {
                 println!("id name {NAME} {VERSION}");
                 println!("id author {AUTHOR}");
+                println!("option name UCI_Chess960 type check default false");
                 println!("option name Hash type spin default 128 min 1 max 512");
                 println!("option name Clear Hash type button");
                 println!("uciok");
