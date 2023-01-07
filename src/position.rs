@@ -126,10 +126,10 @@ impl Position {
                 let i: usize = (flag == MoveFlags::KS_CASTLE) as usize;
                 let sq: usize = 56 * usize::from(side == BLACK) + self.castle[i] as usize;
                 let idx: usize = CASTLE_MOVES[side][i];
-                self.squares.swap(idx, sq);
                 self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
                 self.remove(sq, side, ROOK);
-                if to == sq {self.squares[sq] = KING as u8}
+                self.squares[idx] = ROOK as u8;
+                self.squares[sq] = if to == sq {KING as u8} else {EMPTY as u8};
                 self.add(idx, side, ROOK);
             }
             MoveFlags::KNIGHT_PROMO.. => {

@@ -261,12 +261,12 @@ pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
             ("cp", score)
         };
         let nps: u32 = ((ctx.nodes as f64) * 1000.0 / (t as f64)) as u32;
-        let pv_str: String = u16_to_uci(best_move);
+        let pv_str: String = u16_to_uci(pos, best_move);
         println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d, stype, sval, t, ctx.nodes, nps, pv_str);
 
         // stop searching if mate found
         if score.abs() >= MATE_THRESHOLD { break }
     }
-    println!("bestmove {}", u16_to_uci(best_move));
+    println!("bestmove {}", u16_to_uci(pos, best_move));
     ctx.killer_table.clear();
 }

@@ -51,6 +51,7 @@ fn main() {
             "perft" => parse_perft(&mut pos, &commands),
             "perftsuite" => perft_suite(false),
             "frcsuite" => perft_suite(true),
+            "display" => display_position(&pos),
             _ => {},
         }
     }
@@ -129,6 +130,23 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) {
     go(pos, depth, ctx);
 }
 
+fn display_position(pos: &Position) {
+    for rank in (0..8).rev() {
+        let mut s = String::from("");
+        for file in 0..8 {
+            let idx = (8 * rank + file) as usize;
+            let pc = pos.squares[idx];
+            let pcs = if (1 << idx) & pos.sides[0] > 0 {
+                ["P ", "N ", "B ", "R ", "Q ", "K ", ". "]
+            } else {
+                ["p ", "n ", "b ", "r ", "q ", "k ", ". "]
+            };
+            s.push_str(pcs[pc as usize]);
+        }
+        println!("{s}");
+    }
+}
+
 fn parse_position(pos: &mut Position, commands: Vec<&str>) {
     enum Tokens {Nothing, Fen, Moves}
     let mut fen = String::new();
@@ -149,6 +167,7 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
     }
     if !fen.is_empty() {*pos = parse_fen(&fen)}
     for m in moves {pos.do_move(uci_to_u16(pos, &m));}
+    println!("{:04b}", pos.state.castle_rights);
 }
 
 macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", char::from_u32(($idx & 7) as u32 + 97).unwrap(), ($idx >> 3) + 1)}}
@@ -159,16 +178,37 @@ fn sq_to_idx(sq: &str) -> u16 {
     8 * parse!(u16, chs[1].to_string(), 0) + chs[0] as u16 - 105
 }
 
-fn u16_to_uci(m: u16) -> String {
-    let promo: &str = if m & 0b1000_0000_0000_0000 > 0 {["n","b","r","q"][((m >> 12) & 0b11) as usize]} else {""};
-    format!("{}{}{} ", idx_to_sq!((m >> 6) & 63), idx_to_sq!(m & 63), promo)
+fn u16_to_uci(p: &Position, m: u16) -> String {
+    let flag: u16 = m & 0xF000;
+    match flag {
+        MoveFlags::QS_CASTLE | MoveFlags::KS_CASTLE => {
+            let from: u16 = (m >> 6) & 63;
+            let rook: u16 = p.castle[(flag == MoveFlags::KS_CASTLE) as usize] as u16 + 56 * (from / 56);
+            format!("{}{} ", idx_to_sq!(from), idx_to_sq!(rook))
+        }
+        _ => {
+            let promo: &str = if m & 0b1000_0000_0000_0000 > 0 {["n","b","r","q"][((m >> 12) & 0b11) as usize]} else {""};
+            format!("{}{}{} ", idx_to_sq!((m >> 6) & 63), idx_to_sq!(m & 63), promo)
+        }
+    }
 }
 
 fn uci_to_u16(pos: &Position, m: &str) -> u16 {
     let l: usize = m.len();
     let from: u16 = sq_to_idx(&m[0..2]);
-    let to: u16 = sq_to_idx(&m[2..4]);
-    let mut no_flags: u16 = (from << 6) | to;
+    let mut to: u16 = sq_to_idx(&m[2..4]);
+    let mut castle: u16 = 0;
+    if pos.sides[usize::from(pos.c)] & (1 << to) > 0 {
+        if to == pos.castle[0] as u16 + 56 * (from / 56) {
+            to = 2 + 56 * (from / 56);
+            castle = MoveFlags::QS_CASTLE;
+        } else {
+            to = 6 + 56 * (from / 56);
+            castle = MoveFlags::KS_CASTLE;
+        }
+    }
+    let mut no_flags: u16 = castle | (from << 6) | to;
+    if castle > 0 {return no_flags}
     no_flags |= match m.chars().nth(4).unwrap_or('f') {'n' => 0x8000, 'b' => 0x9000, 'r' => 0xA000, 'q' => 0xB000, _ => 0};
     let mut possible_moves = MoveList::default();
     pos.gen_moves::<ALL>(&mut possible_moves);
