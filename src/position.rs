@@ -1,3 +1,5 @@
+use crate::{u16_to_uci, display_position};
+
 use super::{lsb, consts::*, movegen::{bishop_attacks, rook_attacks}, zobrist::ZVALS};
 
 macro_rules! from {($m:expr) => {(($m >> 6) & 63) as usize}}
@@ -87,6 +89,13 @@ impl Position {
         let f: u64 = bit!(from);
         let t: u64 = bit!(to);
         let moved_pc: u8 = self.squares[from];
+        if moved_pc == EMPTY as u8 {
+            for st in &self.stack {
+                println!("{}", u16_to_uci(self, st.m));
+            }
+            println!("{}", u16_to_uci(self, m));
+            display_position(self);
+        }
         let mpc: usize = moved_pc as usize;
         let captured_pc: u8 = self.squares[to];
         let flag: u16 = m & MoveFlags::ALL;
@@ -107,9 +116,8 @@ impl Position {
             self.toggle(side ^ 1, cpc, t);
             self.remove(to, side ^ 1, cpc);
             self.phase -= PHASE_VALS[cpc];
-            self.state.castle_rights &= self.castle_mask[to];
         }
-        self.state.castle_rights &= self.castle_mask[from];
+        self.state.castle_rights &= self.castle_mask[from] & self.castle_mask[to];
         match flag {
             MoveFlags::EN_PASSANT => {
                 let pwn: usize = if side == BLACK {to + 8} else {to - 8};
@@ -129,7 +137,7 @@ impl Position {
                 self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
                 self.remove(sq, side, ROOK);
                 self.squares[idx] = ROOK as u8;
-                self.squares[sq] = if to == sq {KING as u8} else {EMPTY as u8};
+                self.squares[sq] = if to == sq {KING as u8} else if sq == idx {ROOK as u8} else {EMPTY as u8};
                 self.add(idx, side, ROOK);
             }
             MoveFlags::KNIGHT_PROMO.. => {
@@ -187,7 +195,7 @@ impl Position {
                 let i: usize = (flag == MoveFlags::KS_CASTLE) as usize;
                 let sq: usize = 56 * usize::from(side == BLACK) + self.castle[i] as usize;
                 let idx: usize = CASTLE_MOVES[side][i];
-                self.squares[idx] = if to == sq {KING as u8} else {EMPTY as u8};
+                self.squares[idx] = if from == idx {KING as u8} else {EMPTY as u8};
                 self.squares[sq] = ROOK as u8;
                 self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
             }
