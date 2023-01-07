@@ -16,20 +16,18 @@ pub struct SearchContext {
     pub alloc_time: u128,
     time: Instant,
     nodes: u64,
-    best_move: u16,
     ply: i16,
     abort: bool,
 }
 
 impl SearchContext{
     pub fn new(hash_table: HashTable, killer_table: KillerTable) -> Self {
-        Self { hash_table, killer_table, time: Instant::now(), alloc_time: 1000, nodes: 0, best_move: 0, ply: 0, abort: false }
+        Self { hash_table, killer_table, time: Instant::now(), alloc_time: 1000, nodes: 0, ply: 0, abort: false }
     }
 
     fn reset(&mut self) {
         self.time = Instant::now();
         self.nodes = 0;
-        self.best_move = 0;
         self.ply = 0;
         self.abort = false;
     }
@@ -88,7 +86,7 @@ fn pick_move(moves: &mut MoveList, scores: &mut MoveList) -> Option<(u16, u16)> 
 /// Main search function:
 /// - Fail-soft negamax (alpha-beta pruning) framework
 /// - Principle variation search
-fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut depth: i8, ctx: &mut SearchContext) -> i16 {
+fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut depth: i8, ctx: &mut SearchContext, pv_line: &mut Vec<u16>) -> i16 {
     // search aborting
     if ctx.abort { return 0 }
     if ctx.nodes & 2047 == 0 && ctx.time.elapsed().as_millis() >= ctx.alloc_time {
@@ -141,7 +139,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
         // null move pruning
         if allow_null && depth >= 3 && pos.phase >= 6 && lazy_eval >= beta {
             let copy: (u16, u64) = pos.do_null();
-            let score: i16 = -search(pos, NodeType::encode(false, false, false), -beta, -beta + 1, depth - 3, ctx);
+            let score: i16 = -search(pos, NodeType::encode(false, false, false), -beta, -beta + 1, depth - 3, ctx, &mut Vec::new());
             pos.undo_null(copy);
             if score >= beta {return score}
         }
@@ -170,12 +168,13 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
         let reduce: i8 = i8::from(can_lmr && !gives_check && legal_moves > 1 && m_score < 300);
 
         // pvs
+        let mut sub_pv: Vec<u16> = Vec::new();
         let score: i16 = if legal_moves == 1 {
-            -search(pos, NodeType::encode(pv, gives_check, false), -beta, -alpha, depth - 1, ctx)
+            -search(pos, NodeType::encode(pv, gives_check, false), -beta, -alpha, depth - 1, ctx, &mut sub_pv)
         } else {
-            let zw_score: i16 = -search(pos, NodeType::encode(false, gives_check, true), -alpha - 1, -alpha, depth - 1 - reduce, ctx);
+            let zw_score: i16 = -search(pos, NodeType::encode(false, gives_check, true), -alpha - 1, -alpha, depth - 1 - reduce, ctx, &mut sub_pv);
             if (alpha != beta - 1 || reduce > 0) && zw_score > alpha {
-                -search(pos, NodeType::encode(pv, gives_check, false), -beta, -alpha, depth - 1, ctx)
+                -search(pos, NodeType::encode(pv, gives_check, false), -beta, -alpha, depth - 1, ctx, &mut sub_pv)
             } else { zw_score }
         };
 
@@ -187,6 +186,10 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
             if score > alpha {
                 alpha = score;
                 bound = Bound::EXACT;
+                // update pv
+                pv_line.clear();
+                pv_line.push(m);
+                pv_line.append(&mut sub_pv);
                 if score >= beta {
                     bound = Bound::LOWER;
                     // push to killer move table if not a capture
@@ -199,7 +202,6 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     ctx.ply -= 1;
     if legal_moves == 0 { return i16::from(in_check) * (-MAX + ctx.ply) }
     if write_to_hash && !ctx.abort { ctx.hash_table.push(pos.state.zobrist, best_move, depth, bound, best_score, ctx.ply) }
-    if ctx.ply == 0 { ctx.best_move = best_move }
 
     best_score
 }
@@ -248,20 +250,21 @@ pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
 
     for d in 1..=allocated_depth {
         let in_check: bool = pos.is_in_check();
-        let score: i16 = search(pos, NodeType::encode(true, in_check, false), -MAX, MAX, d, ctx);
+        let mut pv_line: Vec<u16> = Vec::new();
+        let score: i16 = search(pos, NodeType::encode(true, in_check, false), -MAX, MAX, d, ctx, &mut pv_line);
 
         // end search if out of time
         let t: u128 = ctx.time.elapsed().as_millis();
         if t >= ctx.alloc_time || ctx.abort { break }
 
-        best_move = ctx.best_move;
+        best_move = pv_line[0];
         let (stype, sval): (&str, i16) = if score.abs() >= MATE_THRESHOLD {
             ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2)
         } else {
             ("cp", score)
         };
         let nps: u32 = ((ctx.nodes as f64) * 1000.0 / (t as f64)) as u32;
-        let pv_str: String = u16_to_uci(pos, best_move);
+        let pv_str: String = pv_line.iter().map(|m| u16_to_uci(pos, *m)).collect::<String>();
         println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d, stype, sval, t, ctx.nodes, nps, pv_str);
 
         // stop searching if mate found
