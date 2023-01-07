@@ -209,11 +209,11 @@ fn parse_fen(s: &str) -> Position {
         }
     }
 
-    // state
+    // castle rights
     let mut rights: u8 = 0;
     let mut king_col: usize = 4;
-    let wkc = lsb!(pos.pieces[KING] & pos.sides[0]) as u8 & 7;
-    let bkc = lsb!(pos.pieces[KING] & pos.sides[1]) as u8 & 7;
+    let wkc: u8 = lsb!(pos.pieces[KING] & pos.sides[0]) as u8 & 7;
+    let bkc: u8 = lsb!(pos.pieces[KING] & pos.sides[1]) as u8 & 7;
     for ch in vec[2].bytes() {
         rights |= match ch {
             b'Q' => CastleRights::WHITE_QS,
@@ -222,7 +222,7 @@ fn parse_fen(s: &str) -> Position {
             b'k' => CastleRights::BLACK_KS,
             b'A'..=b'H' => {
                 king_col = wkc as usize;
-                let rook_col = ch - b'A';
+                let rook_col: u8 = ch - b'A';
                 if rook_col < wkc {
                     pos.castle[0] = rook_col;
                     CastleRights::WHITE_QS
@@ -233,7 +233,7 @@ fn parse_fen(s: &str) -> Position {
             }
             b'a'..=b'h' => {
                 king_col = bkc as usize;
-                let rook_col = ch - b'a';
+                let rook_col: u8 = ch - b'a';
                 if rook_col < bkc {
                     pos.castle[0] = rook_col;
                     CastleRights::BLACK_QS
@@ -250,7 +250,6 @@ fn parse_fen(s: &str) -> Position {
         pos.state.zobrist ^= ZVALS.castle[lsb!(rights) as usize];
         rights &= rights - 1;
     }
-
     pos.castle_mask[pos.castle[0] as usize] = 7;
     pos.castle_mask[pos.castle[1] as usize] = 11;
     pos.castle_mask[56 + pos.castle[0] as usize] = 13;
@@ -258,8 +257,7 @@ fn parse_fen(s: &str) -> Position {
     pos.castle_mask[king_col] = 3;
     pos.castle_mask[56 + king_col] = 12;
 
-    println!("{king_col}, {:?}", pos.castle);
-
+    // state
     let enp: u16 = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
     pos.state.en_passant_sq = enp;
     pos.state.halfmove_clock = parse!(u8, vec.get(4).unwrap_or(&"0"), 0);

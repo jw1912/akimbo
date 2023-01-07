@@ -36,6 +36,11 @@ fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16
     }
 }
 
+#[inline(always)]
+fn btwn(bit1: u64, bit2: u64) -> u64 {
+    (max(bit1, bit2) - min(bit1, bit2)) ^ min(bit1, bit2)
+}
+
 impl Position {
     pub fn gen_moves<const QUIETS: bool>(&self, move_list: &mut MoveList) {
         let side: usize = usize::from(self.c);
@@ -56,7 +61,7 @@ impl Position {
         piece_moves::<KING  , QUIETS>(move_list, occ, friendly, opps, self.pieces[KING]);
     }
 
-    fn path_legal(&self, mut path: u64, side: usize, occ: u64) -> bool {
+    fn path(&self, mut path: u64, side: usize, occ: u64) -> bool {
         let mut idx;
         while path > 0 {
             pop_lsb!(idx, path);
@@ -67,51 +72,31 @@ impl Position {
         true
     }
 
+    #[inline]
+    fn can_castle<const SIDE: usize>(&self, occ: u64, bit: u64, kbb: u64, kto: u64, rto: u64) -> bool {
+        (occ ^ bit) & (btwn(kbb, kto) ^ kto) == 0 && (occ ^ kbb) & (btwn(bit, rto) ^ rto) == 0 && self.path(btwn(kbb, kto), SIDE, occ)
+    }
+
     fn castles(&self, move_list: &mut MoveList, occ: u64) {
         let r = self.state.castle_rights;
         let kbb = self.pieces[KING] & self.sides[usize::from(self.c)];
         let ksq = lsb!(kbb);
         if self.c {
-            if r & CastleRights::BLACK_QS > 0 {
-                let bit = 1 << (56 + self.castle[0]);
-                if (occ ^ bit) & (between(kbb, 1 << 58) ^ (1 << 58)) == 0
-                    && (occ ^ kbb) & (between(bit, 1 << 59) ^ (1 << 59)) == 0
-                    && self.path_legal(between(kbb, 1 << 58), BLACK, occ) {
-                    move_list.push(MoveFlags::QS_CASTLE | 58 | ksq << 6);
-                }
+            if r & CastleRights::BLACK_QS > 0 && self.can_castle::<BLACK>(occ, 1 << (56 + self.castle[0]), kbb, 1 << 58, 1 << 59) {
+                move_list.push(MoveFlags::QS_CASTLE | 58 | ksq << 6);
             }
-            if r & CastleRights::BLACK_KS > 0 {
-                let bit = 1 << (56 + self.castle[1]);
-                if (occ ^ bit) & (between(kbb, 1 << 62) ^ (1 << 62)) == 0
-                    && (occ ^ kbb) & (between(bit, 1 << 61) ^ (1 << 61)) == 0
-                    && self.path_legal(between(kbb, 1 << 62), BLACK, occ) {
-                    move_list.push(MoveFlags::KS_CASTLE | 62 | ksq << 6);
-                }
+            if r & CastleRights::BLACK_KS > 0 && self.can_castle::<BLACK>(occ, 1 << (56 + self.castle[1]), kbb, 1 << 62, 1 << 61) {
+                move_list.push(MoveFlags::KS_CASTLE | 62 | ksq << 6);
             }
         } else {
-            if r & CastleRights::WHITE_QS > 0 {
-                let bit = 1 << self.castle[0];
-                if (occ ^ bit) & (between(kbb, 1 << 2) ^ (1 << 2)) == 0
-                    && (occ ^ kbb) & (between(bit, 1 << 3) ^ (1 << 3)) == 0
-                    && self.path_legal(between(kbb, 1 << 2), WHITE, occ) {
-                    move_list.push(MoveFlags::QS_CASTLE | 2 | ksq << 6);
-                }
+            if r & CastleRights::WHITE_QS > 0 && self.can_castle::<WHITE>(occ, 1 << self.castle[0], kbb, 1 << 2, 1 << 3) {
+                move_list.push(MoveFlags::QS_CASTLE | 2 | ksq << 6);
             }
-            if r & CastleRights::WHITE_KS > 0 {
-                let bit = 1 << self.castle[1];
-                if (occ ^ bit) & (between(kbb, 1 << 6) ^ (1 << 6)) == 0
-                    && (occ ^ kbb) & (between(bit, 1 << 5) ^ (1 << 5)) == 0
-                    && self.path_legal(between(kbb, 1 << 6), WHITE, occ) {
-                    move_list.push(MoveFlags::KS_CASTLE | 6 | ksq << 6);
-                }
+            if r & CastleRights::WHITE_KS > 0 && self.can_castle::<WHITE>(occ, 1 << self.castle[1], kbb, 1 << 6, 1 << 5) {
+                move_list.push(MoveFlags::KS_CASTLE | 6 | ksq << 6);
             }
         }
     }
-}
-
-#[inline]
-fn between(bit1: u64, bit2: u64) -> u64 {
-    (max(bit1, bit2) - min(bit1, bit2)) ^ min(bit1, bit2)
 }
 
 fn piece_moves<const PIECE: usize, const QUIETS: bool>(move_list: &mut MoveList, occ: u64, friendly: u64, opps: u64, mut attackers: u64) {
