@@ -19,7 +19,19 @@ pub struct Position {
     pub state: State,
     pub phase: i16,
     pub nulls: u8,
+    pub castle: CastleInfo,
     pub stack: Vec<MoveContext>,
+}
+
+pub struct CastleInfo {
+    pub qr: u8,
+    pub kr: u8,
+}
+
+impl Default for CastleInfo {
+    fn default() -> Self {
+        Self { qr: 0, kr: 7 }
+    }
 }
 
 #[derive(Clone, Copy, Default)]

@@ -10,7 +10,7 @@ mod search;
 use std::{io::stdin, time::Instant};
 use consts::*;
 use tables::{HashTable, KillerTable};
-use position::{Position, State};
+use position::{Position, State, CastleInfo};
 use movegen::MoveList;
 use search::{go, SearchContext};
 use zobrist::ZVALS;
@@ -48,9 +48,28 @@ fn main() {
             "go" => parse_go(&mut pos, commands, &mut ctx),
             "position" => parse_position(&mut pos, commands),
             "perft" => parse_perft(&mut pos, &commands),
+            "perftsuite" => perft_suite(),
             _ => {},
         }
     }
+}
+
+fn perft_suite() {
+    let initial: Instant = Instant::now();
+    let mut total: u64 = 0;
+    for (fen, d, exp) in POSITIONS {
+        let mut pos: Position = parse_fen(fen);
+        println!("Position: {fen}");
+        let now: Instant = Instant::now();
+        let count: u64 = perft(&mut pos, d);
+        total += count;
+        assert_eq!(count, exp);
+        let dur = now.elapsed();
+        println!("depth {} time {} nodes {count} Mnps {:.2}\n", d, dur.as_millis(), count as f64 / dur.as_micros() as f64);
+    }
+    let dur = initial.elapsed();
+    println!("total time {} nodes {} nps {:.3}", dur.as_millis(), total, total as f64 / dur.as_micros() as f64)
+
 }
 
 fn perft(pos: &mut Position, depth_left: u8) -> u64 {
@@ -160,7 +179,10 @@ fn uci_to_u16(pos: &Position, m: &str) -> u16 {
 
 fn parse_fen(s: &str) -> Position {
     let vec: Vec<&str> = s.split_whitespace().collect();
-    let mut pos: Position = Position { pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: false, state: State::default(), nulls: 0, stack: Vec::new(), phase: 0 };
+    let mut pos: Position = Position {
+        pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: false,
+        state: State::default(), nulls: 0, stack: Vec::new(), phase: 0, castle: CastleInfo::default()
+    };
 
     // board
     let mut idx: usize = 63;
