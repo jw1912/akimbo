@@ -20,6 +20,7 @@ pub struct Position {
     pub phase: i16,
     pub nulls: u8,
     pub castle: [u8; 2],
+    pub castle_mask: [u8; 64],
     pub stack: Vec<MoveContext>,
 }
 
@@ -106,9 +107,9 @@ impl Position {
             self.toggle(side ^ 1, cpc, t);
             self.remove(to, side ^ 1, cpc);
             self.phase -= PHASE_VALS[cpc];
-            self.state.castle_rights &= CASTLE_RIGHTS[to];
+            self.state.castle_rights &= self.castle_mask[to];
         }
-        self.state.castle_rights &= CASTLE_RIGHTS[from];
+        self.state.castle_rights &= self.castle_mask[from];
         match flag {
             MoveFlags::EN_PASSANT => {
                 let pwn: usize = if side == BLACK {to + 8} else {to - 8};

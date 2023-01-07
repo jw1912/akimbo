@@ -180,8 +180,8 @@ fn uci_to_u16(pos: &Position, m: &str) -> u16 {
 fn parse_fen(s: &str) -> Position {
     let vec: Vec<&str> = s.split_whitespace().collect();
     let mut pos: Position = Position {
-        pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: false,
-        state: State::default(), nulls: 0, stack: Vec::new(), phase: 0, castle: [0, 7]
+        pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: false, state: State::default(),
+        nulls: 0, stack: Vec::new(), phase: 0, castle: [0, 7], castle_mask: [15; 64],
     };
 
     // board
@@ -218,6 +218,14 @@ fn parse_fen(s: &str) -> Position {
         pos.state.zobrist ^= ZVALS.castle[lsb!(rights) as usize];
         rights &= rights - 1;
     }
+
+    pos.castle_mask[pos.castle[0] as usize] = 7;
+    pos.castle_mask[pos.castle[1] as usize] = 11;
+    pos.castle_mask[56 + pos.castle[0] as usize] = 13;
+    pos.castle_mask[56 + pos.castle[1] as usize] = 14;
+    pos.castle_mask[lsb!(pos.pieces[KING] & pos.sides[0]) as usize] = 3;
+    pos.castle_mask[lsb!(pos.pieces[KING] & pos.sides[1]) as usize] = 12;
+
     let enp: u16 = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
     pos.state.en_passant_sq = enp;
     pos.state.halfmove_clock = parse!(u8, vec.get(4).unwrap_or(&"0"), 0);
