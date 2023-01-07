@@ -45,7 +45,6 @@ pub struct MoveContext {
 impl Position {
     #[inline(always)]
     pub fn is_square_attacked(&self, idx: usize, side: usize, occ: u64) -> bool {
-        if idx > 63 {panic!("empty king bb")}
         let s: u64 = self.sides[side ^ 1];
         let opp_queen: u64 = self.pieces[QUEEN] & s;
         (KNIGHT_ATTACKS[idx] & self.pieces[KNIGHT] & s > 0)
@@ -103,7 +102,7 @@ impl Position {
         if self.state.en_passant_sq > 0 {self.state.zobrist ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
         self.state.en_passant_sq = 0;
         self.state.zobrist ^= ZVALS.side;
-        if captured_pc != EMPTY as u8 {
+        if captured_pc != EMPTY as u8 && from != to {
             let cpc: usize = captured_pc as usize;
             self.toggle(side ^ 1, cpc, t);
             self.remove(to, side ^ 1, cpc);
@@ -127,7 +126,6 @@ impl Position {
                 let i: usize = (flag == MoveFlags::KS_CASTLE) as usize;
                 let sq: usize = 56 * usize::from(side == BLACK) + self.castle[i] as usize;
                 let idx: usize = CASTLE_MOVES[side][i];
-                //println!("{sq} {idx} {}", f ^ t);
                 self.squares.swap(idx, sq);
                 self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
                 self.remove(sq, side, ROOK);
@@ -170,10 +168,10 @@ impl Position {
         let side: usize = usize::from(self.c);
 
         self.state = state.state;
-        self.toggle(side, state.moved_pc as usize, f | t);
+        self.toggle(side, state.moved_pc as usize, f ^ t);
         self.squares[from] = state.moved_pc;
         self.squares[to] = state.captured_pc;
-        if state.captured_pc != EMPTY as u8 {
+        if state.captured_pc != EMPTY as u8 && from != to {
             let cpc: usize = state.captured_pc as usize;
             self.toggle(side ^ 1, cpc, t);
             self.phase += PHASE_VALS[cpc];

@@ -74,14 +74,16 @@ impl Position {
         if self.c {
             if r & CastleRights::BLACK_QS > 0 {
                 let bit = 1 << (56 + self.castle[0]);
-                if occ & ((between(kbb, 1 << 58) ^ (1 << 58)) & !bit) == 0 && occ & between(bit, 1 << 59) == 0
+                if (occ ^ bit) & (between(kbb, 1 << 58) ^ (1 << 58)) == 0
+                    && (occ ^ kbb) & (between(bit, 1 << 59) ^ (1 << 59)) == 0
                     && self.path_legal(between(kbb, 1 << 58), BLACK, occ) {
                     move_list.push(MoveFlags::QS_CASTLE | 58 | ksq << 6);
                 }
             }
             if r & CastleRights::BLACK_KS > 0 {
                 let bit = 1 << (56 + self.castle[1]);
-                if occ & ((between(kbb, 1 << 62) ^ (1 << 62)) & !bit) == 0 && occ & between(bit, 1 << 61) == 0
+                if (occ ^ bit) & (between(kbb, 1 << 62) ^ (1 << 62)) == 0
+                    && (occ ^ kbb) & (between(bit, 1 << 61) ^ (1 << 61)) == 0
                     && self.path_legal(between(kbb, 1 << 62), BLACK, occ) {
                     move_list.push(MoveFlags::KS_CASTLE | 62 | ksq << 6);
                 }
@@ -89,14 +91,16 @@ impl Position {
         } else {
             if r & CastleRights::WHITE_QS > 0 {
                 let bit = 1 << self.castle[0];
-                if occ & ((between(kbb, 1 << 2) ^ (1 << 2)) & !bit) == 0 && occ & between(bit, 1 << 3) == 0
+                if (occ ^ bit) & (between(kbb, 1 << 2) ^ (1 << 2)) == 0
+                    && (occ ^ kbb) & (between(bit, 1 << 3) ^ (1 << 3)) == 0
                     && self.path_legal(between(kbb, 1 << 2), WHITE, occ) {
                     move_list.push(MoveFlags::QS_CASTLE | 2 | ksq << 6);
                 }
             }
             if r & CastleRights::WHITE_KS > 0 {
                 let bit = 1 << self.castle[1];
-                if occ & ((between(kbb, 1 << 6) ^ (1 << 6)) & !bit) == 0 && occ & between(bit, 1 << 5) == 0
+                if (occ ^ bit) & (between(kbb, 1 << 6) ^ (1 << 6)) == 0
+                    && (occ ^ kbb) & (between(bit, 1 << 5) ^ (1 << 5)) == 0
                     && self.path_legal(between(kbb, 1 << 6), WHITE, occ) {
                     move_list.push(MoveFlags::KS_CASTLE | 6 | ksq << 6);
                 }
