@@ -48,22 +48,23 @@ fn main() {
             "go" => parse_go(&mut pos, commands, &mut ctx),
             "position" => parse_position(&mut pos, commands),
             "perft" => parse_perft(&mut pos, &commands),
-            "perftsuite" => perft_suite(),
+            "perftsuite" => perft_suite(false),
+            "frcsuite" => perft_suite(true),
             _ => {},
         }
     }
 }
 
-fn perft_suite() {
+fn perft_suite(frc: bool) {
     let initial: Instant = Instant::now();
     let mut total: u64 = 0;
-    for (fen, d, exp) in POSITIONS {
+    for (fen, d, exp) in if frc {&FRC_POSITIONS[..]} else {&POSITIONS[..]} {
         let mut pos: Position = parse_fen(fen);
         println!("Position: {fen}");
         let now: Instant = Instant::now();
-        let count: u64 = perft(&mut pos, d);
+        let count: u64 = perft(&mut pos, *d);
         total += count;
-        assert_eq!(count, exp);
+        assert_eq!(count, *exp);
         let dur = now.elapsed();
         println!("depth {} time {} nodes {count} Mnps {:.2}\n", d, dur.as_millis(), count as f64 / dur.as_micros() as f64);
     }
@@ -210,8 +211,39 @@ fn parse_fen(s: &str) -> Position {
 
     // state
     let mut rights: u8 = 0;
-    for ch in vec[2].chars() {
-        rights |= match ch {'Q' => CastleRights::WHITE_QS, 'K' => CastleRights::WHITE_KS, 'q' => CastleRights::BLACK_QS, 'k' => CastleRights::BLACK_KS, _ => 0};
+    let mut king_col: usize = 4;
+    let wkc = lsb!(pos.pieces[KING] & pos.sides[0]) as u8 & 7;
+    let bkc = lsb!(pos.pieces[KING] & pos.sides[1]) as u8 & 7;
+    for ch in vec[2].bytes() {
+        rights |= match ch {
+            b'Q' => CastleRights::WHITE_QS,
+            b'K' => CastleRights::WHITE_KS,
+            b'q' => CastleRights::BLACK_QS,
+            b'k' => CastleRights::BLACK_KS,
+            b'A'..=b'H' => {
+                king_col = wkc as usize;
+                let rook_col = ch - b'A';
+                if rook_col < wkc {
+                    pos.castle[0] = rook_col;
+                    CastleRights::WHITE_QS
+                } else {
+                    pos.castle[1] = rook_col;
+                    CastleRights::WHITE_KS
+                }
+            }
+            b'a'..=b'h' => {
+                king_col = bkc as usize;
+                let rook_col = ch - b'a';
+                if rook_col < bkc {
+                    pos.castle[0] = rook_col;
+                    CastleRights::BLACK_QS
+                } else {
+                    pos.castle[1] = rook_col;
+                    CastleRights::BLACK_KS
+                }
+            }
+            _ => 0
+        };
     }
     pos.state.castle_rights = rights;
     while rights > 0 {
@@ -223,8 +255,10 @@ fn parse_fen(s: &str) -> Position {
     pos.castle_mask[pos.castle[1] as usize] = 11;
     pos.castle_mask[56 + pos.castle[0] as usize] = 13;
     pos.castle_mask[56 + pos.castle[1] as usize] = 14;
-    pos.castle_mask[lsb!(pos.pieces[KING] & pos.sides[0]) as usize] = 3;
-    pos.castle_mask[lsb!(pos.pieces[KING] & pos.sides[1]) as usize] = 12;
+    pos.castle_mask[king_col] = 3;
+    pos.castle_mask[56 + king_col] = 12;
+
+    println!("{king_col}, {:?}", pos.castle);
 
     let enp: u16 = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
     pos.state.en_passant_sq = enp;

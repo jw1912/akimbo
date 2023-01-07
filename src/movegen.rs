@@ -1,4 +1,4 @@
-use std::mem::MaybeUninit;
+use std::{cmp::{min, max}, mem::MaybeUninit};
 use super::{consts::*, position::Position};
 
 /// Forward bitscan.
@@ -74,31 +74,40 @@ impl Position {
         if self.c {
             if r & CastleRights::BLACK_QS > 0 {
                 let bit = 1 << (56 + self.castle[0]);
-                if occ & ((kbb - bit) ^ bit) == 0 && self.path_legal((kbb - (1 << 58)) ^ (1 << 58), BLACK, occ) {
+                if occ & ((between(kbb, 1 << 58) ^ (1 << 58)) & !bit) == 0 && occ & between(bit, 1 << 59) == 0
+                    && self.path_legal(between(kbb, 1 << 58), BLACK, occ) {
                     move_list.push(MoveFlags::QS_CASTLE | 58 | ksq << 6);
                 }
             }
             if r & CastleRights::BLACK_KS > 0 {
                 let bit = 1 << (56 + self.castle[1]);
-                if occ & ((bit - kbb) ^ kbb) == 0 && self.path_legal(((1 << 62) - kbb) ^ kbb, BLACK, occ) {
+                if occ & ((between(kbb, 1 << 62) ^ (1 << 62)) & !bit) == 0 && occ & between(bit, 1 << 61) == 0
+                    && self.path_legal(between(kbb, 1 << 62), BLACK, occ) {
                     move_list.push(MoveFlags::KS_CASTLE | 62 | ksq << 6);
                 }
             }
         } else {
             if r & CastleRights::WHITE_QS > 0 {
                 let bit = 1 << self.castle[0];
-                if occ & ((kbb - bit) ^ bit) == 0 && self.path_legal((kbb - (1 << 2)) ^ (1 << 2), WHITE, occ) {
+                if occ & ((between(kbb, 1 << 2) ^ (1 << 2)) & !bit) == 0 && occ & between(bit, 1 << 3) == 0
+                    && self.path_legal(between(kbb, 1 << 2), WHITE, occ) {
                     move_list.push(MoveFlags::QS_CASTLE | 2 | ksq << 6);
                 }
             }
             if r & CastleRights::WHITE_KS > 0 {
                 let bit = 1 << self.castle[1];
-                if occ & ((bit - kbb) ^ kbb) == 0 && self.path_legal(((1 << 6) - kbb) ^ kbb, WHITE, occ) {
+                if occ & ((between(kbb, 1 << 6) ^ (1 << 6)) & !bit) == 0 && occ & between(bit, 1 << 5) == 0
+                    && self.path_legal(between(kbb, 1 << 6), WHITE, occ) {
                     move_list.push(MoveFlags::KS_CASTLE | 6 | ksq << 6);
                 }
             }
         }
     }
+}
+
+#[inline]
+fn between(bit1: u64, bit2: u64) -> u64 {
+    (max(bit1, bit2) - min(bit1, bit2)) ^ min(bit1, bit2)
 }
 
 fn piece_moves<const PIECE: usize, const QUIETS: bool>(move_list: &mut MoveList, occ: u64, friendly: u64, opps: u64, mut attackers: u64) {

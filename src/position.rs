@@ -45,6 +45,7 @@ pub struct MoveContext {
 impl Position {
     #[inline(always)]
     pub fn is_square_attacked(&self, idx: usize, side: usize, occ: u64) -> bool {
+        if idx > 63 {panic!("empty king bb")}
         let s: u64 = self.sides[side ^ 1];
         let opp_queen: u64 = self.pieces[QUEEN] & s;
         (KNIGHT_ATTACKS[idx] & self.pieces[KNIGHT] & s > 0)
@@ -94,7 +95,7 @@ impl Position {
         let side: usize = usize::from(self.c);
 
         self.stack.push(MoveContext { state: self.state, m, moved_pc, captured_pc});
-        self.toggle(side, mpc, f | t);
+        self.toggle(side, mpc, f ^ t);
         self.remove(from, side, mpc);
         self.add(to, side, mpc);
         self.squares[from] = EMPTY as u8;
@@ -126,6 +127,7 @@ impl Position {
                 let i: usize = (flag == MoveFlags::KS_CASTLE) as usize;
                 let sq: usize = 56 * usize::from(side == BLACK) + self.castle[i] as usize;
                 let idx: usize = CASTLE_MOVES[side][i];
+                //println!("{sq} {idx} {}", f ^ t);
                 self.squares.swap(idx, sq);
                 self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
                 self.remove(sq, side, ROOK);
