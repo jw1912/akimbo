@@ -128,8 +128,8 @@ impl Position {
                 let idx: usize = CASTLE_MOVES[side][i];
                 self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
                 self.remove(sq, side, ROOK);
+                self.squares[sq] = if to == sq {KING as u8} else {EMPTY as u8};
                 self.squares[idx] = ROOK as u8;
-                self.squares[sq] = if to == sq {KING as u8} else if sq == idx {ROOK as u8} else {EMPTY as u8};
                 self.add(idx, side, ROOK);
             }
             MoveFlags::KNIGHT_PROMO.. => {
