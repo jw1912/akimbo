@@ -102,7 +102,7 @@ impl Position {
         if self.state.en_passant_sq > 0 {self.state.zobrist ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
         self.state.en_passant_sq = 0;
         self.state.zobrist ^= ZVALS.side;
-        if captured_pc != EMPTY as u8 && from != to {
+        if captured_pc != EMPTY as u8 && flag != MoveFlags::KS_CASTLE && flag != MoveFlags::QS_CASTLE {
             let cpc: usize = captured_pc as usize;
             self.toggle(side ^ 1, cpc, t);
             self.remove(to, side ^ 1, cpc);
@@ -129,6 +129,7 @@ impl Position {
                 self.squares.swap(idx, sq);
                 self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
                 self.remove(sq, side, ROOK);
+                if to == sq {self.squares[sq] = KING as u8}
                 self.add(idx, side, ROOK);
             }
             MoveFlags::KNIGHT_PROMO.. => {
@@ -171,7 +172,7 @@ impl Position {
         self.toggle(side, state.moved_pc as usize, f ^ t);
         self.squares[from] = state.moved_pc;
         self.squares[to] = state.captured_pc;
-        if state.captured_pc != EMPTY as u8 && from != to {
+        if state.captured_pc != EMPTY as u8 && flag != MoveFlags::KS_CASTLE && flag != MoveFlags::QS_CASTLE {
             let cpc: usize = state.captured_pc as usize;
             self.toggle(side ^ 1, cpc, t);
             self.phase += PHASE_VALS[cpc];
@@ -186,7 +187,8 @@ impl Position {
                 let i: usize = (flag == MoveFlags::KS_CASTLE) as usize;
                 let sq: usize = 56 * usize::from(side == BLACK) + self.castle[i] as usize;
                 let idx: usize = CASTLE_MOVES[side][i];
-                self.squares.swap(idx, sq);
+                self.squares[idx] = if to == sq {KING as u8} else {EMPTY as u8};
+                self.squares[sq] = ROOK as u8;
                 self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
             }
             MoveFlags::KNIGHT_PROMO.. => {
