@@ -37,7 +37,7 @@ impl Position {
     #[inline]
     fn lazy_eval(&self) -> i16 {
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
-        SIDE_FACTOR[usize::from(self.c)] * ((phase * self.state.mg as i32 + (TPHASE - phase) * self.state.eg as i32) / TPHASE) as i16
+        SIDE_FACTOR[usize::from(self.c)] * ((phase * self.state.scores.0 as i32 + (TPHASE - phase) * self.state.scores.1 as i32) / TPHASE) as i16
     }
 
     fn score_move(&self, m: u16, hash_move: u16, killers: &[u16; 3]) -> u16 {
@@ -199,6 +199,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
             }
         }
     }
+    //if best_move & 0b0100_0000_0000_0000 == 0 { ctx.killer_table.push(best_move, ctx.ply) };
     ctx.ply -= 1;
     if legal_moves == 0 { return i16::from(in_check) * (-MAX + ctx.ply) }
     if write_to_hash && !ctx.abort { ctx.hash_table.push(pos.state.zobrist, best_move, depth, bound, best_score, ctx.ply) }
