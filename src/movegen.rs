@@ -1,228 +1,148 @@
-use std::{cmp::{min, max}, mem::MaybeUninit};
-use super::{consts::*, position::Position};
+use super::{consts::*, position::{Position, Move, ratt, batt}};
+use std::mem::MaybeUninit;
 
-/// Forward bitscan.
-#[macro_export]
-macro_rules! lsb {($x:expr) => {$x.trailing_zeros() as u16}}
-macro_rules! pop_lsb {($idx:expr, $x:expr) => {$idx = lsb!($x); $x &= $x - 1}}
+macro_rules! pop_lsb {($idx:ident, $x:expr) => {let $idx = $x.trailing_zeros() as u8; $x &= $x - 1}}
 
-pub struct MoveList {
-    pub list: [u16; 252],
+pub struct List<T> {
+    pub list: [T; 252],
     pub len: usize,
 }
-
-impl Default for MoveList {
-    fn default() -> Self {
-        // provably safe, only indexed into by ```for i in 0..self.len```
+pub type MoveList = List<Move>;
+pub type ScoreList = List<i16>;
+impl<T> List<T> {
+    pub fn uninit() -> Self {
         Self { list: unsafe {#[allow(clippy::uninit_assumed_init, invalid_value)] MaybeUninit::uninit().assume_init()}, len: 0 }
     }
 }
-
 impl MoveList {
     #[inline(always)]
-    pub fn push(&mut self, m: u16) {
-        self.list[self.len] = m;
+    fn push(&mut self, from: u8, to: u8, flag: u8, mpc: u8) {
+        self.list[self.len] = Move {from, to, flag, mpc};
         self.len += 1;
     }
-}
 
-#[inline(always)]
-fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16) {
-    let f: u16 = from << 6;
-    let mut aidx: u16;
-    while attacks > 0 {
-        pop_lsb!(aidx, attacks);
-        move_list.push(flag | f | aidx);
+    pub fn pick(&mut self, scores: &mut ScoreList) -> Option<(Move, i16)> {
+        if scores.len == 0 {return None}
+        let mut idx = 0;
+        let mut best = 0;
+        for i in 0..scores.len {
+            let score = scores.list[i];
+            if score > best {
+                best = score;
+                idx = i;
+            }
+        }
+        scores.len -= 1;
+        scores.list.swap(idx, scores.len);
+        self.list.swap(idx, scores.len);
+        Some((self.list[scores.len], best))
     }
 }
 
 #[inline(always)]
-fn btwn(bit1: u64, bit2: u64) -> u64 {
-    (max(bit1, bit2) - min(bit1, bit2)) ^ min(bit1, bit2)
+fn encode<const PC: usize, const FLAG: u8>(moves: &mut MoveList, mut attacks: u64, from: u8) {
+    while attacks > 0 {
+        pop_lsb!(to, attacks);
+        moves.push(from, to, FLAG, PC as u8);
+    }
 }
 
 impl Position {
-    pub fn gen_moves<const QUIETS: bool>(&self, move_list: &mut MoveList) {
-        let side: usize = usize::from(self.c);
-        let occ: u64 = self.sides[0] | self.sides[1];
-        let friendly: u64 = self.sides[side];
-        let opps: u64 = self.sides[side ^ 1];
-        let pawns: u64 = self.pieces[PAWN] & self.sides[side];
+    pub fn gen<const QUIETS: bool>(&self) -> MoveList {
+        let mut moves = MoveList::uninit();
+        let side = usize::from(self.c);
+        let occ = self.bb[0] | self.bb[1];
+        let friends = self.bb[side];
+        let opps = self.bb[side ^ 1];
+        let pawns = self.bb[P] & friends;
         if QUIETS {
-            if self.c {pawn_pushes::<BLACK>(move_list, occ, pawns)} else {pawn_pushes::<WHITE>(move_list, occ, pawns)}
-            if self.state.castle_rights & CastleRights::SIDES[side] > 0 && !self.is_in_check() {self.castles(move_list, occ)}
+            if self.state.cr & CS[side] > 0 && !self.is_sq_att(4 + 56 * (side == BL) as usize, side, occ) {self.castles(&mut moves, occ)}
+            if side == WH {pawn_pushes::<WH>(&mut moves, occ, pawns)} else {pawn_pushes::<BL>(&mut moves, occ, pawns)}
         }
-        pawn_captures(move_list, pawns, opps, side);
-        if self.state.en_passant_sq > 0 {en_passants(move_list, pawns, self.state.en_passant_sq, side)}
-        piece_moves::<KNIGHT, QUIETS>(move_list, occ, friendly, opps, self.pieces[KNIGHT]);
-        piece_moves::<BISHOP, QUIETS>(move_list, occ, friendly, opps, self.pieces[BISHOP]);
-        piece_moves::<ROOK  , QUIETS>(move_list, occ, friendly, opps, self.pieces[ROOK]);
-        piece_moves::<QUEEN , QUIETS>(move_list, occ, friendly, opps, self.pieces[QUEEN]);
-        piece_moves::<KING  , QUIETS>(move_list, occ, friendly, opps, self.pieces[KING]);
+        if self.state.enp > 0 {en_passants(&mut moves, pawns, self.state.enp, side)}
+        pawn_captures(&mut moves, pawns, opps, side);
+        pc_moves::<N, QUIETS>(&mut moves, occ, friends, opps, self.bb[N]);
+        pc_moves::<B, QUIETS>(&mut moves, occ, friends, opps, self.bb[B]);
+        pc_moves::<R, QUIETS>(&mut moves, occ, friends, opps, self.bb[R]);
+        pc_moves::<Q, QUIETS>(&mut moves, occ, friends, opps, self.bb[Q]);
+        pc_moves::<K, QUIETS>(&mut moves, occ, friends, opps, self.bb[K]);
+        moves
     }
 
-    fn path(&self, mut path: u64, side: usize, occ: u64) -> bool {
-        let mut idx;
-        while path > 0 {
-            pop_lsb!(idx, path);
-            if self.is_square_attacked(idx as usize, side, occ) {
-                return false;
-            }
-        }
-        true
-    }
-
-    #[inline]
-    fn can_castle<const SIDE: usize>(&self, occ: u64, bit: u64, kbb: u64, kto: u64, rto: u64) -> bool {
-        (occ ^ bit) & (btwn(kbb, kto) ^ kto) == 0 && (occ ^ kbb) & (btwn(bit, rto) ^ rto) == 0 && self.path(btwn(kbb, kto), SIDE, occ)
-    }
-
-    fn castles(&self, move_list: &mut MoveList, occ: u64) {
-        let r = self.state.castle_rights;
-        let kbb = self.pieces[KING] & self.sides[usize::from(self.c)];
-        let ksq = lsb!(kbb);
+    fn castles(&self, moves: &mut MoveList, occ: u64) {
+        let r = self.state.cr;
         if self.c {
-            if r & CastleRights::BLACK_QS > 0 && self.can_castle::<BLACK>(occ, 1 << (56 + self.castle[0]), kbb, 1 << 58, 1 << 59) {
-                move_list.push(MoveFlags::QS_CASTLE | 58 | ksq << 6);
-            }
-            if r & CastleRights::BLACK_KS > 0 && self.can_castle::<BLACK>(occ, 1 << (56 + self.castle[1]), kbb, 1 << 62, 1 << 61) {
-                move_list.push(MoveFlags::KS_CASTLE | 62 | ksq << 6);
-            }
+            if r & BQS > 0 && occ & B8C8D8 == 0 && !self.is_sq_att(59, BL, occ) {moves.push(60, 58, QS, K as u8)}
+            if r & BKS > 0 && occ & F8G8 == 0 && !self.is_sq_att(61, BL, occ) {moves.push(60, 62, KS, K as u8)}
         } else {
-            if r & CastleRights::WHITE_QS > 0 && self.can_castle::<WHITE>(occ, 1 << self.castle[0], kbb, 1 << 2, 1 << 3) {
-                move_list.push(MoveFlags::QS_CASTLE | 2 | ksq << 6);
-            }
-            if r & CastleRights::WHITE_KS > 0 && self.can_castle::<WHITE>(occ, 1 << self.castle[1], kbb, 1 << 6, 1 << 5) {
-                move_list.push(MoveFlags::KS_CASTLE | 6 | ksq << 6);
-            }
+            if r & WQS > 0 && occ & B1C1D1 == 0 && !self.is_sq_att(3, WH, occ) {moves.push(4, 2, QS, K as u8)}
+            if r & WKS > 0 && occ & F1G1 == 0 && !self.is_sq_att(5, WH, occ) {moves.push(4, 6, KS, K as u8)}
         }
     }
 }
 
-fn piece_moves<const PIECE: usize, const QUIETS: bool>(move_list: &mut MoveList, occ: u64, friendly: u64, opps: u64, mut attackers: u64) {
-    let mut from: u16;
-    let mut idx: usize;
-    let mut attacks: u64;
-    attackers &= friendly;
+fn pc_moves<const PC: usize, const QUIETS: bool>(moves: &mut MoveList, occ: u64, friends: u64, opps: u64, mut attackers: u64) {
+    attackers &= friends;
     while attackers > 0 {
         pop_lsb!(from, attackers);
-        idx = from as usize;
-        attacks = match PIECE {
-            KNIGHT => KNIGHT_ATTACKS[idx],
-            ROOK => rook_attacks(idx, occ),
-            BISHOP => bishop_attacks(idx, occ),
-            QUEEN => rook_attacks(idx, occ) | bishop_attacks(idx, occ),
-            KING => KING_ATTACKS[idx],
-            _ => 0,
-        };
-        encode_moves(move_list, attacks & opps, from, MoveFlags::CAPTURE);
-        if QUIETS {encode_moves(move_list, attacks & !occ, from, MoveFlags::QUIET)}
+        let f = from as usize;
+        let attacks = match PC {N => NATT[f], R => ratt(f, occ), B => batt(f, occ), Q => ratt(f, occ) | batt(f, occ), K => KATT[f], _ => 0};
+        encode::<PC, CAP>(moves, attacks & opps, from);
+        if QUIETS { encode::<PC, QUIET>(moves, attacks & !occ, from) }
     }
 }
 
-#[inline(always)]
-fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents: u64, side: usize) {
-    let mut from: u16;
-    let mut attacks: u64;
-    let mut cidx: u16;
-    let mut f: u16;
-    let mut promo_attackers: u64 = attackers & PENRANK[side];
-    attackers &= !PENRANK[side];
+fn pawn_captures(moves: &mut MoveList, mut attackers: u64, opps: u64, c: usize) {
+    let mut promo: u64 = attackers & PENRANK[c];
+    attackers &= !PENRANK[c];
     while attackers > 0 {
         pop_lsb!(from, attackers);
-        attacks = PAWN_ATTACKS[side][from as usize] & opponents;
-        encode_moves(move_list, attacks, from, MoveFlags::CAPTURE);
+        let attacks = PATT[c][from as usize] & opps;
+        encode::<P, CAP>(moves, attacks, from);
     }
-    while promo_attackers > 0 {
-        pop_lsb!(from, promo_attackers);
-        attacks = PAWN_ATTACKS[side][from as usize] & opponents;
+    while promo > 0 {
+        pop_lsb!(from, promo);
+        let mut attacks = PATT[c][from as usize] & opps;
         while attacks > 0 {
-            pop_lsb!(cidx, attacks);
-            f = from << 6;
-            move_list.push(MoveFlags::QUEEN_PROMO_CAPTURE  | cidx | f);
-            move_list.push(MoveFlags::KNIGHT_PROMO_CAPTURE | cidx | f);
-            move_list.push(MoveFlags::BISHOP_PROMO_CAPTURE | cidx | f);
-            move_list.push(MoveFlags::ROOK_PROMO_CAPTURE   | cidx | f);
+            pop_lsb!(to, attacks);
+            for flag in NPC..=QPC {moves.push(from, to, flag, P as u8)}
         }
     }
 }
 
-#[inline(always)]
-fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16, side: usize) {
-    let mut attackers: u64 = PAWN_ATTACKS[side ^ 1][sq as usize] & pawns;
-    let mut cidx: u16;
+fn en_passants(moves: &mut MoveList, pawns: u64, sq: u8, c: usize) {
+    let mut attackers = PATT[c ^ 1][sq as usize] & pawns;
     while attackers > 0 {
-        pop_lsb!(cidx, attackers);
-        move_list.push( MoveFlags::EN_PASSANT | sq | cidx << 6 );
+        pop_lsb!(from, attackers);
+        moves.push(from, sq, ENP, P as u8);
     }
 }
 
-#[inline(always)]
-pub fn rook_attacks(idx: usize, occ: u64) -> u64 {
-    let m: Mask = RMASKS[idx];
-    let mut f: u64 = occ & m.file;
-    let mut r: u64 = f.swap_bytes();
-    f -= m.bit;
-    r -= m.bit.swap_bytes();
-    f ^= r.swap_bytes();
-    f &= m.file;
-    let mut e: u64 = m.right & occ;
-    r = e & e.wrapping_neg();
-    e = (r ^ (r - m.bit)) & m.right;
-    let w: u64 = m.left ^ WEST[(((m.left & occ)| 1).leading_zeros() ^ 63) as usize];
-
-    f | e | w
+fn shift<const SIDE: usize>(bb: u64) -> u64 {
+    if SIDE == WH {bb >> 8} else {bb << 8}
 }
 
-#[inline(always)]
-pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
-    let m: Mask = BMASKS[idx];
-    let mut f: u64 = occ & m.right;
-    let mut r: u64 = f.swap_bytes();
-    f -= m.bit;
-    r -= m.file;
-    f ^= r.swap_bytes();
-    f &= m.right;
-    let mut f2: u64 = occ & m.left;
-    r = f2.swap_bytes();
-    f2 -= m.bit;
-    r -= m.file;
-    f2 ^= r.swap_bytes();
-    f2 &= m.left;
-
-    f | f2
+fn idx_shift<const SIDE: usize, const AMOUNT: u8>(idx: u8) -> u8 {
+    if SIDE == WH {idx + AMOUNT} else {idx - AMOUNT}
 }
 
-fn shift<const SIDE: usize, const AMOUNT: u8>(bb: u64) -> u64 {
-    if SIDE == WHITE {bb >> AMOUNT} else {bb << AMOUNT}
-}
-
-fn idx_shift<const SIDE: usize, const AMOUNT: u16>(idx: u16) -> u16 {
-    if SIDE == WHITE {idx + AMOUNT} else {idx - AMOUNT}
-}
-
-fn pawn_pushes<const SIDE: usize>(move_list: &mut MoveList, occ: u64, pawns: u64) {
-    let empty: u64 = !occ;
-    let mut pushable_pawns: u64 = shift::<SIDE, 8>(empty) & pawns;
-    let mut dbl_pushable_pawns: u64 = shift::<SIDE, 8>(shift::<SIDE, 8>(empty & DBLRANK[SIDE]) & empty) & pawns;
-    let mut promotable_pawns: u64 = pushable_pawns & PENRANK[SIDE];
-    pushable_pawns &= !PENRANK[SIDE];
-    let mut idx: u16;
-    while pushable_pawns > 0 {
-        pop_lsb!(idx, pushable_pawns);
-        move_list.push(idx_shift::<SIDE, 8>(idx) | idx << 6);
+fn pawn_pushes<const SIDE: usize>(moves: &mut MoveList, occ: u64, pawns: u64) {
+    let empty = !occ;
+    let mut push = shift::<SIDE>(empty) & pawns;
+    let mut dbl = shift::<SIDE>(shift::<SIDE>(empty & DBLRANK[SIDE]) & empty) & pawns;
+    let mut promo = push & PENRANK[SIDE];
+    push &= !PENRANK[SIDE];
+    while push > 0 {
+        pop_lsb!(from, push);
+        moves.push(from, idx_shift::<SIDE, 8>(from), QUIET, P as u8);
     }
-    while promotable_pawns > 0 {
-        pop_lsb!(idx, promotable_pawns);
-        let to: u16 = idx_shift::<SIDE, 8>(idx);
-        let f: u16 = idx << 6;
-        move_list.push(MoveFlags::QUEEN_PROMO  | to | f);
-        move_list.push(MoveFlags::KNIGHT_PROMO | to | f);
-        move_list.push(MoveFlags::BISHOP_PROMO | to | f);
-        move_list.push(MoveFlags::ROOK_PROMO   | to | f);
+    while promo > 0 {
+        pop_lsb!(from, promo);
+        let to = idx_shift::<SIDE, 8>(from);
+        for flag in NPR..=QPR {moves.push(from, to, flag, P as u8)}
     }
-    while dbl_pushable_pawns > 0 {
-        pop_lsb!(idx, dbl_pushable_pawns);
-        move_list.push(MoveFlags::DBL_PUSH | idx_shift::<SIDE, 16>(idx) | idx << 6);
+    while dbl > 0 {
+        pop_lsb!(from, dbl);
+        moves.push(from, idx_shift::<SIDE, 16>(from), DBL, P as u8);
     }
 }

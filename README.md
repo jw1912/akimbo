@@ -1,48 +1,25 @@
 # akimbo
-
-akimbo is a UCI compatible Chess (and Chess960) engine written in Rust.
-
-### TODO before second release:
-- Overhaul evaluation
-
-### Aims
-The main aim of akimbo is to stay under 1500 lines of code.
-At last count it was at 1167 lines, excluding blank lines and comments.
+A compact UCI Chess engine written in Rust.
 
 ### Compiling
 If you have cargo installed, run `cargo build --release`.
 
-### Parameter Tuning
-Piece-square tables were tuned using [akimbo_tuner](https://github.com/JacquesRW/akimbo_tuner).
+### Aims
+The main aim is to stay under 1500 SLOC (excluding blank lines and comments) and 2000 TLOC (including).
+
+## Stats
+|                             Version                               |     Release Date     | SLOC | TLOC | CCRL Blitz | CCRL 40/15 |
+| :----------------------------------------------------------------:| :-------------------:|:----:|:----:|:----------:|:----------:|
+| [0.1.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.1.1)  |   8th January 2022   | 1167 | 1381 |    n/a     |    2475    |
+|                               dev                                 |          n/a         |  929 | 1023 |    n/a     |     n/a    |
 
 ## Features
 
-#### Move Generation
-- Bitboards
-- Pseudo-legal
-- Hyperbola quintessence sliding attacks
-
-#### Search
-- Fail-soft negamax
-- Principle variation search
-- Quiescence search
-- Iterative deepening
-- Check extensions
-
-#### Move Ordering
-1. Hash move
-2. Captures (MVV-LVA)
-3. Promotions
-4. Killer moves
-5. Quiets
-
 #### Evaluation
-- Tapered piece-square tables
+- Tapered PSTs
 
-#### Pruning/Reductions
-- Mate distance pruning
-- Hash score pruning
-- Late move reductions
-- Reverse futility pruning
-- Null move pruning
-- Delta pruning
+#### Selectivity
+- Check Extensions
+- Late Move Reductions
+- Reverse Futility Pruning
+- Null Move Pruning
