@@ -30,7 +30,7 @@ impl HashTable {
     }
 
     pub fn clear(&mut self) {
-        for bucket in &mut self.table { *bucket = [HashEntry::default(); 8]}
+        self.table.iter_mut().for_each(|bucket| *bucket = [HashEntry::default(); 8]);
     }
 
     /// Push a search result to the hash table.
@@ -85,6 +85,6 @@ impl KillerTable {
     }
 
     pub fn clear(&mut self) {
-        for bucket in &mut self.0 { *bucket = [0; KILLERS_PER_PLY] }
+        self.0.iter_mut().for_each(|bucket| *bucket = [0; KILLERS_PER_PLY]);
     }
 }
