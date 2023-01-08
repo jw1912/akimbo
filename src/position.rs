@@ -23,13 +23,13 @@ pub struct Position {
     pub castle: [u8; 2],
     pub chess960: bool,
     pub castle_mask: [u8; 64],
+    pub scores: S,
     pub stack: Vec<MoveContext>,
 }
 
 #[derive(Clone, Copy, Default)]
 pub struct State {
     pub zobrist: u64,
-    pub scores: S,
     pub en_passant_sq: u16,
     pub halfmove_clock: u8,
     pub castle_rights: u8,
@@ -85,16 +85,12 @@ impl Position {
 
     #[inline(always)]
     fn add(&mut self, from: usize, side: usize, piece: usize) {
-        let indx = from ^ (56 * (side == 0) as usize);
         self.state.zobrist ^= ZVALS.pieces[side][piece][from];
-        self.state.scores += SIDE_FACTOR[side] * PST[piece][indx];
     }
 
     #[inline(always)]
     fn remove(&mut self, from: usize, side: usize, piece: usize) {
-        let indx = from ^ (56 * (side == 0) as usize);
         self.state.zobrist ^= ZVALS.pieces[side][piece][from];
-        self.state.scores += SIDE_FACTOR[side ^ 1] * PST[piece][indx];
     }
 
     pub fn do_move(&mut self, m: u16) -> bool {
@@ -123,6 +119,7 @@ impl Position {
             self.toggle(side ^ 1, cpc, t);
             self.remove(to, side ^ 1, cpc);
             self.phase -= PHASE_VALS[cpc];
+            self.scores += SIDE_FACTOR[side] * MATERIAL[cpc];
         }
         self.state.castle_rights &= self.castle_mask[from] & self.castle_mask[to];
         match flag {
@@ -191,6 +188,7 @@ impl Position {
             let cpc: usize = state.captured_pc as usize;
             self.toggle(side ^ 1, cpc, t);
             self.phase += PHASE_VALS[cpc];
+            self.scores += SIDE_FACTOR[side ^ 1] * MATERIAL[cpc];
         }
         match flag {
             MoveFlags::EN_PASSANT => {

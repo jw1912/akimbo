@@ -37,7 +37,7 @@ impl Position {
     #[inline]
     fn lazy_eval(&self) -> i16 {
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
-        SIDE_FACTOR[usize::from(self.c)] * ((phase * self.state.scores.0 as i32 + (TPHASE - phase) * self.state.scores.1 as i32) / TPHASE) as i16
+        SIDE_FACTOR[usize::from(self.c)] * ((phase * self.scores.0 as i32 + (TPHASE - phase) * self.scores.1 as i32) / TPHASE) as i16
     }
 
     fn score_move(&self, m: u16, hash_move: u16, killers: &[u16; KILLERS_PER_PLY]) -> u16 {
@@ -211,7 +211,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
 /// - Delta pruning
 fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, nodes: &mut u64) -> i16 {
     *nodes += 1;
-    let mut stand_pat: i16 = pos.lazy_eval();
+    let mut stand_pat: i16 = pos.eval();
 
     if stand_pat >= beta { return stand_pat }
     if alpha < stand_pat { alpha = stand_pat }
