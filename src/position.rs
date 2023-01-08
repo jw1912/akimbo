@@ -129,6 +129,7 @@ impl Position {
                 self.toggle(side ^ 1, PAWN, p);
                 self.remove(pwn, side ^ 1, PAWN);
                 self.squares[pwn] = EMPTY as u8;
+                self.scores += SIDE_FACTOR[side] * MATERIAL[PAWN];
             }
             MoveFlags::DBL_PUSH => {
                 self.state.en_passant_sq = if side == WHITE {to - 8} else {to + 8} as u16;
@@ -152,6 +153,8 @@ impl Position {
                 self.phase += PHASE_VALS[ppc];
                 self.remove(to, side, mpc);
                 self.add(to, side, ppc);
+                self.scores += SIDE_FACTOR[side] * MATERIAL[ppc];
+                self.scores += SIDE_FACTOR[side ^ 1] * MATERIAL[PAWN];
             }
             _ => {}
         }
@@ -195,6 +198,7 @@ impl Position {
                 let pwn: usize = if side == BLACK {to + 8} else {to - 8};
                 self.toggle(side ^ 1, PAWN, bit!(pwn));
                 self.squares[pwn] = PAWN as u8;
+                self.scores += SIDE_FACTOR[side ^ 1] * MATERIAL[PAWN];
             }
             MoveFlags::KS_CASTLE | MoveFlags::QS_CASTLE => {
                 let i: usize = (flag == MoveFlags::KS_CASTLE) as usize;
@@ -209,6 +213,8 @@ impl Position {
                 self.pieces[state.moved_pc as usize] ^= t;
                 self.pieces[ppc] ^= t;
                 self.phase -= PHASE_VALS[ppc];
+                self.scores += SIDE_FACTOR[side ^ 1] * MATERIAL[ppc];
+                self.scores += SIDE_FACTOR[side] * MATERIAL[PAWN];
             }
             _ => {}
         }
