@@ -1,3 +1,4 @@
+use std::ops::{AddAssign, Mul};
 use super::{lsb, consts::*, movegen::{bishop_attacks, rook_attacks}, zobrist::ZVALS};
 
 macro_rules! from {($m:expr) => {(($m >> 6) & 63) as usize}}
@@ -28,8 +29,7 @@ pub struct Position {
 #[derive(Clone, Copy, Default)]
 pub struct State {
     pub zobrist: u64,
-    pub mg: i16,
-    pub eg: i16,
+    pub scores: S,
     pub en_passant_sq: u16,
     pub halfmove_clock: u8,
     pub castle_rights: u8,
@@ -41,6 +41,23 @@ pub struct MoveContext {
     m: u16,
     moved_pc: u8,
     captured_pc: u8,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct S(pub i16, pub i16);
+
+impl AddAssign<S> for S {
+    fn add_assign(&mut self, rhs: S) {
+        self.0 += rhs.0;
+        self.1 += rhs.1;
+    }
+}
+
+impl Mul<S> for i16 {
+    type Output = S;
+    fn mul(self, rhs: S) -> Self::Output {
+        S(self * rhs.0, self * rhs.1)
+    }
 }
 
 impl Position {
@@ -70,16 +87,14 @@ impl Position {
     fn add(&mut self, from: usize, side: usize, piece: usize) {
         let indx = from ^ (56 * (side == 0) as usize);
         self.state.zobrist ^= ZVALS.pieces[side][piece][from];
-        self.state.mg += SIDE_FACTOR[side] * PST_MG[piece][indx];
-        self.state.eg += SIDE_FACTOR[side] * PST_EG[piece][indx];
+        self.state.scores += SIDE_FACTOR[side] * PST[piece][indx];
     }
 
     #[inline(always)]
     fn remove(&mut self, from: usize, side: usize, piece: usize) {
         let indx = from ^ (56 * (side == 0) as usize);
         self.state.zobrist ^= ZVALS.pieces[side][piece][from];
-        self.state.mg -= SIDE_FACTOR[side] * PST_MG[piece][indx];
-        self.state.eg -= SIDE_FACTOR[side] * PST_EG[piece][indx];
+        self.state.scores += SIDE_FACTOR[side ^ 1] * PST[piece][indx];
     }
 
     pub fn do_move(&mut self, m: u16) -> bool {

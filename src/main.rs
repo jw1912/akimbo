@@ -220,8 +220,7 @@ fn parse_fen(s: &str) -> Position {
                 pos.pieces[pc] ^= 1 << idx;
                 pos.squares[idx] = pc as u8;
                 pos.phase += PHASE_VALS[pc];
-                pos.state.mg += SIDE_FACTOR[side] * PST_MG[pc][idx ^ (56 * usize::from(side == 0))];
-                pos.state.eg += SIDE_FACTOR[side] * PST_EG[pc][idx ^ (56 * usize::from(side == 0))];
+                pos.state.scores += SIDE_FACTOR[side] * PST[pc][idx ^ (56 * usize::from(side == 0))];
                 pos.state.zobrist ^= ZVALS.pieces[side][pc][idx];
                 idx -= usize::from(idx > 0);
             }
