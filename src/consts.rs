@@ -81,6 +81,9 @@ impl CastleRights {
 pub const PENRANK: [u64; 2] = [0x00FF000000000000, 0x000000000000FF00];
 pub const DBLRANK: [u64; 2] = [0x00000000FF000000, 0x000000FF00000000];
 
+// ranks that pawns can be on
+pub const PAWN_RANKS: [u64; 6] = [0xFF << 8, 0xFF << 16, 0xFF << 24, 0xFF << 32, 0xFF << 40, 0xFF << 48];
+
 // A file and ~(H file)
 pub const FILE: u64 = 0x0101010101010101;
 pub const NOTH: u64 = !(FILE << 7);
@@ -148,17 +151,16 @@ pub const KILLER: u16 = 500;
 pub const QUIET: u16 = 0;
 pub const MVV_LVA: [[u16; 7]; 7] = [[1500, 1400, 1300, 1200, 1100, 1000, 0], [2500, 2400, 2300, 2200, 2100, 2000, 0], [3500, 3400, 3300, 3200, 3100, 3000, 0], [4500, 4400, 4300, 4200, 4100, 4000, 0], [5500, 5400, 5300, 5200, 5100, 5000,0], [0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0]];
 
-// material values
-pub const MATERIAL: [S; 7] = [S(57, 115), S(293, 231), S(314, 244), S(397, 443), S(889, 841), S(0, 0), S(0, 0)];
-
-// major piece mobility values
-pub const THREATS: [S; 4] = [S(2, 21), S(7, 24), S(12, 17), S(-8, 28)];
-pub const SUPPORTS: [S; 4] = [S(5, 6), S(7, 6), S(9, 8), S(0, 9)];
-pub const CONTROLS: [S; 4] = [S(8, 7), S(6, 6), S(4, 6), S(2, 6)];
-pub const KING_SAFETY: S = S(-23, 9);
-pub const PAWN_SUPPORTS: S = S(8, 6);
-pub const PAWN_THREATS: S = S(38, 25);
-pub const PAWN_SHIELD: S = S(21, -6);
+// eval values
+pub const MATERIAL: [S; 7] = [S(90, 160), S(285, 238), S(306, 261), S(392, 475), S(898, 835), S(0, 0), S(0, 0)];
+pub const THREATS: [S; 4] = [S(1, 22), S(7, 20), S(13, 15), S(-8, 29)];
+pub const SUPPORTS: [S; 4] = [S(5, 5), S(7, 1), S(10, -1), S(0, 7)];
+pub const CONTROLS: [S; 4] = [S(8, 7), S(6, 5), S(3, 5), S(2, 6)];
+pub const KING_SAFETY: S = S(-23, 8);
+pub const PAWN_SUPPORTS: S = S(8, 14);
+pub const PAWN_THREATS: S = S(38, 17);
+pub const PAWN_SHIELD: S = S(21, -3);
+pub const PAWN_PROGRESSION: [S; 6] = [S(-32, -58), S(-31, -65), S(-31, -60), S(-36, -41), S(-10, 22), S(58, 100)];
 
 // fen strings
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";

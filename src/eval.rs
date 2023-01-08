@@ -68,10 +68,16 @@ impl Position {
             score += (w_maj_mob.controls - b_maj_mob.controls) * CONTROLS[i];
         }
 
+        // king safety and pawn control
         score += (wking_danger - bking_danger) * KING_SAFETY;
         score += (count!(white & wp_att) - count!(black & bp_att)) * PAWN_SUPPORTS;
         score += (count!(black & wp_att) - count!(white & bp_att)) * PAWN_THREATS;
         score += (count!(wp & wking_sqs) - count!(bp & bking_sqs)) * PAWN_SHIELD;
+
+        // pawn progression
+        for i in 0..6 {
+            score += (count!(wp & PAWN_RANKS[i]) - count!(bp & PAWN_RANKS[5 - i])) * PAWN_PROGRESSION[i];
+        }
 
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
         SIDE_FACTOR[usize::from(self.c)] * ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16
