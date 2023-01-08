@@ -199,6 +199,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
             }
         }
     }
+    //if best_move & 0b0100_0000_0000_0000 == 0 { ctx.killer_table.push(best_move, ctx.ply) };
     ctx.ply -= 1;
     if legal_moves == 0 { return i16::from(in_check) * (-MAX + ctx.ply) }
     if write_to_hash && !ctx.abort { ctx.hash_table.push(pos.state.zobrist, best_move, depth, bound, best_score, ctx.ply) }

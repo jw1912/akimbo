@@ -99,7 +99,7 @@ fn parse_perft(pos: &mut Position, commands: &[&str]) {
 fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) {
     enum Tokens {None, Depth, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
     let mut token: Tokens = Tokens::None;
-    let (mut times, mut moves_to_go, mut depth): ([u64; 2], Option<u16>, i8) = ([0, 0], None, i8::MAX);
+    let (mut times, mut moves_to_go, mut depth): ([u64; 2], Option<u16>, i8) = ([0, 0], None, 64);
     ctx.alloc_time = 1000;
     for command in commands {
         match command {
@@ -112,7 +112,7 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) {
             "movestogo" => token = Tokens::MovesToGo,
             _ => {
                 match token {
-                    Tokens::Depth => depth = parse!(i8, command, 1),
+                    Tokens::Depth => depth = std::cmp::min(parse!(i8, command, 1), 64),
                     Tokens::Movetime => ctx.alloc_time = parse!(i64, command, 1000) as u128 - 10,
                     Tokens::WTime => times[0] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
                     Tokens::BTime => times[1] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
@@ -148,7 +148,6 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
     }
     if !fen.is_empty() {*pos = parse_fen(&fen)}
     for m in moves {pos.do_move(uci_to_u16(pos, &m));}
-    println!("{:04b}", pos.state.castle_rights);
 }
 
 macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", char::from_u32(($idx & 7) as u32 + 97).unwrap(), ($idx >> 3) + 1)}}
