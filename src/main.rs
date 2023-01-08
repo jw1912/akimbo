@@ -20,7 +20,7 @@ macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().u
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
     let mut pos: Position = parse_fen(STARTPOS);
-    let mut ctx: SearchContext = SearchContext::new(HashTable::new(), KillerTable([[0; 3]; MAX_PLY as usize]));
+    let mut ctx: SearchContext = SearchContext::new(HashTable::new(), KillerTable([[0; KILLERS_PER_PLY]; MAX_PLY as usize]));
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();

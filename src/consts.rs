@@ -134,6 +134,7 @@ pub const CASTLE_MOVES: [[usize; 2]; 2] = [[3, 5], [59, 61]];
 
 // search/eval
 pub const MAX_PLY: i8 = 96;
+pub const KILLERS_PER_PLY: usize = 3;
 pub const MAX: i16 = 30000;
 pub const MATE_THRESHOLD: i16 = MAX - u8::MAX as i16;
 pub const SIDE_FACTOR: [i16; 2] = [1, -1];

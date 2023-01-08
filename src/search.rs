@@ -40,7 +40,7 @@ impl Position {
         SIDE_FACTOR[usize::from(self.c)] * ((phase * self.state.scores.0 as i32 + (TPHASE - phase) * self.state.scores.1 as i32) / TPHASE) as i16
     }
 
-    fn score_move(&self, m: u16, hash_move: u16, killers: &[u16; 3]) -> u16 {
+    fn score_move(&self, m: u16, hash_move: u16, killers: &[u16; KILLERS_PER_PLY]) -> u16 {
         if m == hash_move {
             HASH_MOVE
         } else if m & 0b0100_0000_0000_0000 > 0 {
@@ -55,7 +55,7 @@ impl Position {
     }
 
     fn score_moves(&self, moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, ply: i16, kt: &KillerTable) {
-        let killers: [u16; 3] = kt.0[ply as usize];
+        let killers: [u16; KILLERS_PER_PLY] = kt.0[ply as usize];
         for i in 0..moves.len { move_scores.push(self.score_move(moves.list[i], hash_move, &killers)) }
     }
 
@@ -199,7 +199,6 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
             }
         }
     }
-    //if best_move & 0b0100_0000_0000_0000 == 0 { ctx.killer_table.push(best_move, ctx.ply) };
     ctx.ply -= 1;
     if legal_moves == 0 { return i16::from(in_check) * (-MAX + ctx.ply) }
     if write_to_hash && !ctx.abort { ctx.hash_table.push(pos.state.zobrist, best_move, depth, bound, best_score, ctx.ply) }
