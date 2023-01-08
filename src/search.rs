@@ -34,12 +34,6 @@ impl SearchContext{
 }
 
 impl Position {
-    #[inline]
-    fn lazy_eval(&self) -> i16 {
-        let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
-        SIDE_FACTOR[usize::from(self.c)] * ((phase * self.scores.0 as i32 + (TPHASE - phase) * self.scores.1 as i32) / TPHASE) as i16
-    }
-
     fn score_move(&self, m: u16, hash_move: u16, killers: &[u16; KILLERS_PER_PLY]) -> u16 {
         if m == hash_move {
             HASH_MOVE

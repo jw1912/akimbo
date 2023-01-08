@@ -24,6 +24,12 @@ pub fn major_mobility(pc: usize, mut attackers: u64, occ: u64, friends: u64, unp
 }
 
 impl Position {
+    #[inline]
+    pub fn lazy_eval(&self) -> i16 {
+        let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
+        SIDE_FACTOR[usize::from(self.c)] * ((phase * self.scores.0 as i32 + (TPHASE - phase) * self.scores.1 as i32) / TPHASE) as i16
+    }
+
     pub fn eval(&self) -> i16 {
         let mut score: S = self.scores;
 
