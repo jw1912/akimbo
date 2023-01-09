@@ -20,9 +20,9 @@ fn bspans(mut pwns: u64) -> u64 {
 
 #[derive(Default)]
 struct MajorMobility {
-    threats: i16,
-    supports: i16,
-    controls: i16,
+    threat: i16,
+    defend: i16,
+    attack: i16,
 }
 
 #[inline]
@@ -41,9 +41,9 @@ fn major_mobility(pc: usize, mut attackers: u64, occ: u64, friends: u64, unprote
             QUEEN => rook_attacks(from, occ) | bishop_attacks(from, occ),
             _ => unimplemented!("only implement the four major pieces"),
         };
-        ret.threats += count!(attacks & (occ & !friends)); // threats
-        ret.supports += count!(attacks & friends); // supports
-        ret.controls += count!(attacks & (!occ & unprotected)); // other safe mobility
+        ret.threat += count!(attacks & (occ & !friends));
+        ret.defend += count!(attacks & friends);
+        ret.attack += count!(attacks & (!occ & unprotected));
         *danger += count!(attacks & ksqs);
     }
     ret
@@ -57,19 +57,26 @@ impl Position {
     }
 
     pub fn eval(&self) -> i16 {
+        // eval features are in rough order of importance
+
+        // material scores
         let mut score: S = self.scores;
 
+        // useful bitboards
         let white = self.sides[WHITE];
         let black = self.sides[BLACK];
-
-        // pawn stuff
         let occ: u64 = self.sides[WHITE] | self.sides[BLACK];
         let wp: u64 = self.pieces[PAWN] & white;
         let bp: u64 = self.pieces[PAWN] & black;
+
+        // pawn progression bonus
+        for i in 0..6 {
+            score += (count!(wp & PAWN_RANKS[i]) - count!(bp & PAWN_RANKS[5 - i])) * PROGRESS[i];
+        }
+
+        // pawn attacks and king danger
         let wp_att: u64 = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
         let bp_att: u64 = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
-
-        // king danger stuff
         let mut wking_danger: i16 = 0;
         let mut bking_danger: i16 = 0;
         let wking_sqs: u64 = KING_ATTACKS[(self.pieces[KING] & white).trailing_zeros() as usize];
@@ -79,15 +86,15 @@ impl Position {
         for i in 0..4 {
             let w_maj_mob: MajorMobility = major_mobility(i + 1, self.pieces[i + 1], occ, white, !bp_att, &mut bking_danger, bking_sqs);
             let b_maj_mob: MajorMobility = major_mobility(i + 1, self.pieces[i + 1], occ, black, !wp_att, &mut wking_danger, wking_sqs);
-            score += (w_maj_mob.threats - b_maj_mob.threats) * THREATS[i];
-            score += (w_maj_mob.supports - b_maj_mob.supports) * SUPPORTS[i];
-            score += (w_maj_mob.controls - b_maj_mob.controls) * CONTROLS[i];
+            score += (w_maj_mob.threat - b_maj_mob.threat) * MAJOR_THREAT[i];
+            score += (w_maj_mob.defend - b_maj_mob.defend) * MAJOR_DEFEND[i];
+            score += (w_maj_mob.attack - b_maj_mob.attack) * MAJOR_ATTACK[i];
         }
 
         // king safety and pawn control
         score += (wking_danger - bking_danger) * KING_SAFETY;
-        score += (count!(white & wp_att) - count!(black & bp_att)) * PAWN_SUPPORTS;
-        score += (count!(black & wp_att) - count!(white & bp_att)) * PAWN_THREATS;
+        score += (count!(white & wp_att) - count!(black & bp_att)) * PAWN_DEFEND;
+        score += (count!(black & wp_att) - count!(white & bp_att)) * PAWN_THREAT;
         score += (count!(wp & wking_sqs) - count!(bp & bking_sqs)) * PAWN_SHIELD;
 
         // passed pawns
@@ -96,12 +103,7 @@ impl Position {
         let passers: i16 = count!(wp & !fspans);
         fspans = wspans(wp);
         fspans |= (fspans & NOTH) >> 1 | (fspans & !FILE) << 1;
-        score += (passers - count!(bp & !fspans)) * PASSED_PAWNS;
-
-        // pawn progression
-        for i in 0..6 {
-            score += (count!(wp & PAWN_RANKS[i]) - count!(bp & PAWN_RANKS[5 - i])) * PAWN_PROGRESSION[i];
-        }
+        score += (passers - count!(bp & !fspans)) * PAWN_PASSED;
 
         // bishop pair bonus
         let wb: u64 = self.pieces[BISHOP] & white;
