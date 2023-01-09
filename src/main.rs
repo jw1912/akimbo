@@ -172,7 +172,10 @@ fn uci_to_u16(pos: &Position, m: &str) -> u16 {
     pos.gen_moves::<ALL>(&mut possible_moves);
     for m_idx in 0..possible_moves.len {
         let um: u16 = possible_moves.list[m_idx];
-        if no_flags & TWELVE == um & TWELVE && (l < 5 || no_flags & !TWELVE == um & 0xB000) {return um;}
+        if no_flags & TWELVE == um & TWELVE && (l < 5 || no_flags & !TWELVE == um & 0xB000) // standard chess
+            && (!pos.chess960 || (um & !TWELVE != MoveFlags::KS_CASTLE && um & !TWELVE != MoveFlags::QS_CASTLE)) { // rare chess960 case
+            return um;
+        }
     }
     panic!("invalid move list!");
 }
