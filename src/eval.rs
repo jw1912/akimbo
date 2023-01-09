@@ -57,32 +57,28 @@ impl Position {
     }
 
     pub fn eval(&self) -> i16 {
-        // eval features are in rough order of importance
-
-        // material scores
-        let mut score: S = self.scores;
-
         // useful bitboards
         let white = self.sides[WHITE];
         let black = self.sides[BLACK];
         let occ: u64 = self.sides[WHITE] | self.sides[BLACK];
         let wp: u64 = self.pieces[PAWN] & white;
         let bp: u64 = self.pieces[PAWN] & black;
+        let wp_att: u64 = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
+        let bp_att: u64 = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
+        let wking_sqs: u64 = KING_ATTACKS[(self.pieces[KING] & white).trailing_zeros() as usize];
+        let bking_sqs: u64 = KING_ATTACKS[(self.pieces[KING] & black).trailing_zeros() as usize];
+
+        // material scores
+        let mut score: S = self.scores;
 
         // pawn progression bonus
         for i in 0..6 {
             score += (count!(wp & PAWN_RANKS[i]) - count!(bp & PAWN_RANKS[5 - i])) * PROGRESS[i];
         }
 
-        // pawn attacks and king danger
-        let wp_att: u64 = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
-        let bp_att: u64 = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
+        // major piece mobility
         let mut wking_danger: i16 = 0;
         let mut bking_danger: i16 = 0;
-        let wking_sqs: u64 = KING_ATTACKS[(self.pieces[KING] & white).trailing_zeros() as usize];
-        let bking_sqs: u64 = KING_ATTACKS[(self.pieces[KING] & black).trailing_zeros() as usize];
-
-        // major piece mobility
         for i in 0..4 {
             let w_maj_mob: MajorMobility = major_mobility(i + 1, self.pieces[i + 1], occ, white, !bp_att, &mut bking_danger, bking_sqs);
             let b_maj_mob: MajorMobility = major_mobility(i + 1, self.pieces[i + 1], occ, black, !wp_att, &mut wking_danger, wking_sqs);
