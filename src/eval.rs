@@ -2,6 +2,22 @@ use super::{consts::*, movegen::{rook_attacks, bishop_attacks}, position::{Posit
 
 macro_rules! count {($bb:expr) => {$bb.count_ones() as i16}}
 
+#[inline(always)]
+fn wspans(mut pwns: u64) -> u64 {
+    pwns |= pwns << 8;
+    pwns |= pwns << 16;
+    pwns |= pwns << 32;
+    pwns << 8
+}
+
+#[inline(always)]
+fn bspans(mut pwns: u64) -> u64 {
+    pwns |= pwns >> 8;
+    pwns |= pwns >> 16;
+    pwns |= pwns >> 32;
+    pwns >> 8
+}
+
 #[derive(Default)]
 struct MajorMobility {
     threats: i16,
@@ -74,10 +90,28 @@ impl Position {
         score += (count!(black & wp_att) - count!(white & bp_att)) * PAWN_THREATS;
         score += (count!(wp & wking_sqs) - count!(bp & bking_sqs)) * PAWN_SHIELD;
 
+        // passed pawns
+        let mut fspans = bspans(bp);
+        fspans |= (fspans & NOTH) >> 1 | (fspans & !FILE) << 1;
+        let passers: i16 = count!(wp & !fspans);
+        fspans = wspans(wp);
+        fspans |= (fspans & NOTH) >> 1 | (fspans & !FILE) << 1;
+        score += (passers - count!(bp & !fspans)) * PASSED_PAWNS;
+
         // pawn progression
         for i in 0..6 {
             score += (count!(wp & PAWN_RANKS[i]) - count!(bp & PAWN_RANKS[5 - i])) * PAWN_PROGRESSION[i];
         }
+
+        // pawn file bonuses
+        for i in 0..8 {
+            score += (count!(wp & FILES[i]) - count!(bp & FILES[7 - i])) * PAWN_FILES[i];
+        }
+
+        // bishop pair bonus
+        let wb: u64 = self.pieces[BISHOP] & white;
+        let bb: u64 = self.pieces[BISHOP] & black;
+        score += (i16::from(wb & (wb - 1) > 0) - i16::from(bb & (bb - 1) > 0)) * BISHOP_PAIR;
 
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
         SIDE_FACTOR[usize::from(self.c)] * ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16

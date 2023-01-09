@@ -81,8 +81,10 @@ impl CastleRights {
 pub const PENRANK: [u64; 2] = [0x00FF000000000000, 0x000000000000FF00];
 pub const DBLRANK: [u64; 2] = [0x00000000FF000000, 0x000000FF00000000];
 
-// ranks that pawns can be on
+// ranks and files that pawns can be on
 pub const PAWN_RANKS: [u64; 6] = [0xFF << 8, 0xFF << 16, 0xFF << 24, 0xFF << 32, 0xFF << 40, 0xFF << 48];
+pub const FILES: [u64; 8] = [FILE << 1, FILE << 2, FILE << 3, FILE << 4, FILE << 5, FILE << 6, FILE << 7, FILE << 8];
+
 
 // A file and ~(H file)
 pub const FILE: u64 = 0x0101010101010101;
@@ -152,15 +154,18 @@ pub const QUIET: u16 = 0;
 pub const MVV_LVA: [[u16; 7]; 7] = [[1500, 1400, 1300, 1200, 1100, 1000, 0], [2500, 2400, 2300, 2200, 2100, 2000, 0], [3500, 3400, 3300, 3200, 3100, 3000, 0], [4500, 4400, 4300, 4200, 4100, 4000, 0], [5500, 5400, 5300, 5200, 5100, 5000,0], [0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0]];
 
 // eval values
-pub const MATERIAL: [S; 7] = [S(90, 160), S(285, 238), S(306, 261), S(392, 475), S(898, 835), S(0, 0), S(0, 0)];
-pub const THREATS: [S; 4] = [S(1, 22), S(7, 20), S(13, 15), S(-8, 29)];
-pub const SUPPORTS: [S; 4] = [S(5, 5), S(7, 1), S(10, -1), S(0, 7)];
-pub const CONTROLS: [S; 4] = [S(8, 7), S(6, 5), S(3, 5), S(2, 6)];
+pub const MATERIAL: [S; 7] = [S(95, 135), S(285, 241), S(285, 256), S(390, 478), S(904, 835), S(0, 0), S(0, 0)];
+pub const THREATS: [S; 4] = [S(2, 21), S(8, 19), S(13, 15), S(-7, 27)];
+pub const SUPPORTS: [S; 4] = [S(5, 5), S(8, 2), S(11, -2), S(1, 5)];
+pub const CONTROLS: [S; 4] = [S(8, 6), S(7, 5), S(3, 5), S(2, 6)];
 pub const KING_SAFETY: S = S(-23, 8);
-pub const PAWN_SUPPORTS: S = S(8, 14);
-pub const PAWN_THREATS: S = S(38, 17);
-pub const PAWN_SHIELD: S = S(21, -3);
-pub const PAWN_PROGRESSION: [S; 6] = [S(-32, -58), S(-31, -65), S(-31, -60), S(-36, -41), S(-10, 22), S(58, 100)];
+pub const PAWN_SUPPORTS: S = S(7, 16);
+pub const PAWN_THREATS: S = S(38, 16);
+pub const PAWN_SHIELD: S = S(19, -1);
+pub const PASSED_PAWNS: S = S(-2, 18);
+pub const PAWN_PROGRESSION: [S; 6] = [S(-29, -51), S(-29, -57), S(-30, -51), S(-34, -33), S(-7, 26), S(60, 102)];
+pub const PAWN_FILES: [S; 8] = [S(-13, 17), S(-7, 1), S(6, -2), S(2, -4), S(6, -4), S(7, -1), S(-7, 1), S(-14, 17)];
+pub const BISHOP_PAIR: S = S(17, 38);
 
 // fen strings
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
