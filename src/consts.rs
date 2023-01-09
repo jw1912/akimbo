@@ -83,7 +83,8 @@ pub const DBLRANK: [u64; 2] = [0x00000000FF000000, 0x000000FF00000000];
 
 // ranks that pawns can be on
 pub const PAWN_RANKS: [u64; 6] = [0xFF << 8, 0xFF << 16, 0xFF << 24, 0xFF << 32, 0xFF << 40, 0xFF << 48];
-
+pub const FILES: [u64; 8] = [FILE, FILE << 1, FILE << 2, FILE << 3, FILE << 4, FILE << 5, FILE << 6, FILE << 7];
+pub const RAILS: [u64; 8] = [FILES[1], FILES[0] | FILES[2], FILES[1] | FILES[3], FILES[2] | FILES[4], FILES[3] | FILES[5], FILES[4] | FILES[6], FILES[5] | FILES[7], FILES[6]];
 
 // A file and ~(H file)
 pub const FILE: u64 = 0x0101010101010101;
@@ -161,17 +162,19 @@ pub const MVV_LVA: [[u16; 7]; 7] = [
 ];
 
 // eval values
-pub const MATERIAL: [S; 7] = [S(62, 91), S(292, 233), S(297, 255), S(394, 470), S(902, 848), S(0, 0), S(0, 0)];
-pub const PROGRESS: [S; 5] = [S(2, -10), S(2, -4), S(0, 14), S(26, 73), S(98, 148)];
-pub const MAJOR_THREAT: [S; 4] = [S(0, 23), S(5, 18), S(8, 16), S(-5, 24)];
-pub const MAJOR_DEFEND: [S; 4] = [S(3, 6), S(3, 2), S(1, 1), S(0, -1)];
+pub const MATERIAL: [S; 7] = [S(82, 105), S(292, 233), S(301, 253), S(399, 468), S(901, 851), S(0, 0), S(0, 0)];
+pub const PROGRESS: [S; 5] = [S(5, -11), S(5, -5), S(2, 14), S(31, 72), S(97, 149)];
+pub const MAJOR_THREAT: [S; 4] = [S(1, 22), S(5, 18), S(7, 17), S(-5, 24)];
+pub const MAJOR_DEFEND: [S; 4] = [S(4, 5), S(3, 2), S(1, 1), S(0, 0)];
 pub const MAJOR_ATTACK: [S; 4] = [S(7, 7), S(5, 5), S(3, 5), S(2, 5)];
-pub const PAWN_THREAT: S = S(37, 14);
-pub const PAWN_DEFEND: S = S(8, 15);
+pub const PAWN_THREAT: S = S(36, 14);
+pub const PAWN_DEFEND: S = S(6, 14);
 pub const PAWN_SHIELD: S = S(21, -4);
-pub const PAWN_PASSED: S = S(-3, 19);
-pub const KING_SAFETY: S = S(-23, 8);
-pub const BISHOP_PAIR: S = S(16, 39);
+pub const PAWN_PASSED: S = S(-2, 19);
+pub const PAWN_DOUBLE: S = S(-23, -13);
+pub const PAWN_ISOLATED: S = S(-18, 3);
+pub const KING_SAFETY: S = S(-24, 8);
+pub const BISHOP_PAIR: S = S(17, 39);
 
 // fen strings
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
