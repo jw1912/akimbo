@@ -50,29 +50,9 @@ fn main() {
             "go" => parse_go(&mut pos, commands, &mut ctx),
             "position" => parse_position(&mut pos, commands),
             "perft" => parse_perft(&mut pos, &commands),
-            "perftsuite" => perft_suite(false),
-            "frcsuite" => perft_suite(true),
             _ => println!("unknown command"),
         }
     }
-}
-
-fn perft_suite(frc: bool) {
-    let initial: Instant = Instant::now();
-    let mut total: u64 = 0;
-    for (fen, d, exp) in if frc {&FRC_POSITIONS[..]} else {&POSITIONS[..]} {
-        let mut pos: Position = parse_fen(fen);
-        println!("Position: {fen}");
-        let now: Instant = Instant::now();
-        let count: u64 = perft(&mut pos, *d);
-        total += count;
-        assert_eq!(count, *exp);
-        let dur = now.elapsed();
-        println!("depth {} time {} nodes {count} Mnps {:.2}\n", d, dur.as_millis(), count as f64 / dur.as_micros() as f64);
-    }
-    let dur = initial.elapsed();
-    println!("total time {} nodes {} nps {:.3}", dur.as_millis(), total, total as f64 / dur.as_micros() as f64)
-
 }
 
 fn perft(pos: &mut Position, depth_left: u8) -> u64 {
