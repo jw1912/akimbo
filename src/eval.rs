@@ -2,31 +2,14 @@ use super::{consts::*, movegen::{rook_attacks, bishop_attacks}, position::{Posit
 
 macro_rules! count {($bb:expr) => {$bb.count_ones() as i16}}
 
-#[inline(always)]
-fn wspans(mut pwns: u64) -> u64 {
-    pwns |= pwns << 8;
-    pwns |= pwns << 16;
-    pwns |= pwns << 32;
-    pwns << 8
-}
-
-#[inline(always)]
-fn bspans(mut pwns: u64) -> u64 {
-    pwns |= pwns >> 8;
-    pwns |= pwns >> 16;
-    pwns |= pwns >> 32;
-    pwns >> 8
-}
-
 #[derive(Default)]
 struct MajorMobility {
     threat: i16,
     defend: i16,
-    attack: i16,
 }
 
 #[inline]
-fn major_mobility(pc: usize, mut attackers: u64, occ: u64, friends: u64, unprotected: u64, danger: &mut i16, ksqs: u64) -> MajorMobility {
+fn major_mobility(pc: usize, mut attackers: u64, occ: u64, friends: u64, danger: &mut i16, ksqs: u64) -> MajorMobility {
     let mut from: usize;
     let mut attacks: u64;
     let mut ret = MajorMobility::default();
@@ -43,7 +26,6 @@ fn major_mobility(pc: usize, mut attackers: u64, occ: u64, friends: u64, unprote
         };
         ret.threat += count!(attacks & (occ & !friends));
         ret.defend += count!(attacks & friends);
-        ret.attack += count!(attacks & (!occ & unprotected));
         *danger += count!(attacks & ksqs);
     }
     ret
@@ -63,8 +45,6 @@ impl Position {
         let occ: u64 = self.sides[WHITE] | self.sides[BLACK];
         let wp: u64 = self.pieces[PAWN] & white;
         let bp: u64 = self.pieces[PAWN] & black;
-        let wp_att: u64 = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
-        let bp_att: u64 = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
         let wking_sqs: u64 = KING_ATTACKS[(self.pieces[KING] & white).trailing_zeros() as usize];
         let bking_sqs: u64 = KING_ATTACKS[(self.pieces[KING] & black).trailing_zeros() as usize];
 
@@ -80,31 +60,27 @@ impl Position {
         let mut wking_danger: i16 = 0;
         let mut bking_danger: i16 = 0;
         for i in 0..4 {
-            let w_maj_mob: MajorMobility = major_mobility(i + 1, self.pieces[i + 1], occ, white, !bp_att, &mut bking_danger, bking_sqs);
-            let b_maj_mob: MajorMobility = major_mobility(i + 1, self.pieces[i + 1], occ, black, !wp_att, &mut wking_danger, wking_sqs);
+            // rooks don't block each other, rooks and bishops don't block queen, queen blocks nothing
+            let (tw, tb): (u64, u64) = match i + 1 {
+                ROOK => {
+                    let qr: u64 = self.pieces[ROOK] ^ self.pieces[QUEEN];
+                    (qr & white, qr & black)
+                },
+                QUEEN => {
+                    let br: u64 = self.pieces[BISHOP] ^ self.pieces[ROOK] ^ self.pieces[QUEEN];
+                    (br & white, br & black)
+                },
+                _ => (self.pieces[QUEEN] & white, self.pieces[QUEEN] & black)
+            };
+            let w_maj_mob: MajorMobility = major_mobility(i + 1, self.pieces[i + 1], occ ^ tw, white, &mut bking_danger, bking_sqs);
+            let b_maj_mob: MajorMobility = major_mobility(i + 1, self.pieces[i + 1], occ ^ tb, black, &mut wking_danger, wking_sqs);
             score += (w_maj_mob.threat - b_maj_mob.threat) * MAJOR_THREAT[i];
             score += (w_maj_mob.defend - b_maj_mob.defend) * MAJOR_DEFEND[i];
-            score += (w_maj_mob.attack - b_maj_mob.attack) * MAJOR_ATTACK[i];
         }
 
         // king safety and pawn control
         score += (wking_danger - bking_danger) * KING_SAFETY;
-        score += (count!(white & wp_att) - count!(black & bp_att)) * PAWN_DEFEND;
-        score += (count!(black & wp_att) - count!(white & bp_att)) * PAWN_THREAT;
         score += (count!(wp & wking_sqs) - count!(bp & bking_sqs)) * PAWN_SHIELD;
-
-        // passed pawns
-        let mut fspans = bspans(bp);
-        fspans |= (fspans & NOTH) >> 1 | (fspans & !FILE) << 1;
-        let passers: i16 = count!(wp & !fspans);
-        fspans = wspans(wp);
-        fspans |= (fspans & NOTH) >> 1 | (fspans & !FILE) << 1;
-        score += (passers - count!(bp & !fspans)) * PAWN_PASSED;
-
-        // bishop pair bonus
-        let wb: u64 = self.pieces[BISHOP] & white;
-        let bb: u64 = self.pieces[BISHOP] & black;
-        score += (i16::from(wb & (wb - 1) > 0) - i16::from(bb & (bb - 1) > 0)) * BISHOP_PAIR;
 
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
         SIDE_FACTOR[usize::from(self.c)] * ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16
