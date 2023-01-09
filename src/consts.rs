@@ -161,17 +161,17 @@ pub const MVV_LVA: [[u16; 7]; 7] = [
 ];
 
 // eval values
-pub const MATERIAL: [S; 7] = [S(58, 91), S(273, 238), S(279, 260), S(371, 480), S(888, 826), S(0, 0), S(0, 0)];
-pub const PROGRESS: [S; 5] = [S(2, -9), S(2, -3), S(-2, 15), S(24, 75), S(99, 150)];
-pub const MAJOR_THREAT: [S; 4] = [S(2, 22), S(8, 18), S(14, 15), S(-8, 29)];
-pub const MAJOR_DEFEND: [S; 4] = [S(5, 5), S(7, 1), S(11, -1), S(0, 7)];
-pub const MAJOR_ATTACK: [S; 4] = [S(8, 7), S(6, 5), S(3, 5), S(2, 6)];
-pub const PAWN_THREAT: S = S(38, 14);
-pub const PAWN_DEFEND: S = S(7, 16);
+pub const MATERIAL: [S; 7] = [S(62, 91), S(292, 233), S(297, 255), S(394, 470), S(902, 848), S(0, 0), S(0, 0)];
+pub const PROGRESS: [S; 5] = [S(2, -10), S(2, -4), S(0, 14), S(26, 73), S(98, 148)];
+pub const MAJOR_THREAT: [S; 4] = [S(0, 23), S(5, 18), S(8, 16), S(-5, 24)];
+pub const MAJOR_DEFEND: [S; 4] = [S(3, 6), S(3, 2), S(1, 1), S(0, -1)];
+pub const MAJOR_ATTACK: [S; 4] = [S(7, 7), S(5, 5), S(3, 5), S(2, 5)];
+pub const PAWN_THREAT: S = S(37, 14);
+pub const PAWN_DEFEND: S = S(8, 15);
 pub const PAWN_SHIELD: S = S(21, -4);
 pub const PAWN_PASSED: S = S(-3, 19);
 pub const KING_SAFETY: S = S(-23, 8);
-pub const BISHOP_PAIR: S = S(13, 40);
+pub const BISHOP_PAIR: S = S(16, 39);
 
 // fen strings
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
