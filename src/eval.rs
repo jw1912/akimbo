@@ -72,8 +72,8 @@ impl Position {
         let mut score: S = self.scores;
 
         // pawn progression bonus
-        for i in 0..6 {
-            score += (count!(wp & PAWN_RANKS[i]) - count!(bp & PAWN_RANKS[5 - i])) * PROGRESS[i];
+        for i in 0..5 {
+            score += (count!(wp & PAWN_RANKS[i + 1]) - count!(bp & PAWN_RANKS[4 - i])) * PROGRESS[i];
         }
 
         // major piece mobility
