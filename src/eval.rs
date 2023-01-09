@@ -103,11 +103,6 @@ impl Position {
             score += (count!(wp & PAWN_RANKS[i]) - count!(bp & PAWN_RANKS[5 - i])) * PAWN_PROGRESSION[i];
         }
 
-        // pawn file bonuses
-        for i in 0..8 {
-            score += (count!(wp & FILES[i]) - count!(bp & FILES[7 - i])) * PAWN_FILES[i];
-        }
-
         // bishop pair bonus
         let wb: u64 = self.pieces[BISHOP] & white;
         let bb: u64 = self.pieces[BISHOP] & black;
