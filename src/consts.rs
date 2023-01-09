@@ -162,17 +162,17 @@ pub const MVV_LVA: [[u16; 7]; 7] = [
 ];
 
 // eval values
-pub const MATERIAL: [S; 7] = [S(82, 105), S(292, 233), S(301, 253), S(399, 468), S(901, 851), S(0, 0), S(0, 0)];
-pub const PROGRESS: [S; 5] = [S(5, -11), S(5, -5), S(2, 14), S(31, 72), S(97, 149)];
-pub const MAJOR_THREAT: [S; 4] = [S(1, 22), S(5, 18), S(7, 17), S(-5, 24)];
-pub const MAJOR_DEFEND: [S; 4] = [S(4, 5), S(3, 2), S(1, 1), S(0, 0)];
-pub const MAJOR_ATTACK: [S; 4] = [S(7, 7), S(5, 5), S(3, 5), S(2, 5)];
-pub const PAWN_THREAT: S = S(36, 14);
-pub const PAWN_DEFEND: S = S(6, 14);
+pub const MATERIAL: [S; 7] = [S(91, 107), S(287, 239), S(301, 260), S(400, 478), S(909, 863), S(0, 0), S(0, 0)];
+pub const PROGRESS: [S; 5] = [S(5, -9), S(4, -3), S(1, 16), S(27, 73), S(96, 150)];
+pub const MAJOR_THREAT: [S; 4] = [S(1, 23), S(6, 18), S(8, 17), S(-6, 25)];
+pub const MAJOR_DEFEND: [S; 4] = [S(4, 6), S(3, 2), S(1, 0), S(0, 0)];
+pub const MAJOR_ATTACK: [S; 4] = [S(8, 7), S(5, 5), S(3, 5), S(2, 5)];
+pub const PAWN_THREAT: S = S(37, 13);
+pub const PAWN_DEFEND: S = S(5, 14);
 pub const PAWN_SHIELD: S = S(21, -4);
-pub const PAWN_PASSED: S = S(-2, 19);
-pub const PAWN_DOUBLE: S = S(-23, -13);
-pub const PAWN_ISOLATED: S = S(-18, 3);
+pub const PAWN_PASSED: S = S(0, 37);
+pub const PAWN_DOUBLE: S = S(-30, -27);
+pub const PAWN_ISOLATED: S = S(-16, -5);
 pub const KING_SAFETY: S = S(-24, 8);
 pub const BISHOP_PAIR: S = S(17, 39);
 

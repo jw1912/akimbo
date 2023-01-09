@@ -106,19 +106,14 @@ impl Position {
         score += (count!(wp & wking_sqs) - count!(bp & bking_sqs)) * PAWN_SHIELD;
 
         // passed pawns
-        let mut fspans = bspans(bp);
-        fspans |= (fspans & NOTH) >> 1 | (fspans & !FILE) << 1;
-        let passers: i16 = count!(wp & !fspans);
-        fspans = wspans(wp);
-        fspans |= (fspans & NOTH) >> 1 | (fspans & !FILE) << 1;
-        score += (passers - count!(bp & !fspans)) * PAWN_PASSED;
+        score += (count!(wp & !bspans(bp | bp_att)) - count!(bp & !wspans(wp | wp_att))) * PAWN_PASSED;
 
         // doubled and isolated pawns
         for file in 0..8 {
             let wc: i16 = count!(FILES[file] & wp);
             let bc: i16 = count!(FILES[file] & bp);
             score += (wc.saturating_sub(1) - bc.saturating_sub(1)) * PAWN_DOUBLE;
-            score += (i16::from(wc > 0 && RAILS[file] & wp == 0) - i16::from(bc > 0 && RAILS[file] & bp == 0)) * PAWN_ISOLATED;
+            score += (i16::from(RAILS[file] & wp == 0) * wc - i16::from(RAILS[file] & bp == 0) * bc) * PAWN_ISOLATED;
         }
 
         // bishop pair bonus
