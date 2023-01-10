@@ -127,7 +127,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
         let lazy_eval: i16 = pos.lazy_eval();
 
         // reverse futility pruning
-        let margin: i16 = lazy_eval - 120 * i16::from(depth);
+        let margin: i16 = lazy_eval - RFP_MARGIN * i16::from(depth);
         if depth <= 8 && margin >= beta { return margin }
 
         // null move pruning
@@ -218,7 +218,7 @@ fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, nodes: &mut u64) -> i1
 
     while let Some((m, m_score)) = pick_move(&mut captures, &mut scores) {
         // delta pruning
-        if stand_pat + m_score as i16 / 5 + 200 < alpha { break }
+        if stand_pat + m_score as i16 / 5 + DELTA_MARGIN < alpha { break }
 
         if pos.do_move(m) { continue }
         let score: i16 = -qsearch(pos, -beta, -alpha, nodes);

@@ -137,6 +137,8 @@ pub const CASTLE_MOVES: [[usize; 2]; 2] = [[3, 5], [59, 61]];
 
 // search/eval
 pub const MAX_PLY: i8 = 96;
+pub const RFP_MARGIN: i16 = 3 * MATERIAL[PAWN].0 / 2;
+pub const DELTA_MARGIN: i16 = 2 * MATERIAL[PAWN].1;
 pub const KILLERS_PER_PLY: usize = 3;
 pub const MAX: i16 = 30000;
 pub const MATE_THRESHOLD: i16 = MAX - u8::MAX as i16;
@@ -160,14 +162,16 @@ pub const MVV_LVA: [[u16; 7]; 7] = [
 ];
 
 // eval values
-pub const MATERIAL: [S; 7] = [S(66, 92), S(277, 234), S(304, 250), S(388, 468), S(882, 851), S(0, 0), S(0, 0)];
-pub const PROGRESS: [S; 5] = [S(9, -7), S(7, -3), S(8, 12), S(32, 69), S(112, 142)];
-pub const MAJOR_THREAT: [S; 4] = [S(-1, 21), S(3, 18), S(8, 16), S(-5, 21)];
-pub const MAJOR_DEFEND: [S; 4] = [S(5, 5), S(3, 4), S(2, 0), S(0, -2)];
-pub const MAJOR_ATTACK: [S; 4] = [S(7, 7), S(4, 6), S(2, 5), S(1, 5)];
-pub const PAWN_SHIELD: S = S(19, -2);
+pub const MATERIAL: [S; 7] = [S(65, 94), S(285, 236), S(313, 254), S(394, 474), S(892, 851), S(0, 0), S(0, 0)];
+pub const PROGRESS: [S; 5] = [S(10, -8), S(8, -5), S(9, 9), S(33, 64), S(117, 138)];
+pub const MAJOR_THREAT: [S; 4] = [S(-1, 21), S(3, 16), S(4, 17), S(-5, 20)];
+pub const MAJOR_DEFEND: [S; 4] = [S(5, 5), S(3, 3), S(-1, 1), S(0, -1)];
+pub const MAJOR_ATTACK: [S; 4] = [S(7, 6), S(4, 5), S(3, 4), S(1, 5)];
+pub const PIECE_SHIELD: S = S(2, -3);
+pub const PAWN_SHIELD: S = S(22, -6);
 pub const PAWN_PASSED: S = S(-5, 26);
-pub const KING_DANGER: S = S(-23, 8);
+pub const KING_RANKS: [S; 8] = [S(14, -34), S(-26, 1), S(-53, 16), S(-47, 21), S(-39, 17), S(-48, 15), S(-31, 1), S(11, -33)];
+pub const KING_DANGER: S = S(-21, 6);
 
 // fen strings
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";

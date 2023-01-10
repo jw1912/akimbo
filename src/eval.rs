@@ -57,8 +57,8 @@ impl Position {
 
     pub fn eval(&self) -> i16 {
         // useful bitboards
-        let white = self.sides[WHITE];
-        let black = self.sides[BLACK];
+        let white: u64 = self.sides[WHITE];
+        let black: u64 = self.sides[BLACK];
         let occ: u64 = self.sides[WHITE] | self.sides[BLACK];
         let wp: u64 = self.pieces[PAWN] & white;
         let bp: u64 = self.pieces[PAWN] & black;
@@ -70,8 +70,10 @@ impl Position {
         let bq: u64 = self.pieces[QUEEN] & black;
         let wk: u64 = self.pieces[KING] & white;
         let bk: u64 = self.pieces[KING] & black;
-        let wking_sqs: u64 = KING_ATTACKS[wk.trailing_zeros() as usize];
-        let bking_sqs: u64 = KING_ATTACKS[bk.trailing_zeros() as usize];
+        let wk_idx: usize = wk.trailing_zeros() as usize;
+        let bk_idx: usize = bk.trailing_zeros() as usize;
+        let wking_sqs: u64 = KING_ATTACKS[wk_idx];
+        let bking_sqs: u64 = KING_ATTACKS[bk_idx];
         let wp_att: u64 = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
         let bp_att: u64 = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
 
@@ -96,21 +98,21 @@ impl Position {
         score += (w_maj_mob.defend - b_maj_mob.defend) * MAJOR_DEFEND[0];
         score += (w_maj_mob.attack - b_maj_mob.attack) * MAJOR_ATTACK[0];
 
-        // bishop mobility
+        // bishop mobility - ignore friendly queens
         w_maj_mob = major_mobility::<BISHOP>(wb, occ ^ wq ^ bk, white, &mut bking_danger, bking_sqs);
         b_maj_mob = major_mobility::<BISHOP>(bb, occ ^ bq ^ wk, black, &mut wking_danger, wking_sqs);
         score += (w_maj_mob.threat - b_maj_mob.threat) * MAJOR_THREAT[1];
         score += (w_maj_mob.defend - b_maj_mob.defend) * MAJOR_DEFEND[1];
         score += (w_maj_mob.attack - b_maj_mob.attack) * MAJOR_ATTACK[1];
 
-        // rook mobility
+        // rook mobility - ignore friendly queens and rooks
         w_maj_mob = major_mobility::<ROOK>(wr, occ ^ wq ^ wr ^ bk, white, &mut bking_danger, bking_sqs);
         b_maj_mob = major_mobility::<ROOK>(br, occ ^ bq ^ br ^ wk, black, &mut wking_danger, wking_sqs);
         score += (w_maj_mob.threat - b_maj_mob.threat) * MAJOR_THREAT[2];
         score += (w_maj_mob.defend - b_maj_mob.defend) * MAJOR_DEFEND[2];
         score += (w_maj_mob.attack - b_maj_mob.attack) * MAJOR_ATTACK[2];
 
-        // queen mobility
+        // queen mobility - ignore friendly queens, rooks and bishops
         w_maj_mob = major_mobility::<QUEEN>(wq, occ ^ wq ^ wb ^ wr ^ bk, white, &mut bking_danger, bking_sqs);
         b_maj_mob = major_mobility::<QUEEN>(bq, occ ^ bq ^ bb ^ br ^ wk, black, &mut wking_danger, wking_sqs);
         score += (w_maj_mob.threat - b_maj_mob.threat) * MAJOR_THREAT[3];
@@ -120,6 +122,9 @@ impl Position {
         // king safety and pawn control
         score += (wking_danger - bking_danger) * KING_DANGER;
         score += (count!(wp & wking_sqs) - count!(bp & bking_sqs)) * PAWN_SHIELD;
+        score += (count!((white ^ wp) & wking_sqs) - count!((black ^ bp) & bking_sqs)) * PIECE_SHIELD;
+        score += KING_RANKS[wk_idx / 8];
+        score += -1 * KING_RANKS[bk_idx / 8];
 
         // passed pawns
         score += (count!(wp & !bspans(bp | bp_att)) - count!(bp & !wspans(wp | wp_att))) * PAWN_PASSED;
