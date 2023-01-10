@@ -83,8 +83,6 @@ pub const DBLRANK: [u64; 2] = [0x00000000FF000000, 0x000000FF00000000];
 
 // ranks that pawns can be on
 pub const PAWN_RANKS: [u64; 6] = [0xFF << 8, 0xFF << 16, 0xFF << 24, 0xFF << 32, 0xFF << 40, 0xFF << 48];
-pub const FILES: [u64; 8] = [FILE, FILE << 1, FILE << 2, FILE << 3, FILE << 4, FILE << 5, FILE << 6, FILE << 7];
-pub const RAILS: [u64; 8] = [FILES[1], FILES[0] | FILES[2], FILES[1] | FILES[3], FILES[2] | FILES[4], FILES[3] | FILES[5], FILES[4] | FILES[6], FILES[5] | FILES[7], FILES[6]];
 
 // A file and ~(H file)
 pub const FILE: u64 = 0x0101010101010101;
@@ -162,18 +160,14 @@ pub const MVV_LVA: [[u16; 7]; 7] = [
 ];
 
 // eval values
-pub const MATERIAL: [S; 7] = [S(61, 79), S(292, 238), S(306, 252), S(412, 473), S(921, 857), S(0, 0), S(0, 0)];
-pub const PROGRESS: [S; 5] = [S(5, -8), S(5, -3), S(2, 16), S(29, 73), S(106, 147)];
-pub const MAJOR_THREAT: [S; 4] = [S(1, 23), S(6, 18), S(8, 17), S(-6, 26)];
-pub const MAJOR_DEFEND: [S; 4] = [S(4, 5), S(3, 3), S(1, 0), S(0, 0)];
-pub const MAJOR_ATTACK: [S; 4] = [S(8, 7), S(5, 6), S(3, 5), S(2, 5)];
-pub const PAWN_THREAT: S = S(37, 14);
-pub const PAWN_DEFEND: S = S(6, 13);
-pub const PAWN_SHIELD: S = S(22, -4);
-pub const PAWN_PASSED: S = S(2, 37);
-pub const PAWN_ISOLATED: S = S(-17, -5);
-pub const KING_SAFETY: S = S(-24, 8);
-pub const BISHOP_PAIR: S = S(19, 36);
+pub const MATERIAL: [S; 7] = [S(66, 92), S(277, 234), S(304, 250), S(388, 468), S(882, 851), S(0, 0), S(0, 0)];
+pub const PROGRESS: [S; 5] = [S(9, -7), S(7, -3), S(8, 12), S(32, 69), S(112, 142)];
+pub const MAJOR_THREAT: [S; 4] = [S(-1, 21), S(3, 18), S(8, 16), S(-5, 21)];
+pub const MAJOR_DEFEND: [S; 4] = [S(5, 5), S(3, 4), S(2, 0), S(0, -2)];
+pub const MAJOR_ATTACK: [S; 4] = [S(7, 7), S(4, 6), S(2, 5), S(1, 5)];
+pub const PAWN_SHIELD: S = S(19, -2);
+pub const PAWN_PASSED: S = S(-5, 26);
+pub const KING_DANGER: S = S(-23, 8);
 
 // fen strings
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
