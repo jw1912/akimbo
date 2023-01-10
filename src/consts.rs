@@ -5,6 +5,12 @@ pub const NAME: &str = env!("CARGO_PKG_NAME");
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 
+// fen strings
+pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+// uci <-> u16
+pub const TWELVE: u16 = 0b1111_1111_1111;
+
 // macro for calculating tables (until const fn pointers are stable)
 macro_rules! init {
     ($idx:ident, $init:expr, $($rest:tt)+) => {{
@@ -80,9 +86,6 @@ impl CastleRights {
 // for promotions / double pushes
 pub const PENRANK: [u64; 2] = [0x00FF000000000000, 0x000000000000FF00];
 pub const DBLRANK: [u64; 2] = [0x00000000FF000000, 0x000000FF00000000];
-
-// ranks that pawns can be on
-pub const PAWN_RANKS: [u64; 6] = [0xFF << 8, 0xFF << 16, 0xFF << 24, 0xFF << 32, 0xFF << 40, 0xFF << 48];
 
 // A file and ~(H file)
 pub const FILE: u64 = 0x0101010101010101;
@@ -164,16 +167,18 @@ pub const MVV_LVA: [[u16; 7]; 7] = [
 pub const LAZY_MATERIAL: [S; 5] = [S(75, 113), S(318, 294), S(331, 308), S(450, 508), S(944, 945)];
 
 // eval values
-pub const MATERIAL: [S; 5] = [S(65, 94), S(285, 230), S(305, 250), S(384, 481), S(888, 840)];
-pub const PROGRESS: [S; 5] = [S(11, -10), S(8, -7), S(8, 7), S(28, 63), S(111, 134)];
-pub const KING_RANKS: [S; 8] = [S(0, -11), S(-43, 15), S(-72, 27), S(-69, 34), S(-32, 40), S(18, 38), S(17, 35), S(67, -7)];
-pub const MAJOR_DEFEND: [S; 4] = [S(5, 2), S(4, 2), S(2, -4), S(3, -6)];
-pub const MAJOR_ATTACK: [S; 4] = [S(6, 8), S(5, 6), S(4, 4), S(2, 6)];
+pub const MATERIAL: [S; 5] = [S(66, 92), S(290, 259), S(300, 259), S(406, 484), S(885, 851)];
+pub const PROGRESS: [S; 5] = [S(11, -11), S(8, -7), S(8, 7), S(29, 61), S(106, 134)];
+pub const KING_RANKS: [S; 8] = [S(0, -13), S(-43, 15), S(-65, 25), S(-63, 31), S(-19, 36), S(22, 36), S(16, 34), S(65, -6)];
+pub const MAJOR_DEFEND: [S; 4] = [S(4, -1), S(6, -1), S(2, 0), S(3, -7)];
+pub const MAJOR_ATTACK: [S; 4] = [S(6, 3), S(6, 4), S(4, 3), S(2, 5)];
 pub const PAWN_SHIELD: S = S(21, -4);
-pub const PAWN_PASSED: S = S(-7, 27);
+pub const PAWN_PASSED: S = S(-7, 26);
+pub const KNIGHT_OUTER: S = S(-5, -24);
+pub const ROOK_PASSIVE: S = S(-20, -15);
 
-// fen strings
-pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
-// uci <-> u16
-pub const TWELVE: u16 = 0b1111_1111_1111;
+// board regions for eval
+pub const BAD_KNIGHT_SQUARES: u64 = 0xffc381818181c3ff;
+pub const WHITE_HALF: u64 = 0xFFFFFFFF;
+pub const BLACK_HALF: u64 = !WHITE_HALF;
+pub const PAWN_RANKS: [u64; 6] = [0xFF << 8, 0xFF << 16, 0xFF << 24, 0xFF << 32, 0xFF << 40, 0xFF << 48];

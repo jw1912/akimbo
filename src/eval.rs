@@ -72,6 +72,8 @@ impl Position {
         let bq: u64 = self.pieces[QUEEN] & black;
         let wk: u64 = self.pieces[KING] & white;
         let bk: u64 = self.pieces[KING] & black;
+        let wn: u64 = self.pieces[KNIGHT] & white;
+        let bn: u64 = self.pieces[KNIGHT] & black;
         let wk_idx: usize = wk.trailing_zeros() as usize;
         let bk_idx: usize = bk.trailing_zeros() as usize;
         let wking_sqs: u64 = KING_ATTACKS[wk_idx];
@@ -96,8 +98,8 @@ impl Position {
         let mut b_maj_mob: MajorMobility;
 
         // knight mobility
-        w_maj_mob = major_mobility::<KNIGHT>(self.pieces[KNIGHT] & white, occ, white);
-        b_maj_mob = major_mobility::<KNIGHT>(self.pieces[KNIGHT] & black, occ, black);
+        w_maj_mob = major_mobility::<KNIGHT>(wn, occ, white);
+        b_maj_mob = major_mobility::<KNIGHT>(bn, occ, black);
         score += (w_maj_mob.defend - b_maj_mob.defend) * MAJOR_DEFEND[0];
         score += (w_maj_mob.attack - b_maj_mob.attack) * MAJOR_ATTACK[0];
 
@@ -126,6 +128,11 @@ impl Position {
 
         // passed pawns
         score += (count!(wp & !bspans(bp | bp_att)) - count!(bp & !wspans(wp | wp_att))) * PAWN_PASSED;
+
+        // bad piece squares
+        score += (count!(wn & BAD_KNIGHT_SQUARES) - count!(bn & BAD_KNIGHT_SQUARES)) * KNIGHT_OUTER;
+        score += (count!(wr & WHITE_HALF) - count!(br & BLACK_HALF)) * ROOK_PASSIVE;
+
 
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
         SIDE_FACTOR[usize::from(self.c)] * ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16
