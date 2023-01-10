@@ -164,15 +164,13 @@ pub const MVV_LVA: [[u16; 7]; 7] = [
 pub const LAZY_MATERIAL: [S; 5] = [S(75, 113), S(318, 294), S(331, 308), S(450, 508), S(944, 945)];
 
 // eval values
-pub const MATERIAL: [S; 5] = [S(65, 93), S(276, 240), S(309, 252), S(392, 468), S(890, 842)];
-pub const PROGRESS: [S; 5] = [S(10, -9), S(8, -6), S(9, 8), S(35, 61), S(120, 133)];
-pub const KING_RANKS: [S; 8] = [S(0, -13), S(-32, 12), S(-48, 21), S(-52, 29), S(-18, 34), S(24, 34), S(27, 30), S(56, -7)];
-pub const MAJOR_THREAT: [S; 4] = [S(0, 20), S(3, 17), S(4, 16), S(-5, 20)];
-pub const MAJOR_DEFEND: [S; 4] = [S(5, 4), S(3, 3), S(-1, 1), S(0, -2)];
-pub const MAJOR_ATTACK: [S; 4] = [S(8, 5), S(4, 5), S(3, 4), S(1, 5)];
-pub const PAWN_SHIELD: S = S(21, -5);
-pub const PAWN_PASSED: S = S(-6, 27);
-pub const KING_DANGER: S = S(-20, 6);
+pub const MATERIAL: [S; 5] = [S(65, 94), S(285, 230), S(305, 250), S(384, 481), S(888, 840)];
+pub const PROGRESS: [S; 5] = [S(11, -10), S(8, -7), S(8, 7), S(28, 63), S(111, 134)];
+pub const KING_RANKS: [S; 8] = [S(0, -11), S(-43, 15), S(-72, 27), S(-69, 34), S(-32, 40), S(18, 38), S(17, 35), S(67, -7)];
+pub const MAJOR_DEFEND: [S; 4] = [S(5, 2), S(4, 2), S(2, -4), S(3, -6)];
+pub const MAJOR_ATTACK: [S; 4] = [S(6, 8), S(5, 6), S(4, 4), S(2, 6)];
+pub const PAWN_SHIELD: S = S(21, -4);
+pub const PAWN_PASSED: S = S(-7, 27);
 
 // fen strings
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";

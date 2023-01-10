@@ -20,13 +20,12 @@ fn bspans(mut pwns: u64) -> u64 {
 
 #[derive(Default)]
 struct MajorMobility {
-    threat: i16,
     defend: i16,
     attack: i16,
 }
 
 #[inline]
-fn major_mobility<const PC: usize>(mut attackers: u64, occ: u64, friends: u64, danger: &mut i16, ksqs: u64) -> MajorMobility {
+fn major_mobility<const PC: usize>(mut attackers: u64, occ: u64, friends: u64) -> MajorMobility {
     let mut from: usize;
     let mut attacks: u64;
     let mut ret = MajorMobility::default();
@@ -40,10 +39,8 @@ fn major_mobility<const PC: usize>(mut attackers: u64, occ: u64, friends: u64, d
             QUEEN => rook_attacks(from, occ) | bishop_attacks(from, occ),
             _ => unimplemented!("only implement the four major pieces"),
         };
-        ret.threat += count!(attacks & (occ & !friends));
         ret.defend += count!(attacks & friends);
-        ret.attack += count!(attacks & !occ);
-        *danger += count!(attacks & ksqs);
+        ret.attack += count!(attacks & !friends);
     }
     ret
 }
@@ -95,41 +92,34 @@ impl Position {
         }
 
         // major piece mobility
-        let mut wking_danger: i16 = 0;
-        let mut bking_danger: i16 = 0;
         let mut w_maj_mob: MajorMobility;
         let mut b_maj_mob: MajorMobility;
 
         // knight mobility
-        w_maj_mob = major_mobility::<KNIGHT>(self.pieces[KNIGHT] & white, occ, white, &mut bking_danger, bking_sqs);
-        b_maj_mob = major_mobility::<KNIGHT>(self.pieces[KNIGHT] & black, occ, black, &mut wking_danger, wking_sqs);
-        score += (w_maj_mob.threat - b_maj_mob.threat) * MAJOR_THREAT[0];
+        w_maj_mob = major_mobility::<KNIGHT>(self.pieces[KNIGHT] & white, occ, white);
+        b_maj_mob = major_mobility::<KNIGHT>(self.pieces[KNIGHT] & black, occ, black);
         score += (w_maj_mob.defend - b_maj_mob.defend) * MAJOR_DEFEND[0];
         score += (w_maj_mob.attack - b_maj_mob.attack) * MAJOR_ATTACK[0];
 
         // bishop mobility - ignore friendly queens
-        w_maj_mob = major_mobility::<BISHOP>(wb, occ ^ wq ^ bk, white, &mut bking_danger, bking_sqs);
-        b_maj_mob = major_mobility::<BISHOP>(bb, occ ^ bq ^ wk, black, &mut wking_danger, wking_sqs);
-        score += (w_maj_mob.threat - b_maj_mob.threat) * MAJOR_THREAT[1];
+        w_maj_mob = major_mobility::<BISHOP>(wb, occ ^ wq ^ bk, white);
+        b_maj_mob = major_mobility::<BISHOP>(bb, occ ^ bq ^ wk, black);
         score += (w_maj_mob.defend - b_maj_mob.defend) * MAJOR_DEFEND[1];
         score += (w_maj_mob.attack - b_maj_mob.attack) * MAJOR_ATTACK[1];
 
         // rook mobility - ignore friendly queens and rooks
-        w_maj_mob = major_mobility::<ROOK>(wr, occ ^ wq ^ wr ^ bk, white, &mut bking_danger, bking_sqs);
-        b_maj_mob = major_mobility::<ROOK>(br, occ ^ bq ^ br ^ wk, black, &mut wking_danger, wking_sqs);
-        score += (w_maj_mob.threat - b_maj_mob.threat) * MAJOR_THREAT[2];
+        w_maj_mob = major_mobility::<ROOK>(wr, occ ^ wq ^ wr ^ bk, white);
+        b_maj_mob = major_mobility::<ROOK>(br, occ ^ bq ^ br ^ wk, black);
         score += (w_maj_mob.defend - b_maj_mob.defend) * MAJOR_DEFEND[2];
         score += (w_maj_mob.attack - b_maj_mob.attack) * MAJOR_ATTACK[2];
 
         // queen mobility - ignore friendly queens, rooks and bishops
-        w_maj_mob = major_mobility::<QUEEN>(wq, occ ^ wq ^ wb ^ wr ^ bk, white, &mut bking_danger, bking_sqs);
-        b_maj_mob = major_mobility::<QUEEN>(bq, occ ^ bq ^ bb ^ br ^ wk, black, &mut wking_danger, wking_sqs);
-        score += (w_maj_mob.threat - b_maj_mob.threat) * MAJOR_THREAT[3];
+        w_maj_mob = major_mobility::<QUEEN>(wq, occ ^ wq ^ wb ^ wr ^ bk, white);
+        b_maj_mob = major_mobility::<QUEEN>(bq, occ ^ bq ^ bb ^ br ^ wk, black);
         score += (w_maj_mob.defend - b_maj_mob.defend) * MAJOR_DEFEND[3];
         score += (w_maj_mob.attack - b_maj_mob.attack) * MAJOR_ATTACK[3];
 
         // king safety and pawn control
-        score += (wking_danger - bking_danger) * KING_DANGER;
         score += (count!(wp & wking_sqs) - count!(bp & bking_sqs)) * PAWN_SHIELD;
         score += KING_RANKS[wk_idx / 8];
         score += -1 * KING_RANKS[7 - bk_idx / 8];
