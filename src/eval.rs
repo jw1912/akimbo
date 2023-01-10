@@ -26,7 +26,7 @@ struct MajorMobility {
 }
 
 #[inline]
-fn major_mobility(pc: usize, mut attackers: u64, occ: u64, friends: u64, danger: &mut i16, ksqs: u64, unprotected: u64) -> MajorMobility {
+fn major_mobility<const PC: usize>(mut attackers: u64, occ: u64, friends: u64, danger: &mut i16, ksqs: u64, unprotected: u64) -> MajorMobility {
     let mut from: usize;
     let mut attacks: u64;
     let mut ret = MajorMobility::default();
@@ -34,7 +34,7 @@ fn major_mobility(pc: usize, mut attackers: u64, occ: u64, friends: u64, danger:
     while attackers > 0 {
         from = attackers.trailing_zeros() as usize;
         attackers &= attackers - 1;
-        attacks = match pc {
+        attacks = match PC {
             KNIGHT => KNIGHT_ATTACKS[from],
             ROOK => rook_attacks(from, occ),
             BISHOP => bishop_attacks(from, occ),
@@ -63,6 +63,12 @@ impl Position {
         let occ: u64 = self.sides[WHITE] | self.sides[BLACK];
         let wp: u64 = self.pieces[PAWN] & white;
         let bp: u64 = self.pieces[PAWN] & black;
+        let wb: u64 = self.pieces[BISHOP] & white;
+        let bb: u64 = self.pieces[BISHOP] & black;
+        let wr: u64 = self.pieces[ROOK] & white;
+        let br: u64 = self.pieces[ROOK] & black;
+        let wq: u64 = self.pieces[QUEEN] & white;
+        let bq: u64 = self.pieces[QUEEN] & black;
         let wking_sqs: u64 = KING_ATTACKS[(self.pieces[KING] & white).trailing_zeros() as usize];
         let bking_sqs: u64 = KING_ATTACKS[(self.pieces[KING] & black).trailing_zeros() as usize];
         let wp_att: u64 = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
@@ -79,25 +85,36 @@ impl Position {
         // major piece mobility
         let mut wking_danger: i16 = 0;
         let mut bking_danger: i16 = 0;
-        for i in 0..4 {
-            // rooks don't block each other, rooks and bishops don't block queen, queen blocks nothing
-            let (tw, tb): (u64, u64) = match i + 1 {
-                ROOK => {
-                    let qr: u64 = self.pieces[ROOK] ^ self.pieces[QUEEN];
-                    (qr & white, qr & black)
-                },
-                QUEEN => {
-                    let br: u64 = self.pieces[BISHOP] ^ self.pieces[ROOK] ^ self.pieces[QUEEN];
-                    (br & white, br & black)
-                },
-                _ => (self.pieces[QUEEN] & white, self.pieces[QUEEN] & black)
-            };
-            let w_maj_mob: MajorMobility = major_mobility(i + 1, self.pieces[i + 1], occ ^ tw, white, &mut bking_danger, bking_sqs, !bp_att);
-            let b_maj_mob: MajorMobility = major_mobility(i + 1, self.pieces[i + 1], occ ^ tb, black, &mut wking_danger, wking_sqs, !wp_att);
-            score += (w_maj_mob.threat - b_maj_mob.threat) * MAJOR_THREAT[i];
-            score += (w_maj_mob.defend - b_maj_mob.defend) * MAJOR_DEFEND[i];
-            score += (w_maj_mob.attack - b_maj_mob.attack) * MAJOR_ATTACK[i];
-        }
+        let mut w_maj_mob: MajorMobility;
+        let mut b_maj_mob: MajorMobility;
+
+        // knight mobility
+        w_maj_mob = major_mobility::<KNIGHT>(self.pieces[KNIGHT], occ, white, &mut bking_danger, bking_sqs, !bp_att);
+        b_maj_mob = major_mobility::<KNIGHT>(self.pieces[KNIGHT], occ, black, &mut wking_danger, wking_sqs, !wp_att);
+        score += (w_maj_mob.threat - b_maj_mob.threat) * MAJOR_THREAT[0];
+        score += (w_maj_mob.defend - b_maj_mob.defend) * MAJOR_DEFEND[0];
+        score += (w_maj_mob.attack - b_maj_mob.attack) * MAJOR_ATTACK[0];
+
+        // bishop mobility
+        w_maj_mob = major_mobility::<BISHOP>(self.pieces[BISHOP], occ ^ wq, white, &mut bking_danger, bking_sqs, !bp_att);
+        b_maj_mob = major_mobility::<BISHOP>(self.pieces[BISHOP], occ ^ bq, black, &mut wking_danger, wking_sqs, !wp_att);
+        score += (w_maj_mob.threat - b_maj_mob.threat) * MAJOR_THREAT[1];
+        score += (w_maj_mob.defend - b_maj_mob.defend) * MAJOR_DEFEND[1];
+        score += (w_maj_mob.attack - b_maj_mob.attack) * MAJOR_ATTACK[1];
+
+        // rook mobility
+        w_maj_mob = major_mobility::<ROOK>(self.pieces[ROOK], occ ^ wq ^ wr, white, &mut bking_danger, bking_sqs, !bp_att);
+        b_maj_mob = major_mobility::<ROOK>(self.pieces[ROOK], occ ^ bq ^ br, black, &mut wking_danger, wking_sqs, !wp_att);
+        score += (w_maj_mob.threat - b_maj_mob.threat) * MAJOR_THREAT[2];
+        score += (w_maj_mob.defend - b_maj_mob.defend) * MAJOR_DEFEND[2];
+        score += (w_maj_mob.attack - b_maj_mob.attack) * MAJOR_ATTACK[2];
+
+        // queen mobility
+        w_maj_mob = major_mobility::<QUEEN>(self.pieces[QUEEN], occ ^ wq ^ wb ^ wr, white, &mut bking_danger, bking_sqs, !bp_att);
+        b_maj_mob = major_mobility::<QUEEN>(self.pieces[QUEEN], occ ^ bq ^ bb ^ br, black, &mut wking_danger, wking_sqs, !wp_att);
+        score += (w_maj_mob.threat - b_maj_mob.threat) * MAJOR_THREAT[3];
+        score += (w_maj_mob.defend - b_maj_mob.defend) * MAJOR_DEFEND[3];
+        score += (w_maj_mob.attack - b_maj_mob.attack) * MAJOR_ATTACK[3];
 
         // king safety and pawn control
         score += (wking_danger - bking_danger) * KING_SAFETY;
@@ -110,15 +127,10 @@ impl Position {
 
         // doubled and isolated pawns
         for file in 0..8 {
-            let wc: i16 = count!(FILES[file] & wp);
-            let bc: i16 = count!(FILES[file] & bp);
-            score += (wc.saturating_sub(1) - bc.saturating_sub(1)) * PAWN_DOUBLE;
-            score += (i16::from(RAILS[file] & wp == 0) * wc - i16::from(RAILS[file] & bp == 0) * bc) * PAWN_ISOLATED;
+            score += (i16::from(RAILS[file] & wp == 0) * count!(FILES[file] & wp) - i16::from(RAILS[file] & bp == 0) * count!(FILES[file] & bp)) * PAWN_ISOLATED;
         }
 
         // bishop pair bonus
-        let wb: u64 = self.pieces[BISHOP] & white;
-        let bb: u64 = self.pieces[BISHOP] & black;
         score += (i16::from(wb & (wb - 1) > 0) - i16::from(bb & (bb - 1) > 0)) * BISHOP_PAIR;
 
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
