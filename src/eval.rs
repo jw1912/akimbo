@@ -131,7 +131,6 @@ impl Position {
         // king safety and pawn control
         score += (wking_danger - bking_danger) * KING_DANGER;
         score += (count!(wp & wking_sqs) - count!(bp & bking_sqs)) * PAWN_SHIELD;
-        score += (count!((white ^ wp) & wking_sqs) - count!((black ^ bp) & bking_sqs)) * PIECE_SHIELD;
         score += KING_RANKS[wk_idx / 8];
         score += -1 * KING_RANKS[7 - bk_idx / 8];
 
