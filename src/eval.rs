@@ -131,7 +131,7 @@ impl Position {
 
         // bad piece squares
         score += (count!(wn & BAD_KNIGHT_SQUARES) - count!(bn & BAD_KNIGHT_SQUARES)) * KNIGHT_OUTER;
-        score += (count!(wr & WHITE_HALF) - count!(br & BLACK_HALF)) * ROOK_PASSIVE;
+        score += (count!(wr & BLACK_CAMP) - count!(br & WHITE_CAMP)) * ROOK_AGGRESSIVE;
 
 
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
