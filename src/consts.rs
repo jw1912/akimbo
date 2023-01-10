@@ -161,7 +161,7 @@ pub const MVV_LVA: [[u16; 7]; 7] = [
 ];
 
 // eval values
-pub const LAZY_MATERIAL: [i16; 5] = [100, 320, 330, 500, 900];
+pub const LAZY_MATERIAL: [S; 5] = [S(75, 113), S(318, 294), S(331, 308), S(450, 508), S(944, 945)];
 pub const MATERIAL: [S; 5] = [S(65, 93), S(281, 230), S(307, 255), S(388, 472), S(878, 856)];
 pub const PROGRESS: [S; 5] = [S(11, -9), S(8, -5), S(9, 8), S(33, 63), S(118, 134)];
 pub const KING_RANKS: [S; 8] = [S(0, -13), S(-33, 12), S(-46, 20), S(-45, 27), S(-14, 34), S(33, 33), S(27, 31), S(50, -7)];
