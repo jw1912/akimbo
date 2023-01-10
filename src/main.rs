@@ -11,7 +11,7 @@ mod search;
 use std::{io::stdin, time::Instant};
 use consts::*;
 use tables::{HashTable, KillerTable};
-use position::{Position, State, S};
+use position::{Position, State};
 use movegen::MoveList;
 use search::{go, SearchContext};
 use zobrist::ZVALS;
@@ -183,8 +183,8 @@ fn uci_to_u16(pos: &Position, m: &str) -> u16 {
 fn parse_fen(s: &str) -> Position {
     let vec: Vec<&str> = s.split_whitespace().collect();
     let mut pos: Position = Position {
-        pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: false, state: State::default(), scores: S(0, 0),
-        nulls: 0, stack: Vec::new(), phase: 0, castle: [0, 7], castle_mask: [15; 64], chess960: false,
+        pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: false, state: State::default(),
+        nulls: 0, stack: Vec::new(), phase: 0, castle: [0, 7], castle_mask: [15; 64], chess960: false, material: [0; 5],
     };
 
     // board
@@ -202,8 +202,10 @@ fn parse_fen(s: &str) -> Position {
                 pos.sides[side] ^= 1 << idx;
                 pos.pieces[pc] ^= 1 << idx;
                 pos.squares[idx] = pc as u8;
-                pos.phase += PHASE_VALS[pc];
-                pos.scores += SIDE_FACTOR[side] * MATERIAL[pc];
+                if pc < 5 {
+                    pos.phase += PHASE_VALS[pc];
+                    pos.material[pc] += SIDE_FACTOR[side];
+                }
                 pos.state.zobrist ^= ZVALS.pieces[side][pc][idx];
                 idx -= usize::from(idx > 0);
             }

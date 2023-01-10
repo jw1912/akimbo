@@ -51,8 +51,7 @@ fn major_mobility<const PC: usize>(mut attackers: u64, occ: u64, friends: u64, d
 impl Position {
     #[inline]
     pub fn lazy_eval(&self) -> i16 {
-        let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
-        SIDE_FACTOR[usize::from(self.c)] * ((phase * self.scores.0 as i32 + (TPHASE - phase) * self.scores.1 as i32) / TPHASE) as i16
+        SIDE_FACTOR[usize::from(self.c)] * self.material.iter().enumerate().map(|(i, &num)| num * LAZY_MATERIAL[i]).sum::<i16>()
     }
 
     pub fn eval(&self) -> i16 {
@@ -78,7 +77,11 @@ impl Position {
         let bp_att: u64 = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
 
         // material scores
-        let mut score: S = self.scores;
+        let mut score: S = self.material[PAWN] * MATERIAL[PAWN];
+        score += self.material[KNIGHT] * MATERIAL[KNIGHT];
+        score += self.material[BISHOP] * MATERIAL[BISHOP];
+        score += self.material[ROOK  ] * MATERIAL[ROOK  ];
+        score += self.material[QUEEN ] * MATERIAL[QUEEN ];
 
         // pawn progression bonus
         for i in 0..5 {

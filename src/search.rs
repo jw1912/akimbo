@@ -127,7 +127,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
         let lazy_eval: i16 = pos.lazy_eval();
 
         // reverse futility pruning
-        let margin: i16 = lazy_eval - RFP_MARGIN * i16::from(depth);
+        let margin: i16 = lazy_eval - 120 * i16::from(depth);
         if depth <= 8 && margin >= beta { return margin }
 
         // null move pruning
