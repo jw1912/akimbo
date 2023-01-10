@@ -124,7 +124,7 @@ impl Position {
         score += (count!(wp & wking_sqs) - count!(bp & bking_sqs)) * PAWN_SHIELD;
         score += (count!((white ^ wp) & wking_sqs) - count!((black ^ bp) & bking_sqs)) * PIECE_SHIELD;
         score += KING_RANKS[wk_idx / 8];
-        score += -1 * KING_RANKS[bk_idx / 8];
+        score += -1 * KING_RANKS[7 - bk_idx / 8];
 
         // passed pawns
         score += (count!(wp & !bspans(bp | bp_att)) - count!(bp & !wspans(wp | wp_att))) * PAWN_PASSED;
