@@ -48,33 +48,39 @@ impl Position {
         }
     }
 
-    fn score_moves(&self, moves: &MoveList, move_scores: &mut MoveList, hash_move: u16, ply: i16, kt: &KillerTable) {
+    fn score(&self, moves: &MoveList, hash_move: u16, ply: i16, kt: &KillerTable) -> MoveList {
+        let mut scores: MoveList = MoveList::default();
         let killers: [u16; KILLERS_PER_PLY] = kt.0[ply as usize];
-        for i in 0..moves.len { move_scores.push(self.score_move(moves.list[i], hash_move, &killers)) }
+        for i in 0..moves.len { scores.push(self.score_move(moves.list[i], hash_move, &killers)) }
+        scores
     }
 
-    fn score_captures(&self, moves: &MoveList, move_scores: &mut MoveList) {
-        for i in 0..moves.len { move_scores.push(self.mvv_lva(moves.list[i])) }
+    fn score_captures(&self, moves: &MoveList) -> MoveList {
+        let mut scores: MoveList = MoveList::default();
+        for i in 0..moves.len { scores.push(self.mvv_lva(moves.list[i])) }
+        scores
     }
 }
 
-/// O(n^2) algorithm to incrementally sort the move list as needed.
-fn pick_move(moves: &mut MoveList, scores: &mut MoveList) -> Option<(u16, u16)> {
-    if scores.len == 0 {return None}
-    let mut idx: usize = 0;
-    let mut best: u16 = 0;
-    let mut score: u16;
-    for i in 0..scores.len {
-        score = scores.list[i];
-        if score > best {
-            best = score;
-            idx = i;
+impl MoveList {
+    // O(n^2) algorithm to incrementally sort the move list as needed.
+    fn pick(&mut self, scores: &mut MoveList) -> Option<(u16, u16)> {
+        if scores.len == 0 {return None}
+        let mut idx: usize = 0;
+        let mut best: u16 = 0;
+        let mut score: u16;
+        for i in 0..scores.len {
+            score = scores.list[i];
+            if score > best {
+                best = score;
+                idx = i;
+            }
         }
+        scores.len -= 1;
+        scores.list.swap(idx, scores.len);
+        self.list.swap(idx, scores.len);
+        Some((self.list[scores.len], best))
     }
-    scores.len -= 1;
-    scores.list.swap(idx, scores.len);
-    moves.list.swap(idx, scores.len);
-    Some((moves.list[scores.len], best))
 }
 
 /// Main search function:
@@ -127,7 +133,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
         let lazy_eval: i16 = pos.lazy_eval();
 
         // reverse futility pruning
-        let margin: i16 = lazy_eval - 60 - 80 * i16::from(depth);
+        let margin: i16 = lazy_eval - 120 * i16::from(depth);
         if depth <= 8 && margin >= beta { return margin }
 
         // null move pruning
@@ -140,10 +146,8 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     }
 
     // generate and score moves
-    let mut moves: MoveList = MoveList::default();
-    let mut scores: MoveList = MoveList::default();
-    pos.gen_moves::<ALL>(&mut moves);
-    pos.score_moves(&moves, &mut scores, hash_move, ctx.ply, &ctx.killer_table);
+    let mut moves: MoveList = pos.gen_moves::<ALL>();
+    let mut scores: MoveList = pos.score(&moves, hash_move, ctx.ply, &ctx.killer_table);
 
     // is the threshold for late move reductions satisfied?
     let can_lmr: bool = depth >= 2 && ctx.ply > 0 && !in_check;
@@ -153,7 +157,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     let mut best_move: u16 = 0;
     let mut best_score: i16 = -MAX;
     let mut legal_moves: u16 = 0;
-    while let Some((m, m_score)) = pick_move(&mut moves, &mut scores) {
+    while let Some((m, m_score)) = moves.pick(&mut scores) {
         if pos.do_move(m) { continue }
         legal_moves += 1;
 
@@ -211,12 +215,10 @@ fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, nodes: &mut u64) -> i1
     if alpha < stand_pat { alpha = stand_pat }
 
     // generate and score moves
-    let mut captures: MoveList = MoveList::default();
-    let mut scores: MoveList = MoveList::default();
-    pos.gen_moves::<CAPTURES>(&mut captures);
-    pos.score_captures(&captures, &mut scores);
+    let mut captures: MoveList = pos.gen_moves::<CAPTURES>();
+    let mut scores: MoveList = pos.score_captures(&captures);
 
-    while let Some((m, m_score)) = pick_move(&mut captures, &mut scores) {
+    while let Some((m, m_score)) = captures.pick(&mut scores) {
         // delta pruning
         if stand_pat + m_score as i16 / 5 + DELTA_MARGIN < alpha { break }
 

@@ -45,7 +45,9 @@ fn btwn(bit1: u64, bit2: u64) -> u64 {
 }
 
 impl Position {
-    pub fn gen_moves<const QUIETS: bool>(&self, move_list: &mut MoveList) {
+    pub fn gen_moves<const QUIETS: bool>(&self) -> MoveList {
+        let mut moves: MoveList = MoveList::default();
+        let move_list: &mut MoveList = &mut moves;
         let side: usize = usize::from(self.c);
         let occ: u64 = self.sides[0] | self.sides[1];
         let friendly: u64 = self.sides[side];
@@ -62,6 +64,7 @@ impl Position {
         piece_moves::<ROOK  , QUIETS>(move_list, occ, friendly, opps, self.pieces[ROOK]);
         piece_moves::<QUEEN , QUIETS>(move_list, occ, friendly, opps, self.pieces[QUEEN]);
         piece_moves::<KING  , QUIETS>(move_list, occ, friendly, opps, self.pieces[KING]);
+        moves
     }
 
     fn path(&self, mut path: u64, side: usize, occ: u64) -> bool {
