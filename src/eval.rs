@@ -1,7 +1,8 @@
 use super::{consts::*, movegen::{rook_attacks, bishop_attacks}, position::{Position, S}};
 
 macro_rules! count {($bb:expr) => {$bb.count_ones() as i16}}
-macro_rules! pull_lsb {($idx:expr, $x:expr) => {$idx = $x.trailing_zeros() as usize; $x &= $x - 1}}
+macro_rules! lsb {($x:expr) => {$x.trailing_zeros() as usize}}
+macro_rules! pull_lsb {($idx:expr, $x:expr) => {$idx = lsb!($x); $x &= $x - 1}}
 
 impl Position {
     #[inline]
@@ -21,11 +22,6 @@ impl Position {
         // material scores
         (PAWN..=QUEEN).for_each(|i| score += self.material[i] * MATERIAL[i]);
 
-        // pawn progression
-        let wp: u64 = self.pieces[PAWN] & self.sides[WHITE];
-        let bp: u64 = self.pieces[PAWN] & self.sides[BLACK];
-        (0..5).for_each(|i| score += (count!(wp & RANKS[i + 1]) - count!(bp & RANKS[4 - i])) * PROGRESS[i]);
-
         // king position
         let wk_idx: usize = (self.pieces[KING] & self.sides[WHITE]).trailing_zeros() as usize;
         let bk_idx: usize = (self.pieces[KING] & self.sides[BLACK]).trailing_zeros() as usize;
@@ -33,7 +29,19 @@ impl Position {
         score += -1 * KING_RANKS[7 - bk_idx / 8];
 
         // pawn shield
+        let mut wp: u64 = self.pieces[PAWN] & self.sides[WHITE];
+        let mut bp: u64 = self.pieces[PAWN] & self.sides[BLACK];
         score += (count!(wp & KING_ATTACKS[wk_idx]) - count!(bp & KING_ATTACKS[bk_idx])) * PAWN_SHIELD;
+
+        // pawn pst
+        while wp > 0 {
+            score += PAWN_PST[PST_IDX[56 ^ lsb!(wp)] as usize];
+            wp &= wp - 1;
+        }
+        while bp > 0 {
+            score += -1 * PAWN_PST[PST_IDX[lsb!(bp)] as usize];
+            bp &= bp - 1;
+        }
 
         // mobility
         score += self.mobility(WHITE);

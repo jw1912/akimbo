@@ -167,12 +167,18 @@ pub const MVV_LVA: [[u16; 7]; 7] = [
 pub const LAZY_MATERIAL: [S; 5] = [S(75, 113), S(318, 294), S(331, 308), S(450, 508), S(944, 945)];
 
 // eval values
-pub const MATERIAL: [S; 5] = [S(60, 110), S(278, 231), S(297, 254), S(387, 474), S(903, 936)];
-pub const PROGRESS: [S; 5] = [S(11, -10), S(9, -7), S(9, 8), S(28, 68), S(107, 143)];
-pub const KING_RANKS: [S; 8] = [S(-1, -11), S(-45, 16), S(-69, 26), S(-71, 34), S(-36, 41), S(24, 37), S(16, 34), S(58, -5)];
-pub const MAJOR_DEFEND: [S; 3] = [S(5, 3), S(6, 1), S(1, -3)];
-pub const MAJOR_ATTACK: [S; 3] = [S(7, 7), S(6, 5), S(4, 4)];
-pub const PAWN_SHIELD: S = S(22, -4);
+pub const MATERIAL: [S; 5] = [S(89, 149), S(292, 240), S(323, 248), S(408, 477), S(939, 946)];
+pub const PAWN_PST: [S; 24] = [
+    S( 63, 124), S( 92, 116), S( 89,  90), S( 95,  75),
+    S(-32,  43), S(  1,  38), S( 22,  15), S( 37,   8),
+    S(-38, -18), S( -8, -27), S(-20, -35), S( -2, -49),
+    S(-39, -39), S(-17, -38), S(-15, -52), S( -5, -55),
+    S(-27, -48), S( -2, -46), S(-16, -52), S(-12, -49),
+    S(-40, -44), S(-14, -37), S(-26, -39), S(-35, -37),
+];
+pub const KING_RANKS: [S; 8] = [S(1, -14), S(-42, 13), S(-67, 25), S(-61, 32), S(-21, 38), S(20, 37), S(13, 36), S(46, -2)];
+pub const MAJOR_DEFEND: [S; 3] = [S(4, 3), S(5, 2), S(2, -3)];
+pub const MAJOR_ATTACK: [S; 3] = [S(7, 6), S(5, 6), S(4, 4)];
+pub const PAWN_SHIELD: S = S(23, -5);
 
-// board regions for eval
-pub const RANKS: [u64; 6] = [0xFF << 8, 0xFF << 16, 0xFF << 24, 0xFF << 32, 0xFF << 40, 0xFF << 48];
+pub const PST_IDX: [u8; 64] = init!(idx, 0, (((idx / 8) * 4).saturating_sub((4 - ((idx & 7) > 3) as i16 - (idx & 7) as i16).unsigned_abs() as usize)) as u8);
