@@ -68,7 +68,7 @@ impl Position {
         while pieces > 0 {
             pull_lsb!(from, pieces);
             attacks = KNIGHT_ATTACKS[from] & safe;
-            score += count!(attacks) * MOBILITY_KNIGHT;
+            score += MOBILITY_KNIGHT[count!(attacks) as usize];
         }
 
         // bishop mobility
@@ -79,7 +79,7 @@ impl Position {
         while pieces > 0 {
             pull_lsb!(from, pieces);
             attacks = bishop_attacks(from, occ) & safe;
-            score += count!(attacks) * MOBILITY_BISHOP;
+            score += MOBILITY_BISHOP[count!(attacks) as usize];
         }
 
         // rook mobility
@@ -90,7 +90,7 @@ impl Position {
         while pieces > 0 {
             pull_lsb!(from, pieces);
             attacks = rook_attacks(from, occ) & safe;
-            score += count!(attacks) * MOBILITY_ROOK;
+            score += MOBILITY_ROOK[count!(attacks) as usize];
         }
 
         SIDE_FACTOR[c] * score
