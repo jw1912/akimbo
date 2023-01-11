@@ -118,7 +118,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
 
     if depth <= 0 {
         ctx.seldepth = max(ctx.seldepth, ctx.ply);
-        return qsearch(pos, alpha, beta, ctx)
+        return qsearch(pos, alpha, beta, &mut ctx.qnodes)
     }
 
     // probing hash table
@@ -209,8 +209,8 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     best_score
 }
 
-fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, ctx: &mut SearchContext) -> i16 {
-    ctx.qnodes += 1;
+fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, qnodes: &mut u64) -> i16 {
+    *qnodes += 1;
     let mut eval: i16 = pos.eval();
     if eval >= beta { return eval }
     alpha = max(alpha, eval);
@@ -221,7 +221,7 @@ fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, ctx: &mut SearchContex
         if m_score >= TVV { return MAX }
         if baseline + m_score as i16 / 10 < alpha { return eval }
         pos.do_unchecked(m);
-        let score: i16 = -qsearch(pos, -beta, -alpha, ctx);
+        let score: i16 = -qsearch(pos, -beta, -alpha, qnodes);
         pos.undo_move();
         if score >= beta { return score }
         eval = max(eval, score);
