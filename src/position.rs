@@ -23,7 +23,7 @@ pub struct Position {
     pub castle: [u8; 2],
     pub chess960: bool,
     pub castle_mask: [u8; 64],
-    pub material: [i16; 5],
+    pub material: [i16; 6],
     pub stack: Vec<MoveContext>,
 }
 
@@ -94,6 +94,15 @@ impl Position {
     }
 
     pub fn do_move(&mut self, m: u16) -> bool {
+        let side: usize = usize::from(self.c);
+        self.do_unchecked(m);
+        let king_idx: usize = lsb!(self.pieces[KING] & self.sides[side]) as usize;
+        let invalid: bool = self.is_square_attacked(king_idx, side, self.sides[0] | self.sides[1]);
+        if invalid { self.undo_move() }
+        invalid
+    }
+
+    pub fn do_unchecked(&mut self, m: u16) {
         let from: usize = from!(m);
         let to: usize = to!(m);
         let f: u64 = bit!(from);
@@ -166,11 +175,6 @@ impl Position {
             self.state.zobrist ^= ZVALS.castle[lsb!(changed_castle) as usize];
             pop!(changed_castle);
         }
-
-        let king_idx: usize = lsb!(self.pieces[KING] & self.sides[side]) as usize;
-        let invalid: bool = self.is_square_attacked(king_idx, side, self.sides[0] | self.sides[1]);
-        if invalid { self.undo_move() }
-        invalid
     }
 
     pub fn undo_move(&mut self) {

@@ -209,6 +209,10 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
 /// - Delta pruning
 fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, nodes: &mut u64) -> i16 {
     *nodes += 1;
+
+    // king capture is illegal, so return M0 score
+    if pos.material[KING] != 0 {return -MAX}
+
     let mut stand_pat: i16 = pos.eval();
 
     if stand_pat >= beta { return stand_pat }
@@ -222,7 +226,7 @@ fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, nodes: &mut u64) -> i1
         // delta pruning
         if stand_pat + m_score as i16 / 5 + DELTA_MARGIN < alpha { break }
 
-        if pos.do_move(m) { continue }
+        pos.do_unchecked(m);
         let score: i16 = -qsearch(pos, -beta, -alpha, nodes);
         pos.undo_move();
 
