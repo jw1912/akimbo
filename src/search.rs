@@ -109,7 +109,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     depth += i8::from(in_check);
 
     // qsearch at depth 0
-    if depth <= 0 { return qsearch(pos, alpha, beta, &mut ctx.nodes) }
+    if depth <= 0 { return qsearch(pos, alpha, beta, ctx) }
     ctx.nodes += 1;
 
     // probing hash table
@@ -207,8 +207,15 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
 /// Quiescence search:
 /// - Fail-soft
 /// - Delta pruning
-fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, nodes: &mut u64) -> i16 {
-    *nodes += 1;
+fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, ctx: &mut SearchContext) -> i16 {
+    // search aborting
+    if ctx.abort { return 0 }
+    if ctx.nodes & 2047 == 0 && ctx.time.elapsed().as_millis() >= ctx.alloc_time {
+        ctx.abort = true;
+        return 0
+    }
+
+    ctx.nodes += 1;
 
     // king capture is illegal, so return M0 score
     if pos.material[KING] != 0 {return -MAX}
@@ -227,7 +234,7 @@ fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, nodes: &mut u64) -> i1
         if stand_pat + m_score as i16 / 5 + DELTA_MARGIN < alpha { break }
 
         pos.do_unchecked(m);
-        let score: i16 = -qsearch(pos, -beta, -alpha, nodes);
+        let score: i16 = -qsearch(pos, -beta, -alpha, ctx);
         pos.undo_move();
 
         if score > stand_pat {
@@ -266,10 +273,8 @@ pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
         let nps: u32 = ((ctx.nodes as f64) * 1000.0 / (t as f64)) as u32;
         let pv_str: String = pv_line.iter().map(|m| u16_to_uci(pos, *m)).collect::<String>();
         println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d, stype, sval, t, ctx.nodes, nps, pv_str);
-
-        // stop searching if mate found
-        if score.abs() >= MATE_THRESHOLD { break }
     }
+    println!("info time {}", ctx.time.elapsed().as_millis());
     println!("bestmove {}", u16_to_uci(pos, best_move));
     ctx.killer_table.clear();
 }
