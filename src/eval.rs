@@ -25,13 +25,17 @@ impl Position {
         // king position
         let wk_idx: usize = (self.pieces[KING] & self.sides[WHITE]).trailing_zeros() as usize;
         let bk_idx: usize = (self.pieces[KING] & self.sides[BLACK]).trailing_zeros() as usize;
-        score += KING_RANKS[wk_idx / 8];
-        score += -1 * KING_RANKS[7 - bk_idx / 8];
 
-        // pawn shield
+        // pawn bitboards
         let mut wp: u64 = self.pieces[PAWN] & self.sides[WHITE];
         let mut bp: u64 = self.pieces[PAWN] & self.sides[BLACK];
         score += (count!(wp & KING_ATTACKS[wk_idx]) - count!(bp & KING_ATTACKS[bk_idx])) * PAWN_SHIELD;
+
+        // mobility
+        let wp_att: u64 = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
+        let bp_att: u64 = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
+        score += self.mobility(WHITE, bp_att);
+        score += self.mobility(BLACK, wp_att);
 
         // pawn pst
         while wp > 0 {
@@ -43,55 +47,50 @@ impl Position {
             bp &= bp - 1;
         }
 
-        // mobility
-        score += self.mobility(WHITE);
-        score += self.mobility(BLACK);
-
         // taper eval
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
         SIDE_FACTOR[usize::from(self.c)] * ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16
     }
 
-    fn mobility(&self, c: usize) -> S {
+    fn mobility(&self, c: usize, opp_att: u64) -> S {
         let mut score: S = S(0, 0);
         let mut from: usize;
         let mut attacks: u64;
+        let mut pieces: u64;
 
-        // sides
+        // bitboards
         let boys: u64 = self.sides[c];
         let opps: u64 = self.sides[c ^ 1];
+        let safe: u64 = !boys & !opp_att;
 
         // knight mobility
-        let mut n: u64 = self.pieces[KNIGHT] & boys;
-        while n > 0 {
-            pull_lsb!(from, n);
-            attacks = KNIGHT_ATTACKS[from];
-            score += count!(attacks &  boys) * MAJOR_DEFEND[0];
-            score += count!(attacks & !boys) * MAJOR_ATTACK[0];
+        pieces = self.pieces[KNIGHT] & boys;
+        while pieces > 0 {
+            pull_lsb!(from, pieces);
+            attacks = KNIGHT_ATTACKS[from] & safe;
+            score += count!(attacks) * MOBILITY_KNIGHT;
         }
 
         // bishop mobility
         // - ignore friendly queens
         // - ignore enemy queens and rooks
         let mut occ: u64 = (boys | opps) ^ (self.pieces[KING] & opps) ^ self.pieces[QUEEN] ^ (self.pieces[ROOK] & opps);
-        let mut b: u64 = self.pieces[BISHOP] & boys;
-        while b > 0 {
-            pull_lsb!(from, b);
-            attacks = bishop_attacks(from, occ);
-            score += count!(attacks &  boys) * MAJOR_DEFEND[1];
-            score += count!(attacks & !boys) * MAJOR_ATTACK[1];
+        pieces = self.pieces[BISHOP] & boys;
+        while pieces > 0 {
+            pull_lsb!(from, pieces);
+            attacks = bishop_attacks(from, occ) & safe;
+            score += count!(attacks) * MOBILITY_BISHOP;
         }
 
         // rook mobility
         // - ignore friendly queens and rooks
         // - ignore enemy queens
         occ ^= self.pieces[ROOK];
-        let mut r: u64 = self.pieces[ROOK] & boys;
-        while r > 0 {
-            pull_lsb!(from, r);
-            attacks = rook_attacks(from, occ);
-            score += count!(attacks &  boys) * MAJOR_DEFEND[2];
-            score += count!(attacks & !boys) * MAJOR_ATTACK[2];
+        pieces = self.pieces[ROOK] & boys;
+        while pieces > 0 {
+            pull_lsb!(from, pieces);
+            attacks = rook_attacks(from, occ) & safe;
+            score += count!(attacks) * MOBILITY_ROOK;
         }
 
         SIDE_FACTOR[c] * score

@@ -176,9 +176,9 @@ pub const PAWN_PST: [S; 24] = [
     S(-25, -47), S( -2, -44), S(-17, -50), S(-14, -47),
     S(-38, -44), S(-15, -35), S(-28, -37), S(-37, -34),
 ];
-pub const KING_RANKS: [S; 8] = [S(45, -38), S(-9, -2), S(-44, 15), S(-48, 24), S(-10, 29), S(33, 30), S(35, 24), S(61, -12)];
-pub const MAJOR_DEFEND: [S; 3] = [S(3, 4), S(5, 0), S(1, -2)];
-pub const MAJOR_ATTACK: [S; 3] = [S(7, 6), S(5, 5), S(4, 4)];
+pub const MOBILITY_KNIGHT: S = S(7, 6);
+pub const MOBILITY_BISHOP: S = S(5, 5);
+pub const MOBILITY_ROOK: S = S(4, 4);
 pub const PAWN_SHIELD: S = S(25, -6);
 
 pub const PST_IDX: [u8; 64] = init!(idx, 0, (((idx / 8) * 4).saturating_sub((4 - ((idx & 7) > 3) as i16 - (idx & 7) as i16).unsigned_abs() as usize)) as u8);
