@@ -167,12 +167,12 @@ pub const MVV_LVA: [[u16; 7]; 7] = [
 pub const LAZY_MATERIAL: [S; 5] = [S(75, 113), S(318, 294), S(331, 308), S(450, 508), S(944, 945)];
 
 // eval values
-pub const MATERIAL: [S; 5] = [S(67, 92), S(293, 262), S(303, 262), S(391, 482), S(905, 833)];
-pub const PROGRESS: [S; 5] = [S(11, -9), S(8, -6), S(8, 8), S(29, 63), S(105, 136)];
-pub const KING_RANKS: [S; 8] = [S(0, -12), S(-43, 15), S(-66, 26), S(-64, 33), S(-28, 38), S(20, 36), S(17, 35), S(63, -6)];
-pub const MAJOR_DEFEND: [S; 3] = [S(4, -1), S(6, -1), S(2, -4)];
-pub const MAJOR_ATTACK: [S; 3] = [S(6, 3), S(6, 4), S(4, 3)];
-pub const PAWN_SHIELD: S = S(21, -4);
+pub const MATERIAL: [S; 5] = [S(60, 110), S(278, 231), S(297, 254), S(387, 474), S(903, 936)];
+pub const PROGRESS: [S; 5] = [S(11, -10), S(9, -7), S(9, 8), S(28, 68), S(107, 143)];
+pub const KING_RANKS: [S; 8] = [S(-1, -11), S(-45, 16), S(-69, 26), S(-71, 34), S(-36, 41), S(24, 37), S(16, 34), S(58, -5)];
+pub const MAJOR_DEFEND: [S; 3] = [S(5, 3), S(6, 1), S(1, -3)];
+pub const MAJOR_ATTACK: [S; 3] = [S(7, 7), S(6, 5), S(4, 4)];
+pub const PAWN_SHIELD: S = S(22, -4);
 
 // board regions for eval
 pub const RANKS: [u64; 6] = [0xFF << 8, 0xFF << 16, 0xFF << 24, 0xFF << 32, 0xFF << 40, 0xFF << 48];
