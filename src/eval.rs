@@ -4,6 +4,22 @@ macro_rules! count {($bb:expr) => {($bb).count_ones() as i16}}
 macro_rules! lsb {($x:expr) => {($x).trailing_zeros() as usize}}
 macro_rules! pull_lsb {($idx:expr, $x:expr) => {$idx = lsb!($x); $x &= $x - 1}}
 
+#[inline(always)]
+fn wspans(mut pwns: u64) -> u64 {
+    pwns |= pwns << 8;
+    pwns |= pwns << 16;
+    pwns |= pwns << 32;
+    pwns
+}
+
+#[inline(always)]
+fn bspans(mut pwns: u64) -> u64 {
+    pwns |= pwns >> 8;
+    pwns |= pwns >> 16;
+    pwns |= pwns >> 32;
+    pwns
+}
+
 impl Position {
     #[inline]
     pub fn lazy_eval(&self) -> i16 {
@@ -29,27 +45,32 @@ impl Position {
         let bk_sqs: u64 = KING_ATTACKS[bk_idx];
 
         // pawn bitboards
-        let mut wp: u64 = self.pieces[PAWN] & self.sides[WHITE];
-        let mut bp: u64 = self.pieces[PAWN] & self.sides[BLACK];
+        let wp: u64 = self.pieces[PAWN] & self.sides[WHITE];
+        let bp: u64 = self.pieces[PAWN] & self.sides[BLACK];
         let wp_att: u64 = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
         let bp_att: u64 = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
 
         // pawn shield
         score += (count!(wp & wk_sqs) - count!(bp & bk_sqs)) * PAWN_SHIELD;
 
+        // pawn pst
+        let mut p: u64 = wp;
+        while p > 0 {
+            score += PAWN_PST[PST_IDX[56 ^ lsb!(p)] as usize];
+            p &= p - 1;
+        }
+        p = bp;
+        while p > 0 {
+            score += -1 * PAWN_PST[PST_IDX[lsb!(p)] as usize];
+            p &= p - 1;
+        }
+
+        // passed pawns
+        score += (count!(wp & !bspans(bp | bp_att)) - count!(bp & !wspans(wp | wp_att))) * PAWN_PASSED;
+
         // mobility
         score += self.mobility(WHITE, bp_att, bk_sqs);
         score += self.mobility(BLACK, wp_att, wk_sqs);
-
-        // pawn pst
-        while wp > 0 {
-            score += PAWN_PST[PST_IDX[56 ^ lsb!(wp)] as usize];
-            wp &= wp - 1;
-        }
-        while bp > 0 {
-            score += -1 * PAWN_PST[PST_IDX[lsb!(bp)] as usize];
-            bp &= bp - 1;
-        }
 
         // taper eval
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
@@ -62,8 +83,6 @@ impl Position {
         let mut from: usize;
         let mut attacks: u64;
         let mut pieces: u64;
-
-        // bitboards
         let boys: u64 = self.sides[c];
         let opps: u64 = self.sides[c ^ 1];
         let safe: u64 = !boys & !opp_att;
@@ -101,7 +120,7 @@ impl Position {
             danger += count!(attacks & k_sqs);
         }
 
-        // queen mobility
+        // queen
         // only count threats to king as it is a volatile piece
         // - ignore friendly queens, rooks and bishops
         occ ^= (self.pieces[QUEEN] & opps) ^ (self.pieces[BISHOP] & boys);
