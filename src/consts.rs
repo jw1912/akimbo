@@ -170,15 +170,9 @@ pub const LAZY_MATERIAL: [S; 5] = [S(75, 113), S(318, 294), S(331, 308), S(450, 
 pub const MATERIAL: [S; 5] = [S(67, 92), S(293, 262), S(303, 262), S(391, 482), S(905, 833)];
 pub const PROGRESS: [S; 5] = [S(11, -9), S(8, -6), S(8, 8), S(29, 63), S(105, 136)];
 pub const KING_RANKS: [S; 8] = [S(0, -12), S(-43, 15), S(-66, 26), S(-64, 33), S(-28, 38), S(20, 36), S(17, 35), S(63, -6)];
-pub const MAJOR_DEFEND: [S; 4] = [S(4, -1), S(6, -1), S(2, -4), S(3, -7)];
-pub const MAJOR_ATTACK: [S; 4] = [S(6, 3), S(6, 4), S(4, 3), S(2, 6)];
+pub const MAJOR_DEFEND: [S; 3] = [S(4, -1), S(6, -1), S(2, -4)];
+pub const MAJOR_ATTACK: [S; 3] = [S(6, 3), S(6, 4), S(4, 3)];
 pub const PAWN_SHIELD: S = S(21, -4);
-pub const PAWN_PASSED: S = S(-7, 26);
-pub const KNIGHT_OUTER: S = S(-5, -23);
-pub const ROOK_AGGRESSIVE: S = S(34, 6);
 
 // board regions for eval
-pub const BAD_KNIGHT_SQUARES: u64 = 0xffc381818181c3ff;
-pub const WHITE_CAMP: u64 = 0xFFFF;
-pub const BLACK_CAMP: u64 = 0xFFFF << 48;
-pub const PAWN_RANKS: [u64; 6] = [0xFF << 8, 0xFF << 16, 0xFF << 24, 0xFF << 32, 0xFF << 40, 0xFF << 48];
+pub const RANKS: [u64; 6] = [0xFF << 8, 0xFF << 16, 0xFF << 24, 0xFF << 32, 0xFF << 40, 0xFF << 48];

@@ -6,7 +6,6 @@ use super::{consts::*, position::Position};
 macro_rules! lsb {($x:expr) => {$x.trailing_zeros() as u16}}
 
 /// Forward bitscan, followed by clearing smallest bit.
-#[macro_export]
 macro_rules! pop_lsb {($idx:expr, $x:expr) => {$idx = lsb!($x); $x &= $x - 1}}
 
 pub struct MoveList {
