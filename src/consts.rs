@@ -1,5 +1,3 @@
-use super::position::S;
-
 // engine details
 pub const NAME: &str = env!("CARGO_PKG_NAME");
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -140,7 +138,6 @@ pub const CASTLE_MOVES: [[usize; 2]; 2] = [[3, 5], [59, 61]];
 
 // search/eval
 pub const MAX_PLY: i8 = 96;
-pub const DELTA_MARGIN: i16 = 2 * MATERIAL[PAWN].1;
 pub const KILLERS_PER_PLY: usize = 3;
 pub const MAX: i16 = 30000;
 pub const MATE_THRESHOLD: i16 = MAX - u8::MAX as i16;
@@ -154,34 +151,13 @@ pub const PROMOTION: u16 = 600;
 pub const KILLER: u16 = 500;
 pub const QUIET: u16 = 0;
 pub const MVV_LVA: [[u16; 7]; 7] = [
-    [1500, 1400, 1300, 1200, 1100, 1000,    0],
-    [2500, 2400, 2300, 2200, 2100, 2000,    0],
-    [3500, 3400, 3300, 3200, 3100, 3000,    0],
-    [4500, 4400, 4300, 4200, 4100, 4000,    0],
-    [5500, 5400, 5300, 5200, 5100, 5000,    0],
-    [   0,    0,    0,    0,    0,    0,    0],
-    [   0,    0,    0,    0,    0,    0,    0],
+    [ 1500,  1400,  1300,  1200,  1100,  1000,    0],
+    [ 3450,  3350,  3250,  3150,  3050,  2950,    0],
+    [ 3500,  3400,  3300,  3200,  3100,  3000,    0],
+    [ 5500,  5400,  5300,  5200,  5100,  5000,    0],
+    [ 8500,  8400,  8300,  8200,  8100,  8000,    0],
+    [40000, 40000, 40000, 40000, 40000, 40000,    0],
+    [    0,     0,     0,     0,    0,     0,     0],
 ];
-
-// lazy eval values
-pub const LAZY_MATERIAL: [S; 5] = [S(75, 113), S(318, 294), S(331, 308), S(450, 508), S(944, 945)];
-
-// eval values
-pub const MATERIAL: [S; 5] = [S(85, 125), S(312, 268), S(332, 279), S(432, 498), S(927, 945)];
-pub const PAWN_PST: [S; 24] = [
-    S( 79, 114), S( 92, 109), S( 85,  87), S( 84,  77),
-    S(-26,  43), S(  6,  38), S( 26,  20), S( 39,   8),
-    S(-34, -15), S(-11, -20), S(-18, -27), S( -4, -40),
-    S(-34, -35), S(-16, -32), S(-13, -44), S( -7, -48),
-    S(-25, -43), S( -1, -40), S(-17, -45), S(-13, -41),
-    S(-32, -41), S( -8, -34), S(-19, -35), S(-28, -31),
-];
-pub const MOBILITY_KNIGHT: [S; 9] = [S(-34, -74), S(-7, -54), S(3, -34), S(9, -18), S(15, -5), S(18, 13), S(22, 17), S(21, 27), S(34, 15)];
-pub const MOBILITY_BISHOP: [S; 14] = [S(-16, -74), S(-2, -57), S(5, -33), S(10, -17), S(14, -4), S(15, 6), S(17, 14), S(16, 17), S(19, 24), S(18, 25), S(34, 26), S(35, 27), S(43, 31), S(40, 31)];
-pub const MOBILITY_ROOK: [S; 15] = [S(-31, -84), S(-15, -56), S(-18, -33), S(-17, -17), S(-11, -10), S(-11, -3), S(-9, 3), S(-5, 6), S(0, 13), S(7, 15), S(11, 18), S(11, 22), S(13, 25), S(19, 24), S(20, 25)];
-pub const PAWN_SHIELD: S = S(22, -3);
-pub const PAWN_PASSED: S = S(-5, 26);
-pub const KING_LINEAR: S = S(-9, 0);
-pub const KING_QUADRATIC: S = S(-6, 3);
 
 pub const PST_IDX: [u8; 64] = init!(idx, 0, (((idx / 8) * 4).saturating_sub((4 - ((idx & 7) > 3) as i16 - (idx & 7) as i16).unsigned_abs() as usize)) as u8);

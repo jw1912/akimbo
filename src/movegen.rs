@@ -1,11 +1,8 @@
 use std::{cmp::{min, max}, mem::MaybeUninit};
-use super::{consts::*, position::Position};
+use super::{consts::*, position::{Position, bishop_attacks, rook_attacks}};
 
-/// Forward bitscan.
 #[macro_export]
 macro_rules! lsb {($x:expr) => {$x.trailing_zeros() as u16}}
-
-/// Forward bitscan, followed by clearing smallest bit.
 macro_rules! pop_lsb {($idx:expr, $x:expr) => {$idx = lsb!($x); $x &= $x - 1}}
 
 pub struct MoveList {
@@ -15,7 +12,6 @@ pub struct MoveList {
 
 impl Default for MoveList {
     fn default() -> Self {
-        // provably safe, only indexed into by ```for i in 0..self.len```
         Self { list: unsafe {#[allow(clippy::uninit_assumed_init, invalid_value)] MaybeUninit::uninit().assume_init()}, len: 0 }
     }
 }
@@ -160,42 +156,6 @@ fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16, side: usize) {
         pop_lsb!(cidx, attackers);
         move_list.push( MoveFlags::EN_PASSANT | sq | cidx << 6 );
     }
-}
-
-#[inline(always)]
-pub fn rook_attacks(idx: usize, occ: u64) -> u64 {
-    let m: Mask = RMASKS[idx];
-    let mut f: u64 = occ & m.file;
-    let mut r: u64 = f.swap_bytes();
-    f -= m.bit;
-    r -= m.bit.swap_bytes();
-    f ^= r.swap_bytes();
-    f &= m.file;
-    let mut e: u64 = m.right & occ;
-    r = e & e.wrapping_neg();
-    e = (r ^ (r - m.bit)) & m.right;
-    let w: u64 = m.left ^ WEST[(((m.left & occ)| 1).leading_zeros() ^ 63) as usize];
-
-    f | e | w
-}
-
-#[inline(always)]
-pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
-    let m: Mask = BMASKS[idx];
-    let mut f: u64 = occ & m.right;
-    let mut r: u64 = f.swap_bytes();
-    f -= m.bit;
-    r -= m.file;
-    f ^= r.swap_bytes();
-    f &= m.right;
-    let mut f2: u64 = occ & m.left;
-    r = f2.swap_bytes();
-    f2 -= m.bit;
-    r -= m.file;
-    f2 ^= r.swap_bytes();
-    f2 &= m.left;
-
-    f | f2
 }
 
 fn shift<const SIDE: usize, const AMOUNT: u8>(bb: u64) -> u64 {

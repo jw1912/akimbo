@@ -1,4 +1,4 @@
-use super::{consts::*, position::Position, tables::{HashTable, KillerTable}, movegen::MoveList,u16_to_uci};
+use super::{consts::*, position::Position, tables::{HashTable, KillerTable}, movegen::MoveList, u16_to_uci};
 use std::{cmp::{min, max}, time::Instant};
 
 /// Determines what is done in the node
@@ -17,23 +17,31 @@ pub struct SearchContext {
     time: Instant,
     nodes: u64,
     ply: i16,
+    seldepth: i16,
     abort: bool,
 }
 
 impl SearchContext{
     pub fn new(hash_table: HashTable, killer_table: KillerTable) -> Self {
-        Self { hash_table, killer_table, time: Instant::now(), alloc_time: 1000, nodes: 0, ply: 0, abort: false }
+        Self { hash_table, killer_table, time: Instant::now(), alloc_time: 1000, nodes: 0, ply: 0, abort: false, seldepth: 0 }
     }
 
     fn reset(&mut self) {
         self.time = Instant::now();
         self.nodes = 0;
         self.ply = 0;
+        self.seldepth = 0;
         self.abort = false;
     }
 }
 
 impl Position {
+    fn mvv_lva(&self, m: u16) -> u16 {
+        let moved_pc: usize = self.squares[((m >> 6) & 63) as usize] as usize;
+        let captured_pc: usize = self.squares[(m & 63) as usize] as usize;
+        MVV_LVA[captured_pc][moved_pc]
+    }
+
     fn score_move(&self, m: u16, hash_move: u16, killers: &[u16; KILLERS_PER_PLY]) -> u16 {
         if m == hash_move {
             HASH_MOVE
@@ -83,9 +91,6 @@ impl MoveList {
     }
 }
 
-/// Main search function:
-/// - Fail-soft negamax (alpha-beta pruning) framework
-/// - Principle variation search
 fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut depth: i8, ctx: &mut SearchContext, pv_line: &mut Vec<u16>) -> i16 {
     // search aborting
     if ctx.abort { return 0 }
@@ -94,10 +99,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
         return 0
     }
 
-    // draw detection
-    if pos.fifty_draw() || pos.repetition_draw(2 + u8::from(ctx.ply == 0)) || pos.material_draw() { return 0 }
-
-    // extract node info
+    if pos.state.halfmove_clock >= 100 || pos.repetition_draw(2 + u8::from(ctx.ply == 0)) || pos.material_draw() { return 0 }
     let (pv, in_check, allow_null): (bool, bool, bool) = (nt.0 & 4 > 0, nt.0 & 2 > 0, nt.0 & 1 > 0);
 
     // mate distance pruning
@@ -108,9 +110,10 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     // check extensions
     depth += i8::from(in_check);
 
-    // qsearch at depth 0
-    if depth <= 0 { return qsearch(pos, alpha, beta, ctx) }
-    ctx.nodes += 1;
+    if depth <= 0 {
+        ctx.seldepth = max(ctx.seldepth, ctx.ply);
+        return qsearch(pos, alpha, beta, ctx)
+    }
 
     // probing hash table
     let mut hash_move: u16 = 0;
@@ -118,7 +121,6 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     if let Some(res) = ctx.hash_table.probe(pos.state.zobrist, ctx.ply) {
         write_to_hash = depth > res.depth;
         hash_move = res.best_move;
-        // hash score pruning
         if ctx.ply > 0 && pos.state.halfmove_clock <= 90 && res.depth >= depth &&
             match res.bound {
                 Bound::EXACT => !pv, // want nice pv lines
@@ -145,27 +147,21 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
         }
     }
 
-    // generate and score moves
+    ctx.nodes += 1;
+    ctx.ply += 1;
+    let can_lmr: bool = depth >= 2 && ctx.ply > 0 && !in_check;
     let mut moves: MoveList = pos.gen_moves::<ALL>();
     let mut scores: MoveList = pos.score(&moves, hash_move, ctx.ply, &ctx.killer_table);
-
-    // is the threshold for late move reductions satisfied?
-    let can_lmr: bool = depth >= 2 && ctx.ply > 0 && !in_check;
-
-    ctx.ply += 1;
-    let mut bound: u8 = Bound::UPPER;
-    let mut best_move: u16 = 0;
-    let mut best_score: i16 = -MAX;
-    let mut legal_moves: u16 = 0;
+    let (mut legal_moves, mut best_move, mut best_score, mut bound): (u16, u16, i16, u8) = (0, 0, -MAX, Bound::UPPER);
     while let Some((m, m_score)) = moves.pick(&mut scores) {
         if pos.do_move(m) { continue }
         legal_moves += 1;
+        let gives_check: bool = pos.is_in_check();
 
         // late move reductions
-        let gives_check: bool = pos.is_in_check();
-        let reduce: i8 = i8::from(can_lmr && !gives_check && legal_moves > 1 && m_score < 300);
+        let reduce: i8 = i8::from(can_lmr && !gives_check && legal_moves > 2 && m_score < 300);
 
-        // pvs
+        // principle variation search
         let mut sub_pv: Vec<u16> = Vec::new();
         let score: i16 = if legal_moves == 1 {
             -search(pos, NodeType::encode(pv, gives_check, false), -beta, -alpha, depth - 1, ctx, &mut sub_pv)
@@ -175,7 +171,6 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
                 -search(pos, NodeType::encode(pv, gives_check, false), -beta, -alpha, depth - 1, ctx, &mut sub_pv)
             } else { zw_score }
         };
-
         pos.undo_move();
 
         if score > best_score {
@@ -200,81 +195,63 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     ctx.ply -= 1;
     if legal_moves == 0 { return i16::from(in_check) * (-MAX + ctx.ply) }
     if write_to_hash && !ctx.abort { ctx.hash_table.push(pos.state.zobrist, best_move, depth, bound, best_score, ctx.ply) }
-
     best_score
 }
 
-/// Quiescence search:
-/// - Fail-soft
-/// - Delta pruning
 fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, ctx: &mut SearchContext) -> i16 {
     // search aborting
     if ctx.abort { return 0 }
     if ctx.nodes & 2047 == 0 && ctx.time.elapsed().as_millis() >= ctx.alloc_time {
         ctx.abort = true;
-        return 0
+        return 0;
     }
-
     ctx.nodes += 1;
 
-    // king capture is illegal, so return M0 score
+    // king capture is illegal, so return -M0 score
     if pos.material[KING] != 0 {return -MAX}
 
-    let mut stand_pat: i16 = pos.eval();
+    // static eval
+    let mut eval: i16 = pos.eval();
+    if eval >= beta { return eval }
+    alpha = max(alpha, eval);
 
-    if stand_pat >= beta { return stand_pat }
-    if alpha < stand_pat { alpha = stand_pat }
-
-    // generate and score moves
+    // go through moves
     let mut captures: MoveList = pos.gen_moves::<CAPTURES>();
     let mut scores: MoveList = pos.score_captures(&captures);
-
     while let Some((m, m_score)) = captures.pick(&mut scores) {
         // delta pruning
-        if stand_pat + m_score as i16 / 5 + DELTA_MARGIN < alpha { break }
+        if eval + m_score as i16 / 10 + 200 < alpha { break }
 
         pos.do_unchecked(m);
         let score: i16 = -qsearch(pos, -beta, -alpha, ctx);
         pos.undo_move();
 
-        if score > stand_pat {
-            stand_pat = score;
-            if score > alpha {
-                alpha = score;
-                if score >= beta { return score }
-            }
-        }
+        if score >= beta { return score }
+        eval = max(eval, score);
+        alpha = max(alpha, score);
     }
-    stand_pat
+    eval
 }
 
-/// Root search function:
-/// - Iterative deepening
-/// - Handles uci output
 pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
     let mut best_move: u16 = 0;
     ctx.reset();
-
     for d in 1..=allocated_depth {
         let in_check: bool = pos.is_in_check();
         let mut pv_line: Vec<u16> = Vec::new();
         let score: i16 = search(pos, NodeType::encode(true, in_check, false), -MAX, MAX, d, ctx, &mut pv_line);
+        if ctx.abort { break }
 
-        // end search if out of time
-        let t: u128 = ctx.time.elapsed().as_millis();
-        if t >= ctx.alloc_time || ctx.abort { break }
-
+        // uci output
         best_move = pv_line[0];
         let (stype, sval): (&str, i16) = if score.abs() >= MATE_THRESHOLD {
             ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2)
-        } else {
-            ("cp", score)
-        };
+        } else {("cp", score)};
+        let t: u128 = ctx.time.elapsed().as_millis();
         let nps: u32 = ((ctx.nodes as f64) * 1000.0 / (t as f64)) as u32;
         let pv_str: String = pv_line.iter().map(|m| u16_to_uci(pos, *m)).collect::<String>();
         println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d, stype, sval, t, ctx.nodes, nps, pv_str);
     }
-    println!("info time {}", ctx.time.elapsed().as_millis());
     println!("bestmove {}", u16_to_uci(pos, best_move));
     ctx.killer_table.clear();
 }

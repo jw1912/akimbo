@@ -1,8 +1,47 @@
-use super::{consts::*, movegen::{rook_attacks, bishop_attacks}, position::{Position, S}};
+use std::ops::{AddAssign, Mul};
+use super::{consts::*, position::{Position, rook_attacks, bishop_attacks}};
 
 macro_rules! count {($bb:expr) => {($bb).count_ones() as i16}}
 macro_rules! lsb {($x:expr) => {($x).trailing_zeros() as usize}}
 macro_rules! pull_lsb {($idx:expr, $x:expr) => {$idx = lsb!($x); $x &= $x - 1}}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct S(pub i16, pub i16);
+
+impl AddAssign<S> for S {
+    fn add_assign(&mut self, rhs: S) {
+        self.0 += rhs.0;
+        self.1 += rhs.1;
+    }
+}
+
+impl Mul<S> for i16 {
+    type Output = S;
+    fn mul(self, rhs: S) -> Self::Output {
+        S(self * rhs.0, self * rhs.1)
+    }
+}
+
+// lazy eval values
+pub const LAZY_MATERIAL: [S; 5] = [S(75, 113), S(318, 294), S(331, 308), S(450, 508), S(944, 945)];
+
+// eval values
+pub const MATERIAL: [S; 5] = [S(85, 125), S(312, 268), S(332, 279), S(432, 498), S(927, 945)];
+pub const PAWN_PST: [S; 24] = [
+    S( 79, 114), S( 92, 109), S( 85,  87), S( 84,  77),
+    S(-26,  43), S(  6,  38), S( 26,  20), S( 39,   8),
+    S(-34, -15), S(-11, -20), S(-18, -27), S( -4, -40),
+    S(-34, -35), S(-16, -32), S(-13, -44), S( -7, -48),
+    S(-25, -43), S( -1, -40), S(-17, -45), S(-13, -41),
+    S(-32, -41), S( -8, -34), S(-19, -35), S(-28, -31),
+];
+pub const MOBILITY_KNIGHT: [S; 9] = [S(-34, -74), S(-7, -54), S(3, -34), S(9, -18), S(15, -5), S(18, 13), S(22, 17), S(21, 27), S(34, 15)];
+pub const MOBILITY_BISHOP: [S; 14] = [S(-16, -74), S(-2, -57), S(5, -33), S(10, -17), S(14, -4), S(15, 6), S(17, 14), S(16, 17), S(19, 24), S(18, 25), S(34, 26), S(35, 27), S(43, 31), S(40, 31)];
+pub const MOBILITY_ROOK: [S; 15] = [S(-31, -84), S(-15, -56), S(-18, -33), S(-17, -17), S(-11, -10), S(-11, -3), S(-9, 3), S(-5, 6), S(0, 13), S(7, 15), S(11, 18), S(11, 22), S(13, 25), S(19, 24), S(20, 25)];
+pub const PAWN_SHIELD: S = S(22, -3);
+pub const PAWN_PASSED: S = S(-5, 26);
+pub const KING_LINEAR: S = S(-9, 0);
+pub const KING_QUADRATIC: S = S(-6, 3);
 
 #[inline(always)]
 fn wspans(mut pwns: u64) -> u64 {
