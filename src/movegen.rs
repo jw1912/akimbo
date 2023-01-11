@@ -40,7 +40,7 @@ fn btwn(bit1: u64, bit2: u64) -> u64 {
 }
 
 impl Position {
-    pub fn gen_moves<const QUIETS: bool>(&self) -> MoveList {
+    pub fn gen<const QUIETS: bool>(&self) -> MoveList {
         let mut moves: MoveList = MoveList::default();
         let move_list: &mut MoveList = &mut moves;
         let side: usize = usize::from(self.c);

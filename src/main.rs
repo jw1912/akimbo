@@ -56,7 +56,7 @@ fn main() {
 }
 
 fn perft(pos: &mut Position, depth_left: u8) -> u64 {
-    let moves: MoveList = pos.gen_moves::<ALL>();
+    let moves: MoveList = pos.gen::<ALL>();
     let mut positions: u64 = 0;
     for m_idx in 0..moves.len {
         let m: u16 = moves.list[m_idx];
@@ -167,7 +167,7 @@ fn uci_to_u16(pos: &Position, m: &str) -> u16 {
     let mut no_flags: u16 = castle | (from << 6) | to;
     if castle > 0 {return no_flags}
     no_flags |= match m.chars().nth(4).unwrap_or('f') {'n' => 0x8000, 'b' => 0x9000, 'r' => 0xA000, 'q' => 0xB000, _ => 0};
-    let possible_moves: MoveList = pos.gen_moves::<ALL>();
+    let possible_moves: MoveList = pos.gen::<ALL>();
     for m_idx in 0..possible_moves.len {
         let um: u16 = possible_moves.list[m_idx];
         if no_flags & TWELVE == um & TWELVE && (l < 5 || no_flags & !TWELVE == um & 0xB000) // standard chess

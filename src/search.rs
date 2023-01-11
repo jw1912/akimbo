@@ -16,6 +16,7 @@ pub struct SearchContext {
     pub alloc_time: u128,
     time: Instant,
     nodes: u64,
+    qnodes: u64,
     ply: i16,
     seldepth: i16,
     abort: bool,
@@ -23,15 +24,20 @@ pub struct SearchContext {
 
 impl SearchContext{
     pub fn new(hash_table: HashTable, killer_table: KillerTable) -> Self {
-        Self { hash_table, killer_table, time: Instant::now(), alloc_time: 1000, nodes: 0, ply: 0, abort: false, seldepth: 0 }
+        Self { hash_table, killer_table, time: Instant::now(), alloc_time: 1000, nodes: 0, qnodes: 0, ply: 0, seldepth: 0, abort: false}
     }
 
     fn reset(&mut self) {
         self.time = Instant::now();
         self.nodes = 0;
+        self.qnodes = 0;
         self.ply = 0;
         self.seldepth = 0;
         self.abort = false;
+    }
+
+    fn timer(&self) -> u128 {
+        self.time.elapsed().as_millis()
     }
 }
 
@@ -94,13 +100,13 @@ impl MoveList {
 fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut depth: i8, ctx: &mut SearchContext, pv_line: &mut Vec<u16>) -> i16 {
     // search aborting
     if ctx.abort { return 0 }
-    if ctx.nodes & 2047 == 0 && ctx.time.elapsed().as_millis() >= ctx.alloc_time {
+    if ctx.nodes & 1023 == 0 && ctx.timer() >= ctx.alloc_time {
         ctx.abort = true;
         return 0
     }
 
     if pos.state.halfmove_clock >= 100 || pos.repetition_draw(2 + u8::from(ctx.ply == 0)) || pos.material_draw() { return 0 }
-    let (pv, in_check, allow_null): (bool, bool, bool) = (nt.0 & 4 > 0, nt.0 & 2 > 0, nt.0 & 1 > 0);
+    let (pv, in_check, mut allow_null): (bool, bool, bool) = (nt.0 & 4 > 0, nt.0 & 2 > 0, nt.0 & 1 > 0);
 
     // mate distance pruning
     alpha = max(alpha, -MAX + ctx.ply);
@@ -121,13 +127,18 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     if let Some(res) = ctx.hash_table.probe(pos.state.zobrist, ctx.ply) {
         write_to_hash = depth > res.depth;
         hash_move = res.best_move;
-        if ctx.ply > 0 && pos.state.halfmove_clock <= 90 && res.depth >= depth &&
-            match res.bound {
-                Bound::EXACT => !pv, // want nice pv lines
-                Bound::LOWER => res.score >= beta,
-                Bound::UPPER => res.score <= alpha,
-                _ => false
-            } { return res.score }
+        if ctx.ply > 0 {
+            if res.depth >= depth {
+                if pos.state.halfmove_clock < 90 && match res.bound {
+                    Bound::EXACT => !pv, // want nice pv lines
+                    Bound::LOWER => res.score >= beta,
+                    Bound::UPPER => res.score <= alpha,
+                    _ => false
+                } { return res.score }
+            } else if res.bound != Bound::LOWER && res.score < beta {
+                allow_null = false; // unlikely fail-high
+            }
+        }
     }
 
     // pruning
@@ -150,7 +161,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     ctx.nodes += 1;
     ctx.ply += 1;
     let can_lmr: bool = depth >= 2 && ctx.ply > 0 && !in_check;
-    let mut moves: MoveList = pos.gen_moves::<ALL>();
+    let mut moves: MoveList = pos.gen::<ALL>();
     let mut scores: MoveList = pos.score(&moves, hash_move, ctx.ply, &ctx.killer_table);
     let (mut legal_moves, mut best_move, mut best_score, mut bound): (u16, u16, i16, u8) = (0, 0, -MAX, Bound::UPPER);
     while let Some((m, m_score)) = moves.pick(&mut scores) {
@@ -199,33 +210,19 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
 }
 
 fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, ctx: &mut SearchContext) -> i16 {
-    // search aborting
-    if ctx.abort { return 0 }
-    if ctx.nodes & 2047 == 0 && ctx.time.elapsed().as_millis() >= ctx.alloc_time {
-        ctx.abort = true;
-        return 0;
-    }
-    ctx.nodes += 1;
-
-    // king capture is illegal, so return -M0 score
-    if pos.material[KING] != 0 {return -MAX}
-
-    // static eval
+    ctx.qnodes += 1;
     let mut eval: i16 = pos.eval();
     if eval >= beta { return eval }
     alpha = max(alpha, eval);
-
-    // go through moves
-    let mut captures: MoveList = pos.gen_moves::<CAPTURES>();
+    let baseline: i16 = eval + 200;
+    let mut captures: MoveList = pos.gen::<CAPTURES>();
     let mut scores: MoveList = pos.score_captures(&captures);
     while let Some((m, m_score)) = captures.pick(&mut scores) {
-        // delta pruning
-        if eval + m_score as i16 / 10 + 200 < alpha { break }
-
+        if m_score >= TVV { return MAX }
+        if baseline + m_score as i16 / 10 < alpha { return eval }
         pos.do_unchecked(m);
         let score: i16 = -qsearch(pos, -beta, -alpha, ctx);
         pos.undo_move();
-
         if score >= beta { return score }
         eval = max(eval, score);
         alpha = max(alpha, score);
@@ -241,17 +238,17 @@ pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
         let mut pv_line: Vec<u16> = Vec::new();
         let score: i16 = search(pos, NodeType::encode(true, in_check, false), -MAX, MAX, d, ctx, &mut pv_line);
         if ctx.abort { break }
-
         // uci output
         best_move = pv_line[0];
         let (stype, sval): (&str, i16) = if score.abs() >= MATE_THRESHOLD {
             ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2)
         } else {("cp", score)};
-        let t: u128 = ctx.time.elapsed().as_millis();
-        let nps: u32 = ((ctx.nodes as f64) * 1000.0 / (t as f64)) as u32;
-        let pv_str: String = pv_line.iter().map(|m| u16_to_uci(pos, *m)).collect::<String>();
-        println!("info depth {} score {} {} time {} nodes {} nps {} pv {}", d, stype, sval, t, ctx.nodes, nps, pv_str);
+        let t: u128 = ctx.timer();
+        let nodes: u64 = ctx.nodes + ctx.qnodes;
+        let nps: u32 = ((nodes as f64) * 1000.0 / (t as f64)) as u32;
+        let pv_str: String = pv_line.iter().map(|m: &u16| u16_to_uci(pos, *m)).collect::<String>();
+        println!("info depth {d} score {stype} {sval} time {t} nodes {nodes} nps {nps} pv {pv_str}");
     }
-    println!("bestmove {}", u16_to_uci(pos, best_move));
     ctx.killer_table.clear();
+    println!("bestmove {}", u16_to_uci(pos, best_move));
 }
