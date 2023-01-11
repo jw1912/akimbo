@@ -1,7 +1,7 @@
 use super::{consts::*, movegen::{rook_attacks, bishop_attacks}, position::{Position, S}};
 
-macro_rules! count {($bb:expr) => {$bb.count_ones() as i16}}
-macro_rules! lsb {($x:expr) => {$x.trailing_zeros() as usize}}
+macro_rules! count {($bb:expr) => {($bb).count_ones() as i16}}
+macro_rules! lsb {($x:expr) => {($x).trailing_zeros() as usize}}
 macro_rules! pull_lsb {($idx:expr, $x:expr) => {$idx = lsb!($x); $x &= $x - 1}}
 
 impl Position {
@@ -25,17 +25,21 @@ impl Position {
         // king position
         let wk_idx: usize = (self.pieces[KING] & self.sides[WHITE]).trailing_zeros() as usize;
         let bk_idx: usize = (self.pieces[KING] & self.sides[BLACK]).trailing_zeros() as usize;
+        let wk_sqs: u64 = KING_ATTACKS[wk_idx];
+        let bk_sqs: u64 = KING_ATTACKS[bk_idx];
 
         // pawn bitboards
         let mut wp: u64 = self.pieces[PAWN] & self.sides[WHITE];
         let mut bp: u64 = self.pieces[PAWN] & self.sides[BLACK];
-        score += (count!(wp & KING_ATTACKS[wk_idx]) - count!(bp & KING_ATTACKS[bk_idx])) * PAWN_SHIELD;
-
-        // mobility
         let wp_att: u64 = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
         let bp_att: u64 = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
-        score += self.mobility(WHITE, bp_att);
-        score += self.mobility(BLACK, wp_att);
+
+        // pawn shield
+        score += (count!(wp & wk_sqs) - count!(bp & bk_sqs)) * PAWN_SHIELD;
+
+        // mobility
+        score += self.mobility(WHITE, bp_att, bk_sqs);
+        score += self.mobility(BLACK, wp_att, wk_sqs);
 
         // pawn pst
         while wp > 0 {
@@ -52,8 +56,9 @@ impl Position {
         SIDE_FACTOR[usize::from(self.c)] * ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16
     }
 
-    fn mobility(&self, c: usize, opp_att: u64) -> S {
+    fn mobility(&self, c: usize, opp_att: u64, k_sqs: u64) -> S {
         let mut score: S = S(0, 0);
+        let mut danger: i16 = 0;
         let mut from: usize;
         let mut attacks: u64;
         let mut pieces: u64;
@@ -67,8 +72,9 @@ impl Position {
         pieces = self.pieces[KNIGHT] & boys;
         while pieces > 0 {
             pull_lsb!(from, pieces);
-            attacks = KNIGHT_ATTACKS[from] & safe;
-            score += MOBILITY_KNIGHT[count!(attacks) as usize];
+            attacks = KNIGHT_ATTACKS[from];
+            score += MOBILITY_KNIGHT[count!(attacks & safe) as usize];
+            danger += count!(attacks & k_sqs);
         }
 
         // bishop mobility
@@ -78,8 +84,9 @@ impl Position {
         pieces = self.pieces[BISHOP] & boys;
         while pieces > 0 {
             pull_lsb!(from, pieces);
-            attacks = bishop_attacks(from, occ) & safe;
-            score += MOBILITY_BISHOP[count!(attacks) as usize];
+            attacks = bishop_attacks(from, occ);
+            score += MOBILITY_BISHOP[count!(attacks & safe) as usize];
+            danger += count!(attacks & k_sqs);
         }
 
         // rook mobility
@@ -89,9 +96,25 @@ impl Position {
         pieces = self.pieces[ROOK] & boys;
         while pieces > 0 {
             pull_lsb!(from, pieces);
-            attacks = rook_attacks(from, occ) & safe;
-            score += MOBILITY_ROOK[count!(attacks) as usize];
+            attacks = rook_attacks(from, occ);
+            score += MOBILITY_ROOK[count!(attacks & safe) as usize];
+            danger += count!(attacks & k_sqs);
         }
+
+        // queen mobility
+        // only count threats to king as it is a volatile piece
+        // - ignore friendly queens, rooks and bishops
+        occ ^= (self.pieces[QUEEN] & opps) ^ (self.pieces[BISHOP] & boys);
+        pieces = self.pieces[QUEEN] & boys;
+        while pieces > 0 {
+            pull_lsb!(from, pieces);
+            attacks = bishop_attacks(from, occ) | rook_attacks(from, occ);
+            danger += count!(attacks & k_sqs);
+        }
+
+        // threat to opposite king
+        score += -danger * KING_LINEAR;
+        score += -danger.pow(2) * KING_QUADRATIC;
 
         SIDE_FACTOR[c] * score
     }
