@@ -79,7 +79,7 @@ impl HashTable {
     }
 }
 
-pub struct KillerTable(pub [[u16; KILLERS_PER_PLY]; MAX_PLY as usize]);
+pub struct KillerTable(pub [[u16; KILLERS_PER_PLY]; MAX_PLY as usize + 1]);
 impl KillerTable {
     pub fn push(&mut self, m: u16, p: i16) {
         let ply: usize = p as usize - 1;

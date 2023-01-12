@@ -117,7 +117,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     // check extensions
     depth += i8::from(in_check);
 
-    if depth <= 0 {
+    if depth <= 0 || ctx.ply == MAX_PLY {
         ctx.seldepth = max(ctx.seldepth, ctx.ply);
         return qsearch(pos, alpha, beta, &mut ctx.qnodes)
     }
@@ -143,19 +143,26 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
 
     // pruning
     if !pv && !in_check && beta.abs() < MATE_THRESHOLD {
-        let lazy_eval: i16 = pos.lazy_eval();
+        let eval: i16 = pos.lazy_eval();
 
         // reverse futility pruning
-        let margin: i16 = lazy_eval - 120 * i16::from(depth);
+        let margin: i16 = eval - 120 * i16::from(depth);
         if depth <= 8 && margin >= beta { return margin }
 
         // null move pruning
-        if allow_null && depth >= 3 && pos.phase >= 6 && lazy_eval >= beta {
+        if allow_null && depth >= 3 && pos.phase >= 6 && eval + 50 >= beta {
             let copy: (u16, u64) = pos.do_null();
             let score: i16 = -search(pos, NodeType::encode(false, false, false), -beta, -beta + 1, depth - 3, ctx, &mut Vec::new());
             pos.undo_null(copy);
             if score >= beta {return score}
         }
+
+        // razoring
+        //let value: i16 = eval - 50 + 250 * depth as i16;
+        //if depth <= 2 && value <= alpha {
+        //    eval = qsearch(pos, alpha, beta, &mut ctx.qnodes);
+        //    if eval <= alpha {return max(value, eval)}
+        //}
     }
 
     ctx.nodes += 1;
@@ -247,7 +254,7 @@ pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
         let nodes: u64 = ctx.nodes + ctx.qnodes;
         let nps: u32 = ((nodes as f64) * 1000.0 / (t as f64)) as u32;
         let pv_str: String = pv_line.iter().map(|m: &u16| u16_to_uci(pos, *m)).collect::<String>();
-        println!("info depth {d} score {stype} {sval} time {t} nodes {nodes} nps {nps} pv {pv_str}");
+        println!("info depth {d} seldepth {} score {stype} {sval} time {t} nodes {nodes} nps {nps} pv {pv_str}", ctx.seldepth);
     }
     println!("bestmove {}", u16_to_uci(pos, best_move));
 }

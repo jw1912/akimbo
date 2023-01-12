@@ -22,12 +22,13 @@ type Message = Box<dyn Error>;
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
     let mut pos: Position = parse_fen(STARTPOS).expect("hard coded");
-    let mut ctx: SearchContext = SearchContext::new(HashTable::new(), KillerTable([[0; KILLERS_PER_PLY]; MAX_PLY as usize]));
+    let mut ctx: SearchContext = SearchContext::new(HashTable::new(), KillerTable([[0; KILLERS_PER_PLY]; MAX_PLY as usize + 1]));
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
         let commands: Vec<&str> = input.split(' ').map(str::trim).collect();
         if let Err(err) = parse_commands(commands, &mut pos, &mut ctx) {println!("{err}")}
+    }
 }
 
 fn parse_commands(commands: Vec<&str>, pos: &mut Position, ctx: &mut SearchContext) -> Result<(), Message> {
@@ -36,7 +37,7 @@ fn parse_commands(commands: Vec<&str>, pos: &mut Position, ctx: &mut SearchConte
             println!("id name {NAME} {VERSION}");
             println!("id author {AUTHOR}");
             println!("option name UCI_Chess960 type check default false");
-            println!("option name Hash type spin default 128 min 1 max 512");
+            println!("option name Hash type spin default 64 min 1 max 512");
             println!("option name Clear Hash type button");
             println!("uciok");
         }
@@ -55,10 +56,20 @@ fn parse_commands(commands: Vec<&str>, pos: &mut Position, ctx: &mut SearchConte
         "go" => parse_go(pos, commands, ctx)?,
         "position" => parse_position(pos, commands)?,
         "perft" => parse_perft(pos, &commands)?,
+        "debug" => searchdebug(pos, ctx),
         _ => err!("unknown command"),
     }
     Ok(())
 }
+
+fn searchdebug(pos: &mut Position, ctx: &mut SearchContext) {
+    ctx.hash_table.resize(64);
+    for fen in POSITIONS {
+        ctx.alloc_time = 1000;
+        *pos = parse_fen(fen).expect("hard coded");
+        println!("\nFEN: {fen}");
+        go(pos, 64, ctx);
+    }
 }
 
 fn perft(pos: &mut Position, depth_left: u8) -> u64 {

@@ -17,9 +17,24 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 pub const TWELVE: u16 = 0b1111_1111_1111;
+pub const POSITIONS: [&str; 9] = [
+    // Start Position
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    // Lasker-Reichhelm Position
+    "8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1",
+    // Kiwipete Position
+    "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+    // Misc
+    "8/2krR3/1pp3bp/6p1/PPNp4/3P1PKP/8/8 w - - 0 1",
+    "1Q6/8/8/8/2k2P2/1p6/1B4K1/8 w - - 3 63",
+    "3r2k1/pp3ppp/4p3/8/QP6/P1P5/5KPP/7q w - - 0 27",
+    "1q1r3k/3P1pp1/ppBR1n1p/4Q2P/P4P2/8/5PK1/8 w - - 0 1",
+    "1n3r2/3k2pp/pp1P4/1p4b1/1q3B2/5Q2/PPP2PP1/R4RK1 w - - 0 1",
+    "7K/8/k1P5/7p/8/8/8/8 w - - 0 1"
+];
 
 // Search & Eval
-pub const MAX_PLY: i8 = 96;
+pub const MAX_PLY: i16 = 96;
 pub const KILLERS_PER_PLY: usize = 3;
 pub const MAX: i16 = 30000;
 pub const MATE_THRESHOLD: i16 = MAX - u8::MAX as i16;
