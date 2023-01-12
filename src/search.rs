@@ -221,13 +221,10 @@ fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, qnodes: &mut u64) -> i
     let mut eval: i16 = pos.eval();
     if eval >= beta { return eval }
     alpha = max(alpha, eval);
-    let baseline: i16 = eval + 200;
     let mut captures: MoveList = pos.gen::<CAPTURES>();
     let mut scores: MoveList = pos.score_captures(&captures);
-    while let Some((m, m_score)) = captures.pick(&mut scores) {
-        if m_score >= TVV { return MAX }
-        if baseline + m_score as i16 / 10 < alpha { return eval }
-        pos.do_unchecked(m);
+    while let Some((m, _)) = captures.pick(&mut scores) {
+        if pos.do_move(m) {continue}
         let score: i16 = -qsearch(pos, -beta, -alpha, qnodes);
         pos.undo_move();
         if score >= beta { return score }

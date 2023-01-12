@@ -56,20 +56,9 @@ fn parse_commands(commands: Vec<&str>, pos: &mut Position, ctx: &mut SearchConte
         "go" => parse_go(pos, commands, ctx)?,
         "position" => parse_position(pos, commands)?,
         "perft" => parse_perft(pos, &commands)?,
-        "debug" => searchdebug(pos, ctx),
         _ => err!("unknown command"),
     }
     Ok(())
-}
-
-fn searchdebug(pos: &mut Position, ctx: &mut SearchContext) {
-    ctx.hash_table.resize(64);
-    for fen in POSITIONS {
-        ctx.alloc_time = 1000;
-        *pos = parse_fen(fen).expect("hard coded");
-        println!("\nFEN: {fen}");
-        go(pos, 64, ctx);
-    }
 }
 
 fn perft(pos: &mut Position, depth_left: u8) -> u64 {

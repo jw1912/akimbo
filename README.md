@@ -37,4 +37,3 @@ Evaluation parameters are tuned using [akimbo_tuner](https://github.com/JacquesR
 - Late Move Reductions
 - Reverse Futility Pruning
 - Null Move Pruning
-- Delta Pruning
