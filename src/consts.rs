@@ -42,6 +42,16 @@ pub const SIDE_FACTOR: [i16; 2] = [1, -1];
 pub const PHASE_VALS: [i16; 7] = [0, 1, 1, 2, 4, 0, 0];
 pub const TPHASE: i32 = 24;
 pub const PST_IDX: [u8; 64] = init!(idx, 0, (((idx / 8) * 4).saturating_sub((4 - ((idx & 7) > 3) as i16 - (idx & 7) as i16).unsigned_abs() as usize)) as u8);
+pub const KING_EG: [i16; 64] = [
+    7, 6, 5, 4, 4, 5, 6, 7,
+    6, 5, 3, 2, 2, 3, 5, 6,
+    5, 3, 0, 0, 0, 0, 3, 5,
+    4, 2, 0, 0, 0, 0, 2, 4,
+    4, 2, 0, 0, 0, 0, 2, 4,
+    5, 3, 0, 0, 0, 0, 3, 5,
+    6, 5, 3, 2, 2, 3, 5, 6,
+    7, 6, 5, 4, 4, 5, 6, 7,
+];
 
 // Move Ordering
 pub const HASH_MOVE: u16 = 30000;

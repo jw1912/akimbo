@@ -26,22 +26,23 @@ impl Mul<i16> for S {
 pub const LAZY_MATERIAL: [S; 5] = [S(75, 113), S(318, 294), S(331, 308), S(450, 508), S(944, 945)];
 
 // eval values
-pub const MATERIAL: [S; 5] = [S(85, 125), S(312, 268), S(332, 279), S(432, 498), S(927, 945)];
+pub const MATERIAL: [S; 5] = [S(86, 122), S(314, 268), S(335, 279), S(434, 497), S(929, 949)];
 pub const PAWN_PST: [S; 24] = [
-    S( 79, 114), S( 92, 109), S( 85,  87), S( 84,  77),
-    S(-26,  43), S(  6,  38), S( 26,  20), S( 39,   8),
-    S(-34, -15), S(-11, -20), S(-18, -27), S( -4, -40),
-    S(-34, -35), S(-16, -32), S(-13, -44), S( -7, -48),
-    S(-25, -43), S( -1, -40), S(-17, -45), S(-13, -41),
-    S(-32, -41), S( -8, -34), S(-19, -35), S(-28, -31),
+    S( 64, 125), S( 88, 115), S( 91,  88), S( 87,  76),
+    S(-22,  46), S(  5,  40), S( 25,  21), S( 42,   7),
+    S(-32, -12), S(-11, -18), S(-16, -29), S( -2, -42),
+    S(-33, -32), S(-16, -29), S(-13, -43), S( -5, -48),
+    S(-25, -39), S( -2, -37), S(-17, -42), S(-11, -40),
+    S(-32, -37), S( -8, -31), S(-19, -31), S(-27, -29),
 ];
-pub const MOBILITY_KNIGHT: [S; 9] = [S(-34, -74), S(-7, -54), S(3, -34), S(9, -18), S(15, -5), S(18, 13), S(22, 17), S(21, 27), S(34, 15)];
-pub const MOBILITY_BISHOP: [S; 14] = [S(-16, -74), S(-2, -57), S(5, -33), S(10, -17), S(14, -4), S(15, 6), S(17, 14), S(16, 17), S(19, 24), S(18, 25), S(34, 26), S(35, 27), S(43, 31), S(40, 31)];
-pub const MOBILITY_ROOK: [S; 15] = [S(-31, -84), S(-15, -56), S(-18, -33), S(-17, -17), S(-11, -10), S(-11, -3), S(-9, 3), S(-5, 6), S(0, 13), S(7, 15), S(11, 18), S(11, 22), S(13, 25), S(19, 24), S(20, 25)];
-pub const PAWN_SHIELD: S = S(22, -3);
-pub const PAWN_PASSED: S = S(-5, 26);
-pub const KING_LINEAR: S = S(-9, 0);
+pub const MOBILITY_KNIGHT: [S; 9] = [S(-35, -74), S(-6, -53), S(4, -34), S(9, -18), S(16, -6), S(19, 12), S(24, 15), S(25, 22), S(38, 11)];
+pub const MOBILITY_BISHOP: [S; 14] = [S(-17, -64), S(-3, -55), S(4, -32), S(9, -16), S(13, -4), S(15, 5), S(17, 13), S(16, 16), S(19, 22), S(22, 22), S(33, 22), S(40, 22), S(41, 30), S(43, 23)];
+pub const MOBILITY_ROOK: [S; 15] = [S(-33, -83), S(-16, -55), S(-15, -37), S(-15, -19), S(-11, -10), S(-11, -2), S(-8, 3), S(-4, 7), S(2, 13), S(10, 14), S(12, 18), S(14, 21), S(16, 24), S(21, 22), S(21, 23)];
+pub const PAWN_SHIELD: S = S(19, -2);
+pub const PAWN_PASSED: S = S(-7, 28);
+pub const KING_LINEAR: S = S(-7, -3);
 pub const KING_QUADRATIC: S = S(-6, 3);
+pub const KING_CENTER: S = S(13, -10);
 
 #[inline(always)]
 fn wspans(mut pwns: u64) -> u64 {
@@ -82,6 +83,8 @@ impl Position {
         let bk_idx: usize = (self.pieces[KING] & self.sides[BLACK]).trailing_zeros() as usize;
         let wk_sqs: u64 = KING_ATTACKS[wk_idx];
         let bk_sqs: u64 = KING_ATTACKS[bk_idx];
+        score += KING_CENTER * KING_EG[wk_idx];
+        score += KING_CENTER * -KING_EG[bk_idx];
 
         // pawn bitboards
         let wp: u64 = self.pieces[PAWN] & self.sides[WHITE];
