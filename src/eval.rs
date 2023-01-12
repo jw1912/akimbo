@@ -5,7 +5,7 @@ macro_rules! count {($bb:expr) => {($bb).count_ones() as i16}}
 macro_rules! lsb {($x:expr) => {($x).trailing_zeros() as usize}}
 macro_rules! pull_lsb {($idx:expr, $x:expr) => {$idx = lsb!($x); $x &= $x - 1}}
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy)]
 struct S(i16, i16);
 
 impl AddAssign<S> for S {
