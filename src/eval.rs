@@ -6,7 +6,7 @@ macro_rules! lsb {($x:expr) => {($x).trailing_zeros() as usize}}
 macro_rules! pull_lsb {($idx:expr, $x:expr) => {$idx = lsb!($x); $x &= $x - 1}}
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct S(pub i16, pub i16);
+struct S(i16, i16);
 
 impl AddAssign<S> for S {
     fn add_assign(&mut self, rhs: S) {
@@ -23,17 +23,17 @@ impl Mul<i16> for S {
 }
 
 // lazy eval values
-pub const LAZY_MATERIAL: [S; 5] = [S(75, 113), S(318, 294), S(331, 308), S(450, 508), S(944, 945)];
+const LAZY_MATERIAL: [S; 5] = [S(75, 113), S(318, 294), S(331, 308), S(450, 508), S(944, 945)];
 
 // eval values
-pub const MATERIAL: [S; 5] = [S(85, 121), S(315, 267), S(335, 282), S(427, 500), S(935, 946)];
-pub const KING_QT: [S; 16] = [
+const MATERIAL: [S; 5] = [S(85, 121), S(315, 267), S(335, 282), S(427, 500), S(935, 946)];
+const KING_QT: [S; 16] = [
     S(-70,  11), S(-23,  28), S(-14,  38), S(-27,  41),
     S(-53,   9), S(-30,  22), S(-31,  30), S(-32,  34),
     S(  7, -14), S(-12,   7), S(-36,  23), S(-49,  25),
     S( 18, -55), S( 36, -27), S( -8,  -7), S( 10, -19),
 ];
-pub const PAWN_HT: [S; 24] = [
+const PAWN_HT: [S; 24] = [
     S( 80, 121), S( 91, 116), S( 83,  90), S( 91,  77),
     S(-22,  47), S(  5,  42), S( 27,  19), S( 40,   7),
     S(-32, -11), S(-11, -16), S(-16, -28), S( -2, -40),
@@ -41,24 +41,24 @@ pub const PAWN_HT: [S; 24] = [
     S(-24, -38), S( -3, -34), S(-17, -40), S(-12, -38),
     S(-31, -36), S( -9, -28), S(-20, -29), S(-28, -26),
 ];
-pub const MOBILITY_KNIGHT: [S; 9] = [
+const MOBILITY_KNIGHT: [S; 9] = [
     S(-35, -79), S( -9, -50), S(  1, -31),
     S(  6, -15), S( 14,  -4), S( 17,  12),
     S( 22,  16), S( 24,  23), S( 37,  11),
 ];
-pub const MOBILITY_BISHOP: [S; 14] = [
+const MOBILITY_BISHOP: [S; 14] = [
     S(-17, -70), S( -5, -56), S(  3, -34), S(  8, -18), S( 11,  -6), S( 13,   3), S( 15,  11),
     S( 15,  13), S( 18,  20), S( 19,  19), S( 32,  19), S( 34,  20), S( 38,  25), S( 34,  22),
 ];
-pub const MOBILITY_ROOK: [S; 15] = [
+const MOBILITY_ROOK: [S; 15] = [
     S(-33, -86), S(-17, -53), S(-16, -34), S(-15, -18), S(-12,  -9),
     S(-12,  -1), S( -7,   4), S( -3,   7), S(  4,  12), S( 13,  13),
     S( 15,  17), S( 18,  20), S( 24,  21), S( 29,  19), S( 22,  22),
 ];
-pub const PAWN_SHIELD: S = S(18, -4);
-pub const PAWN_PASSED: S = S(-6, 27);
-pub const KING_LINEAR: S = S(-6, -4);
-pub const KING_QUADRATIC: S = S(-6, 3);
+const PAWN_SHIELD: S = S(18, -4);
+const PAWN_PASSED: S = S(-6, 27);
+const KING_LINEAR: S = S(-6, -4);
+const KING_QUADRATIC: S = S(-6, 3);
 
 #[inline(always)]
 fn wspans(mut pwns: u64) -> u64 {
