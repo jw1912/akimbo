@@ -107,7 +107,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     }
 
     if pos.state.halfmove_clock >= 100 || pos.repetition_draw(2 + u8::from(ctx.ply == 0)) || pos.material_draw() { return 0 }
-    let (pv, in_check, mut allow_null): (bool, bool, bool) = (nt.0 & 4 > 0, nt.0 & 2 > 0, nt.0 & 1 > 0);
+    let (pv, in_check, allow_null): (bool, bool, bool) = (nt.0 & 4 > 0, nt.0 & 2 > 0, nt.0 & 1 > 0);
 
     // mate distance pruning
     alpha = max(alpha, -MAX + ctx.ply);
@@ -128,41 +128,28 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     if let Some(res) = ctx.hash_table.probe(pos.state.zobrist, ctx.ply) {
         write_to_hash = depth > res.depth;
         hash_move = res.best_move;
-        if ctx.ply > 0 {
-            if res.depth >= depth {
-                if pos.state.halfmove_clock < 90 && match res.bound {
-                    Bound::Lower => res.score >= beta,
-                    Bound::Upper => res.score <= alpha,
-                    Bound::Exact => !pv, // want nice pv lines
-                } { return res.score }
-            } else if res.bound != Bound::Lower && res.score < beta {
-                allow_null = false; // unlikely fail-high
-            }
-        }
+        if ctx.ply > 0 && res.depth >= depth && pos.state.halfmove_clock < 90 && match res.bound {
+            Bound::Lower => res.score >= beta,
+            Bound::Upper => res.score <= alpha,
+            Bound::Exact => !pv, // want nice pv lines
+        } { return res.score }
     }
 
     // pruning
     if !pv && !in_check && beta.abs() < MATE_THRESHOLD {
-        let eval: i16 = pos.lazy_eval();
+        let mut eval: i16 = pos.lazy_eval();
 
         // reverse futility pruning
         let margin: i16 = eval - 120 * i16::from(depth);
         if depth <= 8 && margin >= beta { return margin }
 
         // null move pruning
-        if allow_null && depth >= 3 && pos.phase >= 6 && eval + 50 >= beta {
+        if allow_null && depth >= 3 && pos.phase >= 6 && eval >= beta {
             let copy: (u16, u64) = pos.do_null();
-            let score: i16 = -search(pos, NodeType::encode(false, false, false), -beta, -beta + 1, depth - 3, ctx, &mut Vec::new());
+            eval = -search(pos, NodeType::encode(false, false, false), -beta, -beta + 1, depth - 3, ctx, &mut Vec::new());
             pos.undo_null(copy);
-            if score >= beta {return score}
+            if eval >= beta {return eval}
         }
-
-        // razoring
-        //let value: i16 = eval - 50 + 250 * depth as i16;
-        //if depth <= 2 && value <= alpha {
-        //    eval = qsearch(pos, alpha, beta, &mut ctx.qnodes);
-        //    if eval <= alpha {return max(value, eval)}
-        //}
     }
 
     ctx.nodes += 1;
