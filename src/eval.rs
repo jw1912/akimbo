@@ -26,23 +26,39 @@ impl Mul<i16> for S {
 pub const LAZY_MATERIAL: [S; 5] = [S(75, 113), S(318, 294), S(331, 308), S(450, 508), S(944, 945)];
 
 // eval values
-pub const MATERIAL: [S; 5] = [S(86, 122), S(314, 268), S(335, 279), S(434, 497), S(929, 949)];
-pub const PAWN_PST: [S; 24] = [
-    S( 64, 125), S( 88, 115), S( 91,  88), S( 87,  76),
-    S(-22,  46), S(  5,  40), S( 25,  21), S( 42,   7),
-    S(-32, -12), S(-11, -18), S(-16, -29), S( -2, -42),
-    S(-33, -32), S(-16, -29), S(-13, -43), S( -5, -48),
-    S(-25, -39), S( -2, -37), S(-17, -42), S(-11, -40),
-    S(-32, -37), S( -8, -31), S(-19, -31), S(-27, -29),
+pub const MATERIAL: [S; 5] = [S(85, 121), S(315, 267), S(335, 282), S(427, 500), S(935, 946)];
+pub const KING_QT: [S; 16] = [
+    S(-70,  11), S(-23,  28), S(-14,  38), S(-27,  41),
+    S(-53,   9), S(-30,  22), S(-31,  30), S(-32,  34),
+    S(  7, -14), S(-12,   7), S(-36,  23), S(-49,  25),
+    S( 18, -55), S( 36, -27), S( -8,  -7), S( 10, -19),
 ];
-pub const MOBILITY_KNIGHT: [S; 9] = [S(-35, -74), S(-6, -53), S(4, -34), S(9, -18), S(16, -6), S(19, 12), S(24, 15), S(25, 22), S(38, 11)];
-pub const MOBILITY_BISHOP: [S; 14] = [S(-17, -64), S(-3, -55), S(4, -32), S(9, -16), S(13, -4), S(15, 5), S(17, 13), S(16, 16), S(19, 22), S(22, 22), S(33, 22), S(40, 22), S(41, 30), S(43, 23)];
-pub const MOBILITY_ROOK: [S; 15] = [S(-33, -83), S(-16, -55), S(-15, -37), S(-15, -19), S(-11, -10), S(-11, -2), S(-8, 3), S(-4, 7), S(2, 13), S(10, 14), S(12, 18), S(14, 21), S(16, 24), S(21, 22), S(21, 23)];
-pub const PAWN_SHIELD: S = S(19, -2);
-pub const PAWN_PASSED: S = S(-7, 28);
-pub const KING_LINEAR: S = S(-7, -3);
+pub const PAWN_HT: [S; 24] = [
+    S( 80, 121), S( 91, 116), S( 83,  90), S( 91,  77),
+    S(-22,  47), S(  5,  42), S( 27,  19), S( 40,   7),
+    S(-32, -11), S(-11, -16), S(-16, -28), S( -2, -40),
+    S(-33, -31), S(-17, -27), S(-13, -41), S( -6, -46),
+    S(-24, -38), S( -3, -34), S(-17, -40), S(-12, -38),
+    S(-31, -36), S( -9, -28), S(-20, -29), S(-28, -26),
+];
+pub const MOBILITY_KNIGHT: [S; 9] = [
+    S(-35, -79), S( -9, -50), S(  1, -31),
+    S(  6, -15), S( 14,  -4), S( 17,  12),
+    S( 22,  16), S( 24,  23), S( 37,  11),
+];
+pub const MOBILITY_BISHOP: [S; 14] = [
+    S(-17, -70), S( -5, -56), S(  3, -34), S(  8, -18), S( 11,  -6), S( 13,   3), S( 15,  11),
+    S( 15,  13), S( 18,  20), S( 19,  19), S( 32,  19), S( 34,  20), S( 38,  25), S( 34,  22),
+];
+pub const MOBILITY_ROOK: [S; 15] = [
+    S(-33, -86), S(-17, -53), S(-16, -34), S(-15, -18), S(-12,  -9),
+    S(-12,  -1), S( -7,   4), S( -3,   7), S(  4,  12), S( 13,  13),
+    S( 15,  17), S( 18,  20), S( 24,  21), S( 29,  19), S( 22,  22),
+];
+pub const PAWN_SHIELD: S = S(18, -4);
+pub const PAWN_PASSED: S = S(-6, 27);
+pub const KING_LINEAR: S = S(-6, -4);
 pub const KING_QUADRATIC: S = S(-6, 3);
-pub const KING_CENTER: S = S(13, -10);
 
 #[inline(always)]
 fn wspans(mut pwns: u64) -> u64 {
@@ -83,26 +99,26 @@ impl Position {
         let bk_idx: usize = (self.pieces[KING] & self.sides[BLACK]).trailing_zeros() as usize;
         let wk_sqs: u64 = KING_ATTACKS[wk_idx];
         let bk_sqs: u64 = KING_ATTACKS[bk_idx];
-        score += KING_CENTER * KING_EG[wk_idx];
-        score += KING_CENTER * -KING_EG[bk_idx];
 
         // pawn bitboards
         let wp: u64 = self.pieces[PAWN] & self.sides[WHITE];
         let bp: u64 = self.pieces[PAWN] & self.sides[BLACK];
         let wp_att: u64 = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
         let bp_att: u64 = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
+        score += KING_QT[KING_IDX[wk_idx] as usize];
+        score += KING_QT[KING_IDX[bk_idx] as usize] * -1;
 
         // pawns
         score += PAWN_SHIELD * (count!(wp & wk_sqs) - count!(bp & bk_sqs));
         score += PAWN_PASSED * (count!(wp & !bspans(bp | bp_att)) - count!(bp & !wspans(wp | wp_att)));
         let mut p: u64 = wp;
         while p > 0 {
-            score += PAWN_PST[PST_IDX[56 ^ lsb!(p)] as usize];
+            score += PAWN_HT[PAWN_IDX[56 ^ lsb!(p)] as usize];
             p &= p - 1;
         }
         p = bp;
         while p > 0 {
-            score += PAWN_PST[PST_IDX[lsb!(p)] as usize] * -1;
+            score += PAWN_HT[PAWN_IDX[lsb!(p)] as usize] * -1;
             p &= p - 1;
         }
 
