@@ -14,6 +14,14 @@ pub struct HashTable {
     num_buckets: usize,
 }
 
+/// The type of bound determined by the hash entry when it was searched.
+pub struct Bound;
+impl Bound {
+    pub const LOWER: u8 = 1;
+    pub const UPPER: u8 = 2;
+    pub const EXACT: u8 = 3;
+}
+
 impl HashTable {
     /// Instantiates a new hash table with size 1mb.
     pub fn new() -> Self {

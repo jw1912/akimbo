@@ -15,10 +15,10 @@ impl AddAssign<S> for S {
     }
 }
 
-impl Mul<S> for i16 {
+impl Mul<i16> for S {
     type Output = S;
-    fn mul(self, rhs: S) -> Self::Output {
-        S(self * rhs.0, self * rhs.1)
+    fn mul(self, rhs: i16) -> Self::Output {
+        S(self.0 * rhs, self.1 * rhs)
     }
 }
 
@@ -64,7 +64,7 @@ impl Position {
     pub fn lazy_eval(&self) -> i16 {
         // material-only eval
         let mut score: S = S(0, 0);
-        (PAWN..=QUEEN).for_each(|i| score += self.material[i] * LAZY_MATERIAL[i]);
+        (PAWN..=QUEEN).for_each(|i| score += LAZY_MATERIAL[i] * self.material[i]);
 
         // taper eval
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
@@ -75,7 +75,7 @@ impl Position {
         let mut score: S = S(0, 0);
 
         // material scores
-        (PAWN..=QUEEN).for_each(|i| score += self.material[i] * MATERIAL[i]);
+        (PAWN..=QUEEN).for_each(|i| score += MATERIAL[i] * self.material[i]);
 
         // king position
         let wk_idx: usize = (self.pieces[KING] & self.sides[WHITE]).trailing_zeros() as usize;
@@ -89,10 +89,9 @@ impl Position {
         let wp_att: u64 = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
         let bp_att: u64 = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
 
-        // pawn shield
-        score += (count!(wp & wk_sqs) - count!(bp & bk_sqs)) * PAWN_SHIELD;
-
-        // pawn pst
+        // pawns
+        score += PAWN_SHIELD * (count!(wp & wk_sqs) - count!(bp & bk_sqs));
+        score += PAWN_PASSED * (count!(wp & !bspans(bp | bp_att)) - count!(bp & !wspans(wp | wp_att)));
         let mut p: u64 = wp;
         while p > 0 {
             score += PAWN_PST[PST_IDX[56 ^ lsb!(p)] as usize];
@@ -100,12 +99,9 @@ impl Position {
         }
         p = bp;
         while p > 0 {
-            score += -1 * PAWN_PST[PST_IDX[lsb!(p)] as usize];
+            score += PAWN_PST[PST_IDX[lsb!(p)] as usize] * -1;
             p &= p - 1;
         }
-
-        // passed pawns
-        score += (count!(wp & !bspans(bp | bp_att)) - count!(bp & !wspans(wp | wp_att))) * PAWN_PASSED;
 
         // mobility
         score += self.mobility(WHITE, bp_att, bk_sqs);
@@ -171,9 +167,9 @@ impl Position {
         }
 
         // threat to opposite king
-        score += -danger * KING_LINEAR;
-        score += -danger.pow(2) * KING_QUADRATIC;
+        score += KING_LINEAR    * -danger;
+        score += KING_QUADRATIC * -danger.pow(2);
 
-        SIDE_FACTOR[c] * score
+        score * SIDE_FACTOR[c]
     }
 }

@@ -1,4 +1,4 @@
-use super::{consts::*, position::Position, tables::{HashTable, KillerTable}, movegen::MoveList, u16_to_uci};
+use super::{consts::*, position::Position, tables::{Bound, HashTable, KillerTable}, movegen::MoveList, u16_to_uci};
 use std::{cmp::{min, max}, time::Instant};
 
 /// Determines what is done in the node
