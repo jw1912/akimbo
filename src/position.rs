@@ -1,4 +1,4 @@
-use super::{lsb, consts::*, zobrist::ZVALS};
+use super::{lsb, consts::*};
 
 macro_rules! from {($m:expr) => {(($m >> 6) & 63) as usize}}
 macro_rules! to {($m:expr) => {($m & 63) as usize}}

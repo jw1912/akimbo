@@ -3,7 +3,6 @@
 mod consts;
 mod position;
 mod movegen;
-mod zobrist;
 mod tables;
 mod eval;
 mod search;
@@ -14,7 +13,6 @@ use tables::{HashTable, KillerTable};
 use position::{Position, State};
 use movegen::MoveList;
 use search::{go, SearchContext};
-use zobrist::ZVALS;
 
 macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>()?}}//.unwrap_or($else)}}
 macro_rules! err {($s:expr) => {return Err($s.into())}}
