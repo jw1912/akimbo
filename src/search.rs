@@ -131,12 +131,11 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
         if ctx.ply > 0 {
             if res.depth >= depth {
                 if pos.state.halfmove_clock < 90 && match res.bound {
-                    Bound::EXACT => !pv, // want nice pv lines
-                    Bound::LOWER => res.score >= beta,
-                    Bound::UPPER => res.score <= alpha,
-                    _ => false
+                    Bound::Lower => res.score >= beta,
+                    Bound::Upper => res.score <= alpha,
+                    Bound::Exact => !pv, // want nice pv lines
                 } { return res.score }
-            } else if res.bound != Bound::LOWER && res.score < beta {
+            } else if res.bound != Bound::Lower && res.score < beta {
                 allow_null = false; // unlikely fail-high
             }
         }
@@ -164,7 +163,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
     let can_lmr: bool = depth >= 2 && ctx.ply > 0 && !in_check;
     let mut moves: MoveList = pos.gen::<ALL>();
     let mut scores: MoveList = pos.score(&moves, hash_move, ctx.ply, &ctx.killer_table);
-    let (mut legal_moves, mut best_move, mut best_score, mut bound): (u16, u16, i16, u8) = (0, 0, -MAX, Bound::UPPER);
+    let (mut legal_moves, mut best_move, mut best_score, mut bound): (u16, u16, i16, Bound) = (0, 0, -MAX, Bound::Upper);
     while let Some((m, m_score)) = moves.pick(&mut scores) {
         if pos.do_move(m) { continue }
         legal_moves += 1;
@@ -190,13 +189,13 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
             best_move = m;
             if score > alpha {
                 alpha = score;
-                bound = Bound::EXACT;
+                bound = Bound::Exact;
                 // update pv
                 pv_line.clear();
                 pv_line.push(m);
                 pv_line.append(&mut sub_pv);
                 if score >= beta {
-                    bound = Bound::LOWER;
+                    bound = Bound::Lower;
                     // push to killer move table if not a capture
                     if m & 0b0100_0000_0000_0000 == 0 { ctx.killer_table.push(m, ctx.ply) };
                     break

@@ -64,7 +64,7 @@ impl Position {
     pub fn lazy_eval(&self) -> i16 {
         // material-only eval
         let mut score: S = S(0, 0);
-        (PAWN..=QUEEN).for_each(|i| score += LAZY_MATERIAL[i] * self.material[i]);
+        (PAWN..=QUEEN).for_each(|i: usize| score += LAZY_MATERIAL[i] * self.material[i]);
 
         // taper eval
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
@@ -75,7 +75,7 @@ impl Position {
         let mut score: S = S(0, 0);
 
         // material scores
-        (PAWN..=QUEEN).for_each(|i| score += MATERIAL[i] * self.material[i]);
+        (PAWN..=QUEEN).for_each(|i: usize| score += MATERIAL[i] * self.material[i]);
 
         // king position
         let wk_idx: usize = (self.pieces[KING] & self.sides[WHITE]).trailing_zeros() as usize;

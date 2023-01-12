@@ -1,25 +1,21 @@
 use super::consts::{KILLERS_PER_PLY, MATE_THRESHOLD, MAX_PLY};
 
+/// The type of bound determined by the hash entry when it was searched.
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum Bound {#[default] Lower, Upper, Exact}
+
 #[derive(Clone, Copy, Default)]
 pub struct HashEntry {
     pub key: u16,
     pub best_move: u16,
     pub score: i16,
     pub depth: i8,
-    pub bound: u8,
+    pub bound: Bound,
 }
 
 pub struct HashTable {
     table: Vec<[HashEntry; 8]>,
     num_buckets: usize,
-}
-
-/// The type of bound determined by the hash entry when it was searched.
-pub struct Bound;
-impl Bound {
-    pub const LOWER: u8 = 1;
-    pub const UPPER: u8 = 2;
-    pub const EXACT: u8 = 3;
 }
 
 impl HashTable {
@@ -46,7 +42,7 @@ impl HashTable {
     /// 1. Prioritise replacing entries for the same position (key) that have lower depth.
     /// 2. Fill empty entries in bucket.
     /// 3. Replace lowest depth entry in bucket.
-    pub fn push(&mut self, zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i16, ply: i16) {
+    pub fn push(&mut self, zobrist: u64, best_move: u16, depth: i8, bound: Bound, mut score: i16, ply: i16) {
         let key: u16 = (zobrist >> 48) as u16;
         let idx: usize = (zobrist as usize) & (self.num_buckets- 1);
         let bucket: &mut [HashEntry] = &mut self.table[idx];
