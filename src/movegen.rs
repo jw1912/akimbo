@@ -63,7 +63,7 @@ impl Position {
     }
 
     fn path(&self, mut path: u64, side: usize, occ: u64) -> bool {
-        let mut idx;
+        let mut idx: u16;
         while path > 0 {
             pop_lsb!(idx, path);
             if self.is_square_attacked(idx as usize, side, occ) {
@@ -79,9 +79,9 @@ impl Position {
     }
 
     fn castles(&self, move_list: &mut MoveList, occ: u64) {
-        let r = self.state.castle_rights;
-        let kbb = self.pieces[KING] & self.sides[usize::from(self.c)];
-        let ksq = lsb!(kbb);
+        let r: u8 = self.state.castle_rights;
+        let kbb: u64 = self.pieces[KING] & self.sides[usize::from(self.c)];
+        let ksq: u16 = lsb!(kbb);
         if self.c {
             if r & CastleRights::BLACK_QS > 0 && self.can_castle::<BLACK>(occ, 1 << (56 + self.castle[0]), kbb, 1 << 58, 1 << 59) {
                 move_list.push(MoveFlags::QS_CASTLE | 58 | ksq << 6);

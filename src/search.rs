@@ -34,6 +34,7 @@ impl SearchContext{
         self.ply = 0;
         self.seldepth = 0;
         self.abort = false;
+        self.killer_table.clear();
     }
 
     fn timer(&self) -> u128 {
@@ -231,8 +232,8 @@ fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, qnodes: &mut u64) -> i
 }
 
 pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
-    let mut best_move: u16 = 0;
     ctx.reset();
+    let mut best_move: u16 = 0;
     for d in 1..=allocated_depth {
         let in_check: bool = pos.is_in_check();
         let mut pv_line: Vec<u16> = Vec::new();
@@ -249,6 +250,5 @@ pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
         let pv_str: String = pv_line.iter().map(|m: &u16| u16_to_uci(pos, *m)).collect::<String>();
         println!("info depth {d} score {stype} {sval} time {t} nodes {nodes} nps {nps} pv {pv_str}");
     }
-    ctx.killer_table.clear();
     println!("bestmove {}", u16_to_uci(pos, best_move));
 }

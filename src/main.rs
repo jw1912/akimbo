@@ -8,7 +8,7 @@ mod tables;
 mod eval;
 mod search;
 
-use std::{io::stdin, time::Instant};
+use std::{error::Error, io::stdin, time::{Duration, Instant}};
 use consts::*;
 use tables::{HashTable, KillerTable};
 use position::{Position, State};
@@ -16,43 +16,51 @@ use movegen::MoveList;
 use search::{go, SearchContext};
 use zobrist::ZVALS;
 
-macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>().unwrap_or($else)}}
+macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>()?}}//.unwrap_or($else)}}
+macro_rules! err {($s:expr) => {return Err($s.into())}}
+
+type Message = Box<dyn Error>;
 
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
-    let mut pos: Position = parse_fen(STARTPOS);
+    let mut pos: Position = parse_fen(STARTPOS).expect("hard coded");
     let mut ctx: SearchContext = SearchContext::new(HashTable::new(), KillerTable([[0; KILLERS_PER_PLY]; MAX_PLY as usize]));
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
         let commands: Vec<&str> = input.split(' ').map(str::trim).collect();
-        match *commands.first().unwrap_or(&"oops") {
-            "uci" => {
-                println!("id name {NAME} {VERSION}");
-                println!("id author {AUTHOR}");
-                println!("option name UCI_Chess960 type check default false");
-                println!("option name Hash type spin default 128 min 1 max 512");
-                println!("option name Clear Hash type button");
-                println!("uciok");
-            }
-            "isready" => println!("readyok"),
-            "ucinewgame" => {
-                pos = parse_fen(STARTPOS);
-                ctx.hash_table.clear();
-            },
-            "setoption" => {
-                match commands[..] {
-                    ["setoption", "name", "Hash", "value", x] => ctx.hash_table.resize(parse!(usize, x, 1)),
-                    ["setoption", "name", "Clear", "Hash"] => ctx.hash_table.clear(),
-                    _ => {},
-                }
-            },
-            "go" => parse_go(&mut pos, commands, &mut ctx),
-            "position" => parse_position(&mut pos, commands),
-            "perft" => parse_perft(&mut pos, &commands),
-            _ => println!("unknown command"),
+        if let Err(err) = parse_commands(commands, &mut pos, &mut ctx) {println!("{err}")}
+}
+
+fn parse_commands(commands: Vec<&str>, pos: &mut Position, ctx: &mut SearchContext) -> Result<(), Message> {
+    match *commands.first().unwrap_or(&"oops") {
+        "uci" => {
+            println!("id name {NAME} {VERSION}");
+            println!("id author {AUTHOR}");
+            println!("option name UCI_Chess960 type check default false");
+            println!("option name Hash type spin default 128 min 1 max 512");
+            println!("option name Clear Hash type button");
+            println!("uciok");
         }
+        "isready" => println!("readyok"),
+        "ucinewgame" => {
+            *pos = parse_fen(STARTPOS)?;
+            ctx.hash_table.clear();
+        },
+        "setoption" => {
+            match commands[..] {
+                ["setoption", "name", "Hash", "value", x] => ctx.hash_table.resize(parse!(usize, x, 1)),
+                ["setoption", "name", "Clear", "Hash"] => ctx.hash_table.clear(),
+                _ => {},
+            }
+        },
+        "go" => parse_go(pos, commands, ctx)?,
+        "position" => parse_position(pos, commands)?,
+        "perft" => parse_perft(pos, &commands)?,
+        _ => err!("unknown command"),
     }
+    Ok(())
+}
 }
 
 fn perft(pos: &mut Position, depth_left: u8) -> u64 {
@@ -67,16 +75,17 @@ fn perft(pos: &mut Position, depth_left: u8) -> u64 {
     positions
 }
 
-fn parse_perft(pos: &mut Position, commands: &[&str]) {
+fn parse_perft(pos: &mut Position, commands: &[&str]) -> Result<(), Message> {
     for d in 0..=parse!(u8, commands[1], 0) {
         let now = Instant::now();
         let count: u64 = perft(pos, d);
-        let time = now.elapsed();
-        println!("info depth {} time {} nodes {count} Mnps {:.2}", d, time.as_millis(), count as f64 / time.as_micros() as f64);
+        let time: Duration = now.elapsed();
+        println!("info depth {d} time {} nodes {count} Mnps {:.2}", time.as_millis(), count as f64 / time.as_micros() as f64);
     }
+    Ok(())
 }
 
-fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) {
+fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) -> Result<(), Message> {
     enum Tokens {None, Depth, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
     let mut token: Tokens = Tokens::None;
     let (mut times, mut moves_to_go, mut depth): ([u64; 2], Option<u16>, i8) = ([0, 0], None, 64);
@@ -106,36 +115,38 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) {
         ctx.alloc_time = times[usize::from(pos.c)] as u128 / (if let Some(mtg) = moves_to_go {mtg as u128} else {2 * (pos.phase as u128 + 1)}) - 10;
     }
     go(pos, depth, ctx);
+    Ok(())
 }
 
-fn parse_position(pos: &mut Position, commands: Vec<&str>) {
+fn parse_position(pos: &mut Position, commands: Vec<&str>) -> Result<(), Message> {
     enum Tokens {Nothing, Fen, Moves}
     let mut fen = String::new();
     let mut moves: Vec<String> = Vec::new();
     let mut token: Tokens = Tokens::Nothing;
     for command in commands {
         match command {
-            "position" => (),
-            "startpos" => *pos = parse_fen(STARTPOS),
+            "position" => {},
+            "startpos" => *pos = parse_fen(STARTPOS)?,
             "fen" => token = Tokens::Fen,
             "moves" => token = Tokens::Moves,
             _ => match token {
-                Tokens::Nothing => {},
+                Tokens::Nothing => err!(format!("invalid argument: {command}")),
                 Tokens::Fen => {fen.push_str(format!("{command} ").as_str());}
                 Tokens::Moves => moves.push(command.to_string()),
             },
         }
     }
-    if !fen.is_empty() {*pos = parse_fen(&fen)}
-    for m in moves {pos.do_move(uci_to_u16(pos, &m));}
+    if !fen.is_empty() {*pos = parse_fen(&fen)?}
+    for m in moves {pos.do_move(uci_to_u16(pos, &m)?);}
+    Ok(())
 }
 
 macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", char::from_u32(($idx & 7) as u32 + 97).unwrap(), ($idx >> 3) + 1)}}
 
 /// Converts e.g. "a6" to index 5.
-fn sq_to_idx(sq: &str) -> u16 {
+fn sq_to_idx(sq: &str) -> Result<u16, Message> {
     let chs: Vec<char> = sq.chars().collect();
-    8 * parse!(u16, chs[1].to_string(), 0) + chs[0] as u16 - 105
+    Ok(8 * parse!(u16, chs[1].to_string(), 0) + chs[0] as u16 - 105)
 }
 
 fn u16_to_uci(p: &Position, m: u16) -> String {
@@ -150,10 +161,10 @@ fn u16_to_uci(p: &Position, m: u16) -> String {
     }
 }
 
-fn uci_to_u16(pos: &Position, m: &str) -> u16 {
+fn uci_to_u16(pos: &Position, m: &str) -> Result<u16, Message> {
     let l: usize = m.len();
-    let from: u16 = sq_to_idx(&m[0..2]);
-    let mut to: u16 = sq_to_idx(&m[2..4]);
+    let from: u16 = sq_to_idx(&m[0..2])?;
+    let mut to: u16 = sq_to_idx(&m[2..4])?;
     let mut castle: u16 = 0;
     if pos.chess960 && pos.sides[usize::from(pos.c)] & (1 << to) > 0 {
         if to == pos.castle[0] as u16 + 56 * (from / 56) {
@@ -165,20 +176,20 @@ fn uci_to_u16(pos: &Position, m: &str) -> u16 {
         }
     }
     let mut no_flags: u16 = castle | (from << 6) | to;
-    if castle > 0 {return no_flags}
+    if castle > 0 {return Ok(no_flags)}
     no_flags |= match m.chars().nth(4).unwrap_or('f') {'n' => 0x8000, 'b' => 0x9000, 'r' => 0xA000, 'q' => 0xB000, _ => 0};
     let possible_moves: MoveList = pos.gen::<ALL>();
     for m_idx in 0..possible_moves.len {
         let um: u16 = possible_moves.list[m_idx];
         if no_flags & TWELVE == um & TWELVE && (l < 5 || no_flags & !TWELVE == um & 0xB000) // standard chess
             && (!pos.chess960 || (um & !TWELVE != MoveFlags::KS_CASTLE && um & !TWELVE != MoveFlags::QS_CASTLE)) { // rare chess960 case
-            return um;
+            return Ok(um);
         }
     }
-    panic!("invalid move list!");
+    err!(format!("invalid move: {m}"))
 }
 
-fn parse_fen(s: &str) -> Position {
+fn parse_fen(s: &str) -> Result<Position, Message> {
     let vec: Vec<&str> = s.split_whitespace().collect();
     let mut pos: Position = Position {
         pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: false, state: State::default(),
@@ -187,7 +198,7 @@ fn parse_fen(s: &str) -> Position {
 
     // board
     let mut idx: usize = 63;
-    let rows: Vec<&str> = vec[0].split('/').collect();
+    let rows: Vec<&str> = vec.first().ok_or("no board string".to_string())?.split('/').collect();
     for row in rows {
         for ch in row.chars().rev() {
             if ch == '/' { continue }
@@ -195,7 +206,10 @@ fn parse_fen(s: &str) -> Position {
                 let len: usize = parse!(usize, ch.to_string(), 8);
                 idx -= usize::from(idx >= len) * len;
             } else {
-                let idx2: usize = ['P','N','B','R','Q','K','p','n','b','r','q','k'].iter().position(|&element| element == ch).unwrap_or(6);
+                let idx2: usize = ['P','N','B','R','Q','K','p','n','b','r','q','k']
+                    .iter()
+                    .position(|&element: &char| element == ch)
+                    .ok_or(format!("invalid piece: {ch}"))?;
                 let (side, pc): (usize, usize) = (usize::from(idx2 > 5), idx2 - 6 * usize::from(idx2 > 5));
                 pos.sides[side] ^= 1 << idx;
                 pos.pieces[pc] ^= 1 << idx;
@@ -259,11 +273,11 @@ fn parse_fen(s: &str) -> Position {
     pos.castle_mask[56 + king_col] = 12;
 
     // state
-    let enp: u16 = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
+    let enp: u16 = if vec[3] == "-" {0} else {sq_to_idx(vec[3])?};
     pos.state.en_passant_sq = enp;
     pos.state.halfmove_clock = parse!(u8, vec.get(4).unwrap_or(&"0"), 0);
-    pos.c = vec[1] == "b";
+    pos.c = *vec.get(1).ok_or("no side to move provided")? == "b";
     if enp > 0 {pos.state.zobrist ^= ZVALS.en_passant[(enp & 7) as usize]}
     if !pos.c {pos.state.zobrist ^= ZVALS.side;}
-    pos
+    Ok(pos)
 }
