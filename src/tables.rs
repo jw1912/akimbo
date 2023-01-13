@@ -1,12 +1,16 @@
 use super::consts::{KILLERS_PER_PLY, MATE_THRESHOLD, MAX_PLY};
 
+/// The type of bound determined by the hash entry when it was searched.
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum Bound {#[default] Lower, Upper, Exact}
+
 #[derive(Clone, Copy, Default)]
 pub struct HashEntry {
     pub key: u16,
     pub best_move: u16,
     pub score: i16,
     pub depth: i8,
-    pub bound: u8,
+    pub bound: Bound,
 }
 
 pub struct HashTable {
@@ -30,7 +34,7 @@ impl HashTable {
     }
 
     pub fn clear(&mut self) {
-        self.table.iter_mut().for_each(|bucket| *bucket = [HashEntry::default(); 8]);
+        self.table.iter_mut().for_each(|bucket: &mut [HashEntry; 8]| *bucket = [HashEntry::default(); 8]);
     }
 
     /// Push a search result to the hash table.
@@ -38,7 +42,7 @@ impl HashTable {
     /// 1. Prioritise replacing entries for the same position (key) that have lower depth.
     /// 2. Fill empty entries in bucket.
     /// 3. Replace lowest depth entry in bucket.
-    pub fn push(&mut self, zobrist: u64, best_move: u16, depth: i8, bound: u8, mut score: i16, ply: i16) {
+    pub fn push(&mut self, zobrist: u64, best_move: u16, depth: i8, bound: Bound, mut score: i16, ply: i16) {
         let key: u16 = (zobrist >> 48) as u16;
         let idx: usize = (zobrist as usize) & (self.num_buckets- 1);
         let bucket: &mut [HashEntry] = &mut self.table[idx];
@@ -75,7 +79,7 @@ impl HashTable {
     }
 }
 
-pub struct KillerTable(pub [[u16; KILLERS_PER_PLY]; MAX_PLY as usize]);
+pub struct KillerTable(pub [[u16; KILLERS_PER_PLY]; MAX_PLY as usize + 1]);
 impl KillerTable {
     pub fn push(&mut self, m: u16, p: i16) {
         let ply: usize = p as usize - 1;
@@ -85,6 +89,6 @@ impl KillerTable {
     }
 
     pub fn clear(&mut self) {
-        self.0.iter_mut().for_each(|bucket| *bucket = [0; KILLERS_PER_PLY]);
+        self.0.iter_mut().for_each(|bucket: &mut [u16; 3]| *bucket = [0; KILLERS_PER_PLY]);
     }
 }

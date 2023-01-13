@@ -1,48 +1,38 @@
 # akimbo
-
 akimbo is a UCI compatible Chess (and Chess960) engine written in Rust.
-
-### TODO before second release:
-- Overhaul evaluation
 
 ### Aims
 The main aim of akimbo is to stay under 1500 lines of code.
-At last count it was at 1167 lines, excluding blank lines and comments.
+At last count it was at 1236 lines, excluding blank lines and comments.
 
 ### Compiling
 If you have cargo installed, run `cargo build --release`.
 
 ### Parameter Tuning
-Piece-square tables were tuned using [akimbo_tuner](https://github.com/JacquesRW/akimbo_tuner).
+Evaluation parameters are tuned using [akimbo_tuner](https://github.com/JacquesRW/akimbo_tuner).
 
 ## Features
 
-#### Move Generation
-- Bitboards
-- Pseudo-legal
-- Hyperbola quintessence sliding attacks
-
 #### Search
-- Fail-soft negamax
-- Principle variation search
-- Quiescence search
-- Iterative deepening
-- Check extensions
+- Fail-Soft
+- Principle Variation Search
+- Quiescence Search
+- Iterative Deepening
+- Check Extensions
 
 #### Move Ordering
-1. Hash move
+1. Hash Move
 2. Captures (MVV-LVA)
 3. Promotions
-4. Killer moves
+4. Killer Moves
 5. Quiets
 
 #### Evaluation
-- Tapered piece-square tables
+- Material
+- Knight and Bishop Mobility
+- King and Pawn Tables
 
 #### Pruning/Reductions
-- Mate distance pruning
-- Hash score pruning
-- Late move reductions
-- Reverse futility pruning
-- Null move pruning
-- Delta pruning
+- Late Move Reductions
+- Reverse Futility Pruning
+- Null Move Pruning

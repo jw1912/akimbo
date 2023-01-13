@@ -1,7 +1,6 @@
 use std::{cmp::{min, max}, mem::MaybeUninit};
-use super::{consts::*, position::Position};
+use super::{consts::*, position::{Position, bishop_attacks, rook_attacks}};
 
-/// Forward bitscan.
 #[macro_export]
 macro_rules! lsb {($x:expr) => {$x.trailing_zeros() as u16}}
 macro_rules! pop_lsb {($idx:expr, $x:expr) => {$idx = lsb!($x); $x &= $x - 1}}
@@ -13,7 +12,6 @@ pub struct MoveList {
 
 impl Default for MoveList {
     fn default() -> Self {
-        // provably safe, only indexed into by ```for i in 0..self.len```
         Self { list: unsafe {#[allow(clippy::uninit_assumed_init, invalid_value)] MaybeUninit::uninit().assume_init()}, len: 0 }
     }
 }
@@ -42,7 +40,9 @@ fn btwn(bit1: u64, bit2: u64) -> u64 {
 }
 
 impl Position {
-    pub fn gen_moves<const QUIETS: bool>(&self, move_list: &mut MoveList) {
+    pub fn gen<const QUIETS: bool>(&self) -> MoveList {
+        let mut moves: MoveList = MoveList::default();
+        let move_list: &mut MoveList = &mut moves;
         let side: usize = usize::from(self.c);
         let occ: u64 = self.sides[0] | self.sides[1];
         let friendly: u64 = self.sides[side];
@@ -59,10 +59,11 @@ impl Position {
         piece_moves::<ROOK  , QUIETS>(move_list, occ, friendly, opps, self.pieces[ROOK]);
         piece_moves::<QUEEN , QUIETS>(move_list, occ, friendly, opps, self.pieces[QUEEN]);
         piece_moves::<KING  , QUIETS>(move_list, occ, friendly, opps, self.pieces[KING]);
+        moves
     }
 
     fn path(&self, mut path: u64, side: usize, occ: u64) -> bool {
-        let mut idx;
+        let mut idx: u16;
         while path > 0 {
             pop_lsb!(idx, path);
             if self.is_square_attacked(idx as usize, side, occ) {
@@ -78,9 +79,9 @@ impl Position {
     }
 
     fn castles(&self, move_list: &mut MoveList, occ: u64) {
-        let r = self.state.castle_rights;
-        let kbb = self.pieces[KING] & self.sides[usize::from(self.c)];
-        let ksq = lsb!(kbb);
+        let r: u8 = self.state.castle_rights;
+        let kbb: u64 = self.pieces[KING] & self.sides[usize::from(self.c)];
+        let ksq: u16 = lsb!(kbb);
         if self.c {
             if r & CastleRights::BLACK_QS > 0 && self.can_castle::<BLACK>(occ, 1 << (56 + self.castle[0]), kbb, 1 << 58, 1 << 59) {
                 move_list.push(MoveFlags::QS_CASTLE | 58 | ksq << 6);
@@ -155,42 +156,6 @@ fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16, side: usize) {
         pop_lsb!(cidx, attackers);
         move_list.push( MoveFlags::EN_PASSANT | sq | cidx << 6 );
     }
-}
-
-#[inline(always)]
-pub fn rook_attacks(idx: usize, occ: u64) -> u64 {
-    let m: Mask = RMASKS[idx];
-    let mut f: u64 = occ & m.file;
-    let mut r: u64 = f.swap_bytes();
-    f -= m.bit;
-    r -= m.bit.swap_bytes();
-    f ^= r.swap_bytes();
-    f &= m.file;
-    let mut e: u64 = m.right & occ;
-    r = e & e.wrapping_neg();
-    e = (r ^ (r - m.bit)) & m.right;
-    let w: u64 = m.left ^ WEST[(((m.left & occ)| 1).leading_zeros() ^ 63) as usize];
-
-    f | e | w
-}
-
-#[inline(always)]
-pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
-    let m: Mask = BMASKS[idx];
-    let mut f: u64 = occ & m.right;
-    let mut r: u64 = f.swap_bytes();
-    f -= m.bit;
-    r -= m.file;
-    f ^= r.swap_bytes();
-    f &= m.right;
-    let mut f2: u64 = occ & m.left;
-    r = f2.swap_bytes();
-    f2 -= m.bit;
-    r -= m.file;
-    f2 ^= r.swap_bytes();
-    f2 &= m.left;
-
-    f | f2
 }
 
 fn shift<const SIDE: usize, const AMOUNT: u8>(bb: u64) -> u64 {

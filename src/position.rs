@@ -1,17 +1,12 @@
-use std::ops::{AddAssign, Mul};
-use super::{lsb, consts::*, movegen::{bishop_attacks, rook_attacks}, zobrist::ZVALS};
+use super::{lsb, consts::*};
 
+#[macro_export]
 macro_rules! from {($m:expr) => {(($m >> 6) & 63) as usize}}
+#[macro_export]
 macro_rules! to {($m:expr) => {($m & 63) as usize}}
 macro_rules! bit {($x:expr) => {1 << $x}}
 macro_rules! pop {($x:expr) => {$x &= $x - 1}}
 
-/// Main position struct:
-/// - Holds all information needed for the board state
-/// - 6 piece bitboards and 2 colour bitboards
-/// - Mailbox array for finding pieces quickly
-/// - Incrementally updated zobrist hash, phase and endgame and midgame
-/// piece-square table scores
 pub struct Position {
     pub pieces: [u64; 6],
     pub sides: [u64; 2],
@@ -23,13 +18,13 @@ pub struct Position {
     pub castle: [u8; 2],
     pub chess960: bool,
     pub castle_mask: [u8; 64],
+    pub material: [i16; 6],
     pub stack: Vec<MoveContext>,
 }
 
 #[derive(Clone, Copy, Default)]
 pub struct State {
     pub zobrist: u64,
-    pub scores: S,
     pub en_passant_sq: u16,
     pub halfmove_clock: u8,
     pub castle_rights: u8,
@@ -43,21 +38,38 @@ pub struct MoveContext {
     captured_pc: u8,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct S(pub i16, pub i16);
-
-impl AddAssign<S> for S {
-    fn add_assign(&mut self, rhs: S) {
-        self.0 += rhs.0;
-        self.1 += rhs.1;
-    }
+#[inline(always)]
+pub fn rook_attacks(idx: usize, occ: u64) -> u64 {
+    let m: Mask = RMASKS[idx];
+    let mut f: u64 = occ & m.file;
+    let mut r: u64 = f.swap_bytes();
+    f -= m.bit;
+    r -= m.bit.swap_bytes();
+    f ^= r.swap_bytes();
+    f &= m.file;
+    let mut e: u64 = m.right & occ;
+    r = e & e.wrapping_neg();
+    e = (r ^ (r - m.bit)) & m.right;
+    let w: u64 = m.left ^ WEST[(((m.left & occ)| 1).leading_zeros() ^ 63) as usize];
+    f | e | w
 }
 
-impl Mul<S> for i16 {
-    type Output = S;
-    fn mul(self, rhs: S) -> Self::Output {
-        S(self * rhs.0, self * rhs.1)
-    }
+#[inline(always)]
+pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
+    let m: Mask = BMASKS[idx];
+    let mut f: u64 = occ & m.right;
+    let mut r: u64 = f.swap_bytes();
+    f -= m.bit;
+    r -= m.file;
+    f ^= r.swap_bytes();
+    f &= m.right;
+    let mut f2: u64 = occ & m.left;
+    r = f2.swap_bytes();
+    f2 -= m.bit;
+    r -= m.file;
+    f2 ^= r.swap_bytes();
+    f2 &= m.left;
+    f | f2
 }
 
 impl Position {
@@ -85,19 +97,24 @@ impl Position {
 
     #[inline(always)]
     fn add(&mut self, from: usize, side: usize, piece: usize) {
-        let indx = from ^ (56 * (side == 0) as usize);
         self.state.zobrist ^= ZVALS.pieces[side][piece][from];
-        self.state.scores += SIDE_FACTOR[side] * PST[piece][indx];
     }
 
     #[inline(always)]
     fn remove(&mut self, from: usize, side: usize, piece: usize) {
-        let indx = from ^ (56 * (side == 0) as usize);
         self.state.zobrist ^= ZVALS.pieces[side][piece][from];
-        self.state.scores += SIDE_FACTOR[side ^ 1] * PST[piece][indx];
     }
 
     pub fn do_move(&mut self, m: u16) -> bool {
+        let side: usize = usize::from(self.c);
+        self.do_unchecked(m);
+        let king_idx: usize = lsb!(self.pieces[KING] & self.sides[side]) as usize;
+        let invalid: bool = self.is_square_attacked(king_idx, side, self.sides[0] | self.sides[1]);
+        if invalid { self.undo_move() }
+        invalid
+    }
+
+    pub fn do_unchecked(&mut self, m: u16) {
         let from: usize = from!(m);
         let to: usize = to!(m);
         let f: u64 = bit!(from);
@@ -123,6 +140,7 @@ impl Position {
             self.toggle(side ^ 1, cpc, t);
             self.remove(to, side ^ 1, cpc);
             self.phase -= PHASE_VALS[cpc];
+            self.material[cpc] += SIDE_FACTOR[side];
         }
         self.state.castle_rights &= self.castle_mask[from] & self.castle_mask[to];
         match flag {
@@ -132,6 +150,7 @@ impl Position {
                 self.toggle(side ^ 1, PAWN, p);
                 self.remove(pwn, side ^ 1, PAWN);
                 self.squares[pwn] = EMPTY as u8;
+                self.material[PAWN] += SIDE_FACTOR[side];
             }
             MoveFlags::DBL_PUSH => {
                 self.state.en_passant_sq = if side == WHITE {to - 8} else {to + 8} as u16;
@@ -155,6 +174,8 @@ impl Position {
                 self.phase += PHASE_VALS[ppc];
                 self.remove(to, side, mpc);
                 self.add(to, side, ppc);
+                self.material[PAWN] -= SIDE_FACTOR[side];
+                self.material[ppc] += SIDE_FACTOR[side];
             }
             _ => {}
         }
@@ -166,11 +187,6 @@ impl Position {
             self.state.zobrist ^= ZVALS.castle[lsb!(changed_castle) as usize];
             pop!(changed_castle);
         }
-
-        let king_idx: usize = lsb!(self.pieces[KING] & self.sides[side]) as usize;
-        let invalid: bool = self.is_square_attacked(king_idx, side, self.sides[0] | self.sides[1]);
-        if invalid { self.undo_move() }
-        invalid
     }
 
     pub fn undo_move(&mut self) {
@@ -191,12 +207,14 @@ impl Position {
             let cpc: usize = state.captured_pc as usize;
             self.toggle(side ^ 1, cpc, t);
             self.phase += PHASE_VALS[cpc];
+            self.material[cpc] -= SIDE_FACTOR[side];
         }
         match flag {
             MoveFlags::EN_PASSANT => {
                 let pwn: usize = if side == BLACK {to + 8} else {to - 8};
                 self.toggle(side ^ 1, PAWN, bit!(pwn));
                 self.squares[pwn] = PAWN as u8;
+                self.material[PAWN] -= SIDE_FACTOR[side];
             }
             MoveFlags::KS_CASTLE | MoveFlags::QS_CASTLE => {
                 let i: usize = (flag == MoveFlags::KS_CASTLE) as usize;
@@ -211,6 +229,8 @@ impl Position {
                 self.pieces[state.moved_pc as usize] ^= t;
                 self.pieces[ppc] ^= t;
                 self.phase -= PHASE_VALS[ppc];
+                self.material[ppc] -= SIDE_FACTOR[side];
+                self.material[PAWN] += SIDE_FACTOR[side];
             }
             _ => {}
         }
@@ -234,11 +254,7 @@ impl Position {
         self.c = !self.c;
     }
 
-    pub fn fifty_draw(&self) -> bool {
-        self.state.halfmove_clock >= 100
-    }
-
-    pub fn repetition_draw(&self, num: u8) -> bool {
+    fn repetition_draw(&self, num: u8) -> bool {
         let l: usize = self.stack.len();
         if l < 6 || self.nulls > 0 { return false }
         let to: usize = l - 1;
@@ -253,7 +269,7 @@ impl Position {
         false
     }
 
-    pub fn material_draw(&self) -> bool {
+    fn material_draw(&self) -> bool {
         let pawns: u64 = self.pieces[PAWN];
         if pawns == 0 && self.phase <= 2 {
             if self.phase == 2 {
@@ -265,9 +281,7 @@ impl Position {
         false
     }
 
-    pub fn mvv_lva(&self, m: u16) -> u16 {
-        let moved_pc: usize = self.squares[from!(m)] as usize;
-        let captured_pc: usize = self.squares[to!(m)] as usize;
-        MVV_LVA[captured_pc][moved_pc]
+    pub fn is_draw(&self, ply: i16) -> bool {
+        self.state.halfmove_clock >= 100 || self.repetition_draw(2 + u8::from(ply == 0)) || self.material_draw()
     }
 }
