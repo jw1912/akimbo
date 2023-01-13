@@ -1,5 +1,5 @@
 use std::ops::{AddAssign, Mul};
-use super::{consts::*, position::{Position, rook_attacks, bishop_attacks}};
+use super::{consts::*, position::{Position, bishop_attacks}};
 
 macro_rules! count {($bb:expr) => {($bb).count_ones() as i16}}
 macro_rules! lsb {($x:expr) => {($x).trailing_zeros() as usize}}
@@ -26,45 +26,32 @@ impl Mul<i16> for S {
 const LAZY_MATERIAL: [S; 5] = [S(75, 113), S(318, 294), S(331, 308), S(450, 508), S(944, 945)];
 
 // eval values
-const MATERIAL: [S; 5] = [S(77, 120), S(315, 271), S(332, 283), S(428, 510), S(938, 917)];
+const MATERIAL: [S; 5] = [S(77, 120), S(316, 268), S(337, 277), S(418, 526), S(931, 939)];
 const KING_QT: [S; 16] = [
-    S(-56,   8), S(-17,  26), S(-10,  37), S(-26,  41),
-    S(-50,   7), S(-17,  19), S(-22,  29), S(-23,  33),
-    S(  7, -14), S( -6,   6), S(-32,  23), S(-43,  25),
-    S( 16, -55), S( 32, -26), S( -9,  -6), S(  7, -18),
+    S(-61,   7), S(-32,  28), S(-32,  39), S(-40,  42),
+    S(-49,   8), S(-33,  22), S(-45,  32), S(-44,  35),
+    S( 23, -19), S( -3,   5), S(-36,  22), S(-48,  25),
+    S( 30, -57), S( 39, -27), S( -5, -11), S( 15, -30),
 ];
 const PAWN_HT: [S; 24] = [
-    S( 20,  85), S( 40,  76), S( 41,  52), S( 56,  33),
-    S(-13,   9), S(  8,   1), S( 27, -21), S( 23, -46),
-    S(-27,  -7), S( -6, -12), S(-13, -26), S(  1, -40),
-    S(-28, -19), S(-12, -14), S( -9, -30), S( -1, -36),
-    S(-20, -25), S(  2, -22), S(-14, -27), S( -8, -28),
-    S(-27, -24), S( -4, -17), S(-17, -18), S(-23, -18),
+    S( 24,  85), S( 40,  79), S( 46,  53), S( 61,  33),
+    S(-23,   9), S(  8,   1), S( 22, -22), S( 25, -46),
+    S(-30,  -8), S( -8, -13), S(-11, -27), S(  2, -40),
+    S(-31, -21), S(-13, -16), S( -9, -30), S( -1, -36),
+    S(-25, -27), S(  0, -23), S(-16, -28), S(-10, -27),
+    S(-32, -26), S( -5, -18), S(-17, -20), S(-24, -18),
 ];
 const MOBILITY_KNIGHT: [S; 9] = [
-    S(-36, -82), S( -8, -54), S(  1, -31),
-    S(  6, -15), S( 13,  -4), S( 17,  12),
-    S( 21,  17), S( 23,  23), S( 36,  13),
+    S(-38, -82), S( -9, -60), S( -1, -36),
+    S(  5, -15), S( 16,  -4), S( 20,  13),
+    S( 26,  16), S( 29,  22), S( 40,  12),
 ];
 const MOBILITY_BISHOP: [S; 14] = [
-    S(-14, -73), S( -3, -52), S(  5, -30), S( 10, -15), S( 14,  -2), S( 15,   7), S( 18,  15),
-    S( 18,  17), S( 21,  24), S( 22,  24), S( 34,  24), S( 36,  25), S( 36,  34), S( 52,  28),
+    S(-14, -79), S( -4, -56), S(  4, -29), S(  9, -10), S( 12,   3), S( 16,  11), S( 19,  21),
+    S( 20,  22), S( 22,  28), S( 26,  28), S( 36,  28), S( 39,  28), S( 39,  38), S( 43,  32),
 ];
-const MOBILITY_ROOK: [S; 15] = [
-    S(-30, -89), S(-13, -51), S(-13, -33), S(-13, -19), S(-10, -12),
-    S(-11,  -2), S( -7,   2), S( -2,   4), S(  4,  10), S( 11,  11),
-    S( 14,  16), S( 17,  19), S( 23,  20), S( 27,  18), S( 21,  21),
-];
-const MOBILITY_QUEEN: [S; 28] = [
-    S( -1, -43), S( -4, -54), S( -2, -62), S( -2, -64), S(  1, -76), S(  2, -55), S(  0, -41),
-    S( -2, -21), S( -1, -20), S( -1,  -9), S( -3,   5), S( -4,  15), S( -5,  23), S( -2,  24),
-    S( -8,  37), S(-10,  42), S( -4,  45), S(  0,  38), S(  4,  45), S( 17,  41), S( 25,  38),
-    S( 37,  39), S( 24,  43), S( 52,  38), S( 28,  40), S( 56,  49), S( 31,  29), S( 28,  32),
-];
-const PAWN_PASSED: [S; 6] = [S(-2, -9), S(-7, -2), S(-8, 20), S(10, 43), S(19, 93), S(36, 76)];
-const PAWN_SHIELD: S = S(18, -4);
-const KING_LINEAR: S = S(-3, -5);
-const KING_QUADRATIC: S = S(-6, 3);
+const PAWN_PASSED: [S; 6] = [S(1, -7), S(-8, 0), S(-10, 22), S(10, 43), S(27, 91), S(45, 74)];
+const PAWN_SHIELD: S = S(20, -4);
 
 #[inline(always)]
 fn wspans(mut pwns: u64) -> u64 {
@@ -137,17 +124,16 @@ impl Position {
         }
 
         // mobility
-        score += self.mobility(WHITE, bp_att, bk_sqs);
-        score += self.mobility(BLACK, wp_att, wk_sqs);
+        score += self.mobility(WHITE, bp_att);
+        score += self.mobility(BLACK, wp_att);
 
         // taper eval
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
         SIDE_FACTOR[usize::from(self.c)] * ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16
     }
 
-    fn mobility(&self, c: usize, opp_att: u64, k_sqs: u64) -> S {
+    fn mobility(&self, c: usize, opp_att: u64) -> S {
         let mut score: S = S(0, 0);
-        let mut danger: i16 = 0;
         let mut from: usize;
         let mut attacks: u64;
         let mut pieces: u64;
@@ -161,47 +147,18 @@ impl Position {
             pull_lsb!(from, pieces);
             attacks = KNIGHT_ATTACKS[from];
             score += MOBILITY_KNIGHT[count!(attacks & safe) as usize];
-            danger += count!(attacks & k_sqs);
         }
 
         // bishop mobility
         // - ignore friendly queens
         // - ignore enemy queens and rooks
-        let mut occ: u64 = (boys | opps) ^ (self.pieces[KING] & opps) ^ self.pieces[QUEEN] ^ (self.pieces[ROOK] & opps);
+        let occ: u64 = (boys | opps) ^ (self.pieces[KING] & opps) ^ self.pieces[QUEEN] ^ (self.pieces[ROOK] & opps);
         pieces = self.pieces[BISHOP] & boys;
         while pieces > 0 {
             pull_lsb!(from, pieces);
             attacks = bishop_attacks(from, occ);
             score += MOBILITY_BISHOP[count!(attacks & safe) as usize];
-            danger += count!(attacks & k_sqs);
         }
-
-        // rook mobility
-        // - ignore friendly queens and rooks
-        // - ignore enemy queens
-        occ ^= self.pieces[ROOK];
-        pieces = self.pieces[ROOK] & boys;
-        while pieces > 0 {
-            pull_lsb!(from, pieces);
-            attacks = rook_attacks(from, occ);
-            score += MOBILITY_ROOK[count!(attacks & safe) as usize];
-            danger += count!(attacks & k_sqs);
-        }
-
-        // queen
-        // - ignore friendly queens, rooks and bishops
-        occ ^= (self.pieces[QUEEN] & opps) ^ (self.pieces[BISHOP] & boys);
-        pieces = self.pieces[QUEEN] & boys;
-        while pieces > 0 {
-            pull_lsb!(from, pieces);
-            attacks = bishop_attacks(from, occ) | rook_attacks(from, occ);
-            score += MOBILITY_QUEEN[count!(attacks & safe) as usize];
-            danger += count!(attacks & k_sqs);
-        }
-
-        // threat to opposite king
-        score += KING_LINEAR    * -danger;
-        score += KING_QUADRATIC * -danger.pow(2);
 
         score * SIDE_FACTOR[c]
     }

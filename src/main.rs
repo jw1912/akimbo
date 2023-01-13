@@ -14,7 +14,7 @@ use position::{Position, State};
 use movegen::MoveList;
 use search::{go, SearchContext};
 
-macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>()?}}//.unwrap_or($else)}}
+macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>()?}}
 macro_rules! err {($s:expr) => {return Err($s.into())}}
 
 type Message = Box<dyn Error>;
@@ -86,7 +86,7 @@ fn parse_perft(pos: &mut Position, commands: &[&str]) -> Result<(), Message> {
 fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) -> Result<(), Message> {
     enum Tokens {None, Depth, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
     let mut token: Tokens = Tokens::None;
-    let (mut times, mut moves_to_go, mut depth): ([u64; 2], Option<u16>, i8) = ([0, 0], None, 64);
+    let (mut times, mut moves_to_go, mut depth, mut skip): ([u64; 2], Option<u16>, i8, bool) = ([0, 0], None, 64, false);
     ctx.alloc_time = 1000;
     for command in commands {
         match command {
@@ -100,7 +100,11 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) ->
             _ => {
                 match token {
                     Tokens::Depth => depth = std::cmp::min(parse!(i8, command, 1), 64),
-                    Tokens::Movetime => ctx.alloc_time = parse!(i64, command, 1000) as u128 - 10,
+                    Tokens::Movetime => {
+                        skip = true;
+                        ctx.alloc_time = parse!(i64, command, 1000) as u128 - 10;
+                        break;
+                    },
                     Tokens::WTime => times[0] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
                     Tokens::BTime => times[1] = std::cmp::max(parse!(i64, command, 1000), 0) as u64,
                     Tokens::MovesToGo => moves_to_go = Some(parse!(u16, command, 40)),
@@ -109,7 +113,7 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) ->
             },
         }
     }
-    if times[usize::from(pos.c)] != 0 {
+    if !skip && times[usize::from(pos.c)] != 0 {
         ctx.alloc_time = times[usize::from(pos.c)] as u128 / (if let Some(mtg) = moves_to_go {mtg as u128} else {2 * (pos.phase as u128 + 1)}) - 10;
     }
     go(pos, depth, ctx);
