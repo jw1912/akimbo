@@ -2,8 +2,8 @@ use super::{consts::*, position::Position, tables::{Bound, HashTable, KillerTabl
 use std::{cmp::{min, max}, time::Instant};
 
 /// Determines what is done in the node
-struct NodeType(u8);
-impl NodeType {
+struct Nt(u8);
+impl Nt {
     fn encode(pv: bool, check: bool, null: bool) -> Self {
         Self(4 * u8::from(pv) + 2 * u8::from(check) + u8::from(null))
     }
@@ -98,7 +98,7 @@ impl MoveList {
     }
 }
 
-fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut depth: i8, ctx: &mut SearchContext, pv_line: &mut Vec<u16>) -> i16 {
+fn pvs(pos: &mut Position, nt: Nt, mut a: i16, mut b: i16, mut d: i8, ctx: &mut SearchContext, line: &mut Vec<u16>) -> i16 {
     // search aborting
     if ctx.abort { return 0 }
     if ctx.nodes & 1023 == 0 && ctx.timer() >= ctx.alloc_time {
@@ -106,91 +106,90 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
         return 0
     }
 
-    if pos.state.halfmove_clock >= 100 || pos.repetition_draw(2 + u8::from(ctx.ply == 0)) || pos.material_draw() { return 0 }
-    let (pv, in_check, allow_null): (bool, bool, bool) = (nt.0 & 4 > 0, nt.0 & 2 > 0, nt.0 & 1 > 0);
+    if pos.is_draw(ctx.ply) { return 0 }
+    let (pv, in_check, null): (bool, bool, bool) = (nt.0 & 4 > 0, nt.0 & 2 > 0, nt.0 & 1 > 0);
 
     // mate distance pruning
-    alpha = max(alpha, -MAX + ctx.ply);
-    beta = min(beta, MAX - ctx.ply - 1);
-    if alpha >= beta { return alpha }
+    a = max(a, -MAX + ctx.ply);
+    b = min(b, MAX - ctx.ply - 1);
+    if a >= b { return a }
 
     // check extensions
-    depth += i8::from(in_check);
+    d += i8::from(in_check);
 
-    if depth <= 0 || ctx.ply == MAX_PLY {
+    if d <= 0 || ctx.ply == MAX_PLY {
         ctx.seldepth = max(ctx.seldepth, ctx.ply);
-        return qsearch(pos, alpha, beta, &mut ctx.qnodes)
+        return quiesce(pos, a, b, &mut ctx.qnodes)
     }
 
     // probing hash table
-    let mut hash_move: u16 = 0;
-    let mut write_to_hash: bool = true;
+    let mut bm: u16 = 0;
+    let mut write: bool = true;
     if let Some(res) = ctx.hash_table.probe(pos.state.zobrist, ctx.ply) {
-        write_to_hash = depth > res.depth;
-        hash_move = res.best_move;
-        if ctx.ply > 0 && res.depth >= depth && pos.state.halfmove_clock < 90 && match res.bound {
-            Bound::Lower => res.score >= beta,
-            Bound::Upper => res.score <= alpha,
+        write = d > res.depth;
+        bm = res.best_move;
+        if ctx.ply > 0 && res.depth >= d && pos.state.halfmove_clock < 90 && match res.bound {
+            Bound::Lower => res.score >= b,
+            Bound::Upper => res.score <= a,
             Bound::Exact => !pv, // want nice pv lines
         } { return res.score }
     }
 
     // pruning
-    if !pv && !in_check && beta.abs() < MATE_THRESHOLD {
+    if !pv && !in_check && b.abs() < MATE_THRESHOLD {
         let mut eval: i16 = pos.eval();
 
         // reverse futility pruning
-        let margin: i16 = eval - 120 * i16::from(depth);
-        if depth <= 8 && margin >= beta { return margin }
+        let margin: i16 = eval - 120 * i16::from(d);
+        if d <= 8 && margin >= b { return margin }
 
         // null move pruning
-        if allow_null && depth >= 3 && pos.phase >= 6 && eval >= beta {
+        if null && d >= 3 && pos.phase >= 6 && eval >= b {
             let copy: (u16, u64) = pos.do_null();
-            eval = -search(pos, NodeType::encode(false, false, false), -beta, -beta + 1, depth - 3, ctx, &mut Vec::new());
+            let r: i8 = 3 + i8::from(d > 8);
+            eval = -pvs(pos, Nt::encode(false, false, false), -b, -b + 1, d - r, ctx, &mut Vec::new());
             pos.undo_null(copy);
-            if eval >= beta {return eval}
+            if eval >= b {return eval}
         }
     }
 
     ctx.nodes += 1;
     ctx.ply += 1;
-    let can_lmr: bool = depth >= 2 && ctx.ply > 0 && !in_check;
+    let lmr: bool = d >= 2 && ctx.ply > 0 && !in_check;
     let mut moves: MoveList = pos.gen::<ALL>();
-    let mut scores: MoveList = pos.score(&moves, hash_move, ctx.ply, ctx);
-    let (mut legal_moves, mut best_move, mut best_score, mut bound): (u16, u16, i16, Bound) = (0, 0, -MAX, Bound::Upper);
+    let mut scores: MoveList = pos.score(&moves, bm, ctx.ply, ctx);
+    let (mut legal, mut eval, mut bound): (u16, i16, Bound) = (0, -MAX, Bound::Upper);
     while let Some((m, ms)) = moves.pick(&mut scores) {
         if pos.do_move(m) { continue }
-        legal_moves += 1;
-        let gives_check: bool = pos.is_in_check();
+        legal += 1;
+        let check: bool = pos.is_in_check();
 
         // late move reductions
-        let reduce: i8 = i8::from(can_lmr && !gives_check && legal_moves > 2 && ms < KILLER);
+        let r: i8 = i8::from(lmr && !check && legal > 2 && ms < KILLER);
 
         // principle variation search
-        let mut sub_pv: Vec<u16> = Vec::new();
-        let score: i16 = if legal_moves == 1 {
-            -search(pos, NodeType::encode(pv, gives_check, false), -beta, -alpha, depth - 1, ctx, &mut sub_pv)
+        let mut sline: Vec<u16> = Vec::new();
+        let score: i16 = if legal == 1 {
+            -pvs(pos, Nt::encode(pv, check, false), -b, -a, d - 1, ctx, &mut sline)
         } else {
-            let zw_score: i16 = -search(pos, NodeType::encode(false, gives_check, true), -alpha - 1, -alpha, depth - 1 - reduce, ctx, &mut sub_pv);
-            if (alpha != beta - 1 || reduce > 0) && zw_score > alpha {
-                -search(pos, NodeType::encode(pv, gives_check, false), -beta, -alpha, depth - 1, ctx, &mut sub_pv)
+            let zw_score: i16 = -pvs(pos, Nt::encode(false, check, true), -a - 1, -a, d - 1 - r, ctx, &mut sline);
+            if (a != b - 1 || r > 0) && zw_score > a {
+                -pvs(pos, Nt::encode(pv, check, false), -b, -a, d - 1, ctx, &mut sline)
             } else { zw_score }
         };
         pos.undo_move();
 
-        if score > best_score {
-            best_score = score;
-            best_move = m;
-            if score > alpha {
-                alpha = score;
+        if score > eval {
+            eval = score;
+            bm = m;
+            if score > a {
+                a = score;
                 bound = Bound::Exact;
-                // update pv
-                pv_line.clear();
-                pv_line.push(m);
-                pv_line.append(&mut sub_pv);
-                if score >= beta {
+                line.clear();
+                line.push(m);
+                line.append(&mut sline);
+                if score >= b {
                     bound = Bound::Lower;
-                    // push to killer move table if not a capture
                     if ms <= KILLER {ctx.killer_table.push(m, ctx.ply)}
                     break
                 }
@@ -198,25 +197,25 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
         }
     }
     ctx.ply -= 1;
-    if legal_moves == 0 { return i16::from(in_check) * (-MAX + ctx.ply) }
-    if write_to_hash && !ctx.abort { ctx.hash_table.push(pos.state.zobrist, best_move, depth, bound, best_score, ctx.ply) }
-    best_score
+    if legal == 0 { return i16::from(in_check) * (-MAX + ctx.ply) }
+    if write && !ctx.abort { ctx.hash_table.push(pos.state.zobrist, bm, d, bound, eval, ctx.ply) }
+    eval
 }
 
-fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, qnodes: &mut u64) -> i16 {
+fn quiesce(pos: &mut Position, mut a: i16, b: i16, qnodes: &mut u64) -> i16 {
     *qnodes += 1;
     let mut eval: i16 = pos.eval();
-    if eval >= beta { return eval }
-    alpha = max(alpha, eval);
+    if eval >= b { return eval }
+    a = max(a, eval);
     let mut captures: MoveList = pos.gen::<CAPTURES>();
     let mut scores: MoveList = pos.score_captures(&captures);
     while let Some((m, _)) = captures.pick(&mut scores) {
         if pos.do_move(m) {continue}
-        let score: i16 = -qsearch(pos, -beta, -alpha, qnodes);
+        let score: i16 = -quiesce(pos, -b, -a, qnodes);
         pos.undo_move();
-        if score >= beta { return score }
+        if score >= b { return score }
         eval = max(eval, score);
-        alpha = max(alpha, score);
+        a = max(a, score);
     }
     eval
 }
@@ -224,10 +223,10 @@ fn qsearch(pos: &mut Position, mut alpha: i16, beta: i16, qnodes: &mut u64) -> i
 pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
     ctx.reset();
     let mut best_move: u16 = 0;
+    let in_check: bool = pos.is_in_check();
     for d in 1..=allocated_depth {
-        let in_check: bool = pos.is_in_check();
         let mut pv_line: Vec<u16> = Vec::new();
-        let score: i16 = search(pos, NodeType::encode(true, in_check, false), -MAX, MAX, d, ctx, &mut pv_line);
+        let score: i16 = pvs(pos, Nt::encode(true, in_check, false), -MAX, MAX, d, ctx, &mut pv_line);
         if ctx.abort { break }
         best_move = pv_line[0];
         let (stype, sval): (&str, i16) = if score.abs() >= MATE_THRESHOLD {

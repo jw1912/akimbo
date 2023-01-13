@@ -254,7 +254,7 @@ impl Position {
         self.c = !self.c;
     }
 
-    pub fn repetition_draw(&self, num: u8) -> bool {
+    fn repetition_draw(&self, num: u8) -> bool {
         let l: usize = self.stack.len();
         if l < 6 || self.nulls > 0 { return false }
         let to: usize = l - 1;
@@ -269,7 +269,7 @@ impl Position {
         false
     }
 
-    pub fn material_draw(&self) -> bool {
+    fn material_draw(&self) -> bool {
         let pawns: u64 = self.pieces[PAWN];
         if pawns == 0 && self.phase <= 2 {
             if self.phase == 2 {
@@ -279,5 +279,9 @@ impl Position {
             return true
         }
         false
+    }
+
+    pub fn is_draw(&self, ply: i16) -> bool {
+        self.state.halfmove_clock >= 100 || self.repetition_draw(2 + u8::from(ply == 0)) || self.material_draw()
     }
 }
