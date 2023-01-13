@@ -1,6 +1,8 @@
 use super::{lsb, consts::*};
 
+#[macro_export]
 macro_rules! from {($m:expr) => {(($m >> 6) & 63) as usize}}
+#[macro_export]
 macro_rules! to {($m:expr) => {($m & 63) as usize}}
 macro_rules! bit {($x:expr) => {1 << $x}}
 macro_rules! pop {($x:expr) => {$x &= $x - 1}}

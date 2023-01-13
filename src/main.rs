@@ -9,7 +9,7 @@ mod search;
 
 use std::{error::Error, io::stdin, time::{Duration, Instant}};
 use consts::*;
-use tables::{HashTable, KillerTable};
+use tables::{HashTable, HistoryScore, HistoryTable, KillerTable};
 use position::{Position, State};
 use movegen::MoveList;
 use search::{go, SearchContext};
@@ -22,7 +22,11 @@ type Message = Box<dyn Error>;
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
     let mut pos: Position = parse_fen(STARTPOS).expect("hard coded");
-    let mut ctx: SearchContext = SearchContext::new(HashTable::new(), KillerTable([[0; KILLERS_PER_PLY]; MAX_PLY as usize + 1]));
+    let mut ctx: SearchContext = SearchContext::new(
+        HashTable::new(),
+        KillerTable([[0; KILLERS_PER_PLY]; MAX_PLY as usize + 1]),
+        HistoryTable([[[HistoryScore::default(); 64]; 6]; 2])
+    );
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
