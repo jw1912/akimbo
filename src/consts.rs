@@ -38,7 +38,7 @@ pub const QT_IDX: [u8; 64] = init!(idx, 0, {
 
 // Move Ordering
 pub const HASH_MOVE: u16 = 30000;
-pub const PROMOTION: u16 = 600;
+pub const PROMOTION: u16 = 950;
 pub const KILLER: u16 = 900;
 pub const MVV_LVA: [[u16; 6]; 5] = [
     [1500, 1400, 1300, 1200, 1100, 1000],
