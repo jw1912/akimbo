@@ -26,47 +26,30 @@ impl Mul<i16> for S {
 const LAZY_MATERIAL: [S; 5] = [S(75, 113), S(318, 294), S(331, 308), S(450, 508), S(944, 945)];
 
 // eval values
-const MATERIAL: [S; 5] = [S(80, 120), S(315, 266), S(337, 278), S(414, 526), S(926, 938)];
-const KING_QT: [S; 16] = [
-    S(-62,   8), S(-31,  27), S(-30,  38), S(-45,  43),
-    S(-49,   7), S(-20,  19), S(-40,  31), S(-49,  36),
-    S( 26, -20), S(  9,   2), S(-39,  23), S(-57,  26),
-    S( 19, -54), S( 39, -28), S(-19,  -8), S( -4, -27),
-];
+const MATERIAL: [S; 5] = [S(86, 143), S(316, 266), S(338, 277), S(419, 516), S(927, 924)];
 const PAWN_HT: [S; 24] = [
-    S( 25,  85), S( 48,  78), S( 49,  51), S( 67,  30),
-    S(-23,   6), S( 10,  -4), S( 24, -24), S( 27, -51),
-    S(-32,  -8), S(-11, -12), S(-14, -27), S( -1, -39),
-    S(-33, -21), S(-16, -16), S(-14, -30), S( -4, -36),
-    S(-29, -26), S( -6, -22), S(-19, -28), S(-12, -28),
-    S(-30, -26), S( -3, -19), S(-12, -20), S(-15, -26),
+    S( 74, 126), S( 99, 115), S( 89,  96), S( 97,  80),
+    S(-32,  47), S(  2,  41), S( 21,  18), S( 39,   9),
+    S(-40, -14), S(-18, -20), S(-21, -33), S( -7, -44),
+    S(-41, -34), S(-24, -32), S(-21, -47), S(-11, -51),
+    S(-36, -41), S(-13, -37), S(-25, -45), S(-18, -43),
+    S(-37, -38), S(-11, -31), S(-18, -36), S(-22, -37),
+];
+const KING_QT: [S; 16] = [
+    S(-65,   8), S(-29,  26), S(-21,  35), S(-31,  38),
+    S(-44,   5), S(-23,  19), S(-36,  27), S(-42,  33),
+    S( 29, -23), S( 11,   0), S(-34,  19), S(-53,  23),
+    S( 21, -55), S( 42, -30), S(-16,  -9), S( -1, -30),
 ];
 const MOBILITY_KNIGHT: [S; 9] = [
-    S(-32, -95), S( -7, -62), S(  0, -33),
-    S(  5, -14), S( 16,  -2), S( 20,  14),
-    S( 25,  18), S( 26,  25), S( 44,  12),
+    S(-34, -90), S( -8, -63), S( -1, -36),
+    S(  4, -17), S( 15,  -6), S( 19,   9),
+    S( 24,  13), S( 27,  19), S( 41,   8),
 ];
 const MOBILITY_BISHOP: [S; 14] = [
-    S(-15, -81), S( -6, -57), S(  2, -29), S(  6, -12), S( 10,   1), S( 13,  11), S( 17,  20),
-    S( 17,  20), S( 19,  27), S( 23,  26), S( 34,  27), S( 39,  26), S( 39,  36), S( 45,  31),
+    S(-15, -83), S( -6, -59), S(  1, -30), S(  6, -14), S( 10,  -1), S( 13,   8), S( 16,  17),
+    S( 16,  16), S( 20,  23), S( 23,  21), S( 34,  21), S( 36,  21), S( 37,  29), S( 47,  20),
 ];
-const PAWN_PASSED: [S; 6] = [S(-1, -7), S(-8, -1), S(-10, 21), S(8, 43), S(21, 95), S(40, 74)];
-
-#[inline(always)]
-fn wspans(mut pwns: u64) -> u64 {
-    pwns |= pwns << 8;
-    pwns |= pwns << 16;
-    pwns |= pwns << 32;
-    pwns
-}
-
-#[inline(always)]
-fn bspans(mut pwns: u64) -> u64 {
-    pwns |= pwns >> 8;
-    pwns |= pwns >> 16;
-    pwns |= pwns >> 32;
-    pwns
-}
 
 impl Position {
     #[inline]
@@ -89,8 +72,8 @@ impl Position {
         // king
         let wk_idx: usize = (self.pieces[KING] & self.sides[WHITE]).trailing_zeros() as usize;
         let bk_idx: usize = (self.pieces[KING] & self.sides[BLACK]).trailing_zeros() as usize;
-        score += KING_QT[KING_IDX[wk_idx] as usize];
-        score += KING_QT[KING_IDX[bk_idx] as usize] * -1;
+        score += KING_QT[QT_IDX[wk_idx] as usize];
+        score += KING_QT[QT_IDX[bk_idx] as usize] * -1;
 
         // pawns
         let mut p: u64;
@@ -98,16 +81,6 @@ impl Position {
         let bp: u64 = self.pieces[PAWN] & self.sides[BLACK];
         let wp_att: u64 = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
         let bp_att: u64 = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
-        p = wp & !bspans(bp | bp_att); // white passed pawns
-        while p > 0 {
-            score += PAWN_PASSED[lsb!(p) / 8 - 1];
-            p &= p - 1;
-        }
-        p = bp & !wspans(wp | wp_att); // black passed pawns
-        while p > 0 {
-            score += PAWN_PASSED[6 - lsb!(p) / 8] * -1;
-            p &= p - 1;
-        }
         p = wp; // white pst bonuses
         while p > 0 {
             score += PAWN_HT[PAWN_IDX[56 ^ lsb!(p)] as usize];

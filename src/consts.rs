@@ -30,7 +30,7 @@ pub const PAWN_IDX: [u8; 64] = init!(idx, 0, {
     let file = (idx & 7) as i8;
     (((idx / 8) * 4).saturating_sub((4 - (file > 3) as i8 - file).unsigned_abs() as usize)) as u8
 });
-pub const KING_IDX: [u8; 64] = init!(idx, 0, {
+pub const QT_IDX: [u8; 64] = init!(idx, 0, {
     let row = (idx / 8) as i8;
     let col = (idx & 7) as i8;
     ((row - 4 + (row > 3) as i8).abs() * 4 - (4 - col).abs() - (col > 3) as i8) as u8
