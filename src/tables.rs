@@ -92,12 +92,3 @@ impl KillerTable {
         self.0.iter_mut().for_each(|bucket: &mut [u16; 3]| *bucket = [0; KILLERS_PER_PLY]);
     }
 }
-
-#[derive(Clone, Copy, Default)]
-pub struct HistoryScore(pub u32, pub u32);
-pub struct HistoryTable(pub [[[HistoryScore; 64]; 6]; 2]);
-impl HistoryTable {
-    pub fn clear(&mut self) {
-        self.0 = [[[HistoryScore::default(); 64]; 6]; 2]
-    }
-}

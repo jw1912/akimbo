@@ -9,7 +9,7 @@ mod search;
 
 use std::{error::Error, io::stdin, time::{Duration, Instant}};
 use consts::*;
-use tables::{HashTable, HistoryScore, HistoryTable, KillerTable};
+use tables::{HashTable, KillerTable};
 use position::{Position, State};
 use movegen::MoveList;
 use search::{go, SearchContext};
@@ -25,7 +25,6 @@ fn main() {
     let mut ctx: SearchContext = SearchContext::new(
         HashTable::new(),
         KillerTable([[0; KILLERS_PER_PLY]; MAX_PLY as usize + 1]),
-        HistoryTable([[[HistoryScore::default(); 64]; 6]; 2])
     );
     loop {
         let mut input = String::new();

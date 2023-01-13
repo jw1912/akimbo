@@ -1,4 +1,4 @@
-use super::{consts::*, position::Position, tables::{Bound, HashTable, HistoryScore, HistoryTable, KillerTable}, movegen::MoveList, u16_to_uci, from, to};
+use super::{consts::*, position::Position, tables::{Bound, HashTable, KillerTable}, movegen::MoveList, u16_to_uci, from, to};
 use std::{cmp::{min, max}, time::Instant};
 
 /// Determines what is done in the node
@@ -13,7 +13,6 @@ impl NodeType {
 pub struct SearchContext {
     pub hash_table: HashTable,
     killer_table: KillerTable,
-    history_table: HistoryTable,
     pub alloc_time: u128,
     time: Instant,
     nodes: u64,
@@ -24,8 +23,8 @@ pub struct SearchContext {
 }
 
 impl SearchContext{
-    pub fn new(hash_table: HashTable, killer_table: KillerTable, history_table: HistoryTable) -> Self {
-        Self { hash_table, killer_table, history_table, time: Instant::now(), alloc_time: 1000, nodes: 0, qnodes: 0, ply: 0, seldepth: 0, abort: false}
+    pub fn new(hash_table: HashTable, killer_table: KillerTable) -> Self {
+        Self { hash_table, killer_table, time: Instant::now(), alloc_time: 1000, nodes: 0, qnodes: 0, ply: 0, seldepth: 0, abort: false}
     }
 
     fn reset(&mut self) {
@@ -36,7 +35,6 @@ impl SearchContext{
         self.seldepth = 0;
         self.abort = false;
         self.killer_table.clear();
-        self.history_table.clear();
     }
 
     fn timer(&self) -> u128 {
@@ -51,7 +49,7 @@ impl Position {
         MVV_LVA[cpc * usize::from(cpc != 6)][mpc]
     }
 
-    fn score_move(&self, m: u16, hash_move: u16, killers: &[u16; KILLERS_PER_PLY], ctx: &mut SearchContext) -> u16 {
+    fn score_move(&self, m: u16, hash_move: u16, killers: &[u16; KILLERS_PER_PLY]) -> u16 {
         if m == hash_move {
             HASH_MOVE
         } else if m & 0b0100_0000_0000_0000 > 0 {
@@ -61,16 +59,14 @@ impl Position {
         } else if killers.contains(&m) {
             KILLER
         } else {
-            let hs: &mut HistoryScore = &mut ctx.history_table.0[usize::from(self.c)][self.squares[from!(m)] as usize][to!(m)];
-            hs.1 += 1;
-            (800 * hs.0 / hs.1) as u16
+            0
         }
     }
 
-    fn score(&self, moves: &MoveList, hash_move: u16, ply: i16, ctx: &mut SearchContext) -> MoveList {
+    fn score(&self, moves: &MoveList, hash_move: u16, ply: i16, ctx: &SearchContext) -> MoveList {
         let mut scores: MoveList = MoveList::default();
         let killers: [u16; KILLERS_PER_PLY] = ctx.killer_table.0[ply as usize];
-        for i in 0..moves.len { scores.push(self.score_move(moves.list[i], hash_move, &killers, ctx)) }
+        for i in 0..moves.len { scores.push(self.score_move(moves.list[i], hash_move, &killers)) }
         scores
     }
 
@@ -168,8 +164,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
         let gives_check: bool = pos.is_in_check();
 
         // late move reductions
-        let do_lmr: bool = can_lmr && !gives_check && legal_moves > 2 && ms < KILLER;
-        let reduce: i8 = i8::from(do_lmr) * (1 + min(2 - i8::from(pv), i8::from(ms == 0) * ((legal_moves - 2) / 4) as i8));
+        let reduce: i8 = i8::from(can_lmr && !gives_check && legal_moves > 2 && ms < KILLER);
 
         // principle variation search
         let mut sub_pv: Vec<u16> = Vec::new();
@@ -196,10 +191,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
                 if score >= beta {
                     bound = Bound::Lower;
                     // push to killer move table if not a capture
-                    if ms <= KILLER {
-                        ctx.killer_table.push(m, ctx.ply);
-                        ctx.history_table.0[usize::from(pos.c)][pos.squares[from!(m)] as usize][to!(m)].0 += 1;
-                    };
+                    if ms <= KILLER {ctx.killer_table.push(m, ctx.ply)}
                     break
                 }
             }
