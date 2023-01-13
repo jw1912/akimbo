@@ -137,7 +137,7 @@ fn search(pos: &mut Position, nt: NodeType, mut alpha: i16, mut beta: i16, mut d
 
     // pruning
     if !pv && !in_check && beta.abs() < MATE_THRESHOLD {
-        let mut eval: i16 = pos.lazy_eval();
+        let mut eval: i16 = pos.eval();
 
         // reverse futility pruning
         let margin: i16 = eval - 120 * i16::from(depth);
@@ -229,7 +229,6 @@ pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
         let mut pv_line: Vec<u16> = Vec::new();
         let score: i16 = search(pos, NodeType::encode(true, in_check, false), -MAX, MAX, d, ctx, &mut pv_line);
         if ctx.abort { break }
-        // uci output
         best_move = pv_line[0];
         let (stype, sval): (&str, i16) = if score.abs() >= MATE_THRESHOLD {
             ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2)

@@ -22,9 +22,6 @@ impl Mul<i16> for S {
     }
 }
 
-// lazy eval values
-const LAZY_MATERIAL: [S; 5] = [S(75, 113), S(318, 294), S(331, 308), S(450, 508), S(944, 945)];
-
 // eval values
 const MATERIAL: [S; 5] = [S(86, 143), S(316, 266), S(338, 277), S(419, 516), S(927, 924)];
 const PAWN_HT: [S; 24] = [
@@ -52,17 +49,6 @@ const MOBILITY_BISHOP: [S; 14] = [
 ];
 
 impl Position {
-    #[inline]
-    pub fn lazy_eval(&self) -> i16 {
-        // material-only eval
-        let mut score: S = S(0, 0);
-        (PAWN..=QUEEN).for_each(|i: usize| score += LAZY_MATERIAL[i] * self.material[i]);
-
-        // taper eval
-        let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
-        SIDE_FACTOR[usize::from(self.c)] * ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16
-    }
-
     pub fn eval(&self) -> i16 {
         let mut score: S = S(0, 0);
 
