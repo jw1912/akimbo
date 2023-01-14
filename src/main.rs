@@ -128,16 +128,16 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) -> Result<(), Message
     let mut fen = String::new();
     let mut moves: Vec<String> = Vec::new();
     let mut token: Tokens = Tokens::Nothing;
-    for command in commands {
-        match command {
+    for cmd in commands {
+        match cmd {
             "position" => {},
             "startpos" => *pos = parse_fen(STARTPOS)?,
             "fen" => token = Tokens::Fen,
             "moves" => token = Tokens::Moves,
             _ => match token {
-                Tokens::Nothing => err!(format!("invalid argument: {command}")),
-                Tokens::Fen => {fen.push_str(format!("{command} ").as_str());}
-                Tokens::Moves => moves.push(command.to_string()),
+                Tokens::Nothing => err!(format!("invalid argument: {cmd}")),
+                Tokens::Fen => {fen.push_str(format!("{cmd} ").as_str());}
+                Tokens::Moves => moves.push(cmd.to_string()),
             },
         }
     }

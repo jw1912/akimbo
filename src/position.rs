@@ -76,12 +76,12 @@ impl Position {
     #[inline(always)]
     pub fn is_square_attacked(&self, idx: usize, side: usize, occ: u64) -> bool {
         let s: u64 = self.sides[side ^ 1];
-        let opp_queen: u64 = self.pieces[QUEEN] & s;
+        let q: u64 = self.pieces[QUEEN] & s;
         (KNIGHT_ATTACKS[idx] & self.pieces[KNIGHT] & s > 0)
         || (KING_ATTACKS[idx] & self.pieces[KING] & s > 0)
         || (PAWN_ATTACKS[side][idx] & self.pieces[PAWN] & s > 0)
-        || (rook_attacks(idx, occ) & (self.pieces[ROOK] & s | opp_queen) > 0)
-        || (bishop_attacks(idx, occ) & (self.pieces[BISHOP] & s | opp_queen) > 0)
+        || (rook_attacks(idx, occ) & (self.pieces[ROOK] & s | q) > 0)
+        || (bishop_attacks(idx, occ) & (self.pieces[BISHOP] & s | q) > 0)
     }
 
     pub fn is_in_check(&self) -> bool {
@@ -90,19 +90,9 @@ impl Position {
     }
 
     #[inline(always)]
-    fn toggle(&mut self, side: usize, piece: usize, bit: u64) {
-        self.pieces[piece] ^= bit;
+    fn toggle(&mut self, side: usize, pc: usize, bit: u64) {
+        self.pieces[pc] ^= bit;
         self.sides[side] ^= bit;
-    }
-
-    #[inline(always)]
-    fn add(&mut self, from: usize, side: usize, piece: usize) {
-        self.state.zobrist ^= ZVALS.pieces[side][piece][from];
-    }
-
-    #[inline(always)]
-    fn remove(&mut self, from: usize, side: usize, piece: usize) {
-        self.state.zobrist ^= ZVALS.pieces[side][piece][from];
     }
 
     pub fn r#do(&mut self, m: u16) -> bool {
@@ -128,8 +118,7 @@ impl Position {
 
         self.stack.push(MoveContext { state: self.state, m, moved_pc, captured_pc});
         self.toggle(side, mpc, f ^ t);
-        self.remove(from, side, mpc);
-        self.add(to, side, mpc);
+        self.state.zobrist ^= ZVALS.pieces[side][mpc][from] ^ ZVALS.pieces[side][mpc][to];
         self.squares[from] = EMPTY as u8;
         self.squares[to] = moved_pc;
         if self.state.en_passant_sq > 0 {self.state.zobrist ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
@@ -138,7 +127,7 @@ impl Position {
         if captured_pc != EMPTY as u8 && flag != MoveFlags::KS_CASTLE && flag != MoveFlags::QS_CASTLE {
             let cpc: usize = captured_pc as usize;
             self.toggle(side ^ 1, cpc, t);
-            self.remove(to, side ^ 1, cpc);
+            self.state.zobrist ^= ZVALS.pieces[side ^ 1][cpc][to];
             self.phase -= PHASE_VALS[cpc];
             self.material[cpc] += SIDE[side];
         }
@@ -148,7 +137,7 @@ impl Position {
                 let pwn: usize = if side == BLACK {to + 8} else {to - 8};
                 let p: u64 = bit!(pwn);
                 self.toggle(side ^ 1, PAWN, p);
-                self.remove(pwn, side ^ 1, PAWN);
+                self.state.zobrist ^= ZVALS.pieces[side ^ 1][PAWN][pwn];
                 self.squares[pwn] = EMPTY as u8;
                 self.material[PAWN] += SIDE[side];
             }
@@ -161,10 +150,9 @@ impl Position {
                 let sq: usize = 56 * usize::from(side == BLACK) + self.castle[i] as usize;
                 let idx: usize = CASTLE_MOVES[side][i];
                 self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
-                self.remove(sq, side, ROOK);
                 self.squares[sq] = if to == sq {KING as u8} else {EMPTY as u8};
                 self.squares[idx] = ROOK as u8;
-                self.add(idx, side, ROOK);
+                self.state.zobrist ^= ZVALS.pieces[side][ROOK][sq] ^ ZVALS.pieces[side][ROOK][idx];
             }
             MoveFlags::KNIGHT_PROMO.. => {
                 let ppc: usize = (((flag >> 12) & 3) + 1) as usize;
@@ -172,8 +160,7 @@ impl Position {
                 self.pieces[ppc] ^= t;
                 self.squares[to] = ppc as u8;
                 self.phase += PHASE_VALS[ppc];
-                self.remove(to, side, mpc);
-                self.add(to, side, ppc);
+                self.state.zobrist ^= ZVALS.pieces[side][mpc][to] ^ ZVALS.pieces[side][ppc][to];
                 self.material[PAWN] -= SIDE[side];
                 self.material[ppc] += SIDE[side];
             }
