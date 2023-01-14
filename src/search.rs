@@ -1,18 +1,14 @@
-use super::{consts::*, position::Position, tables::{Bound, HashTable, KillerTable}, movegen::MoveList, u16_to_uci, from, to};
+use super::{consts::*, position::Position, tables::{Bound, HashTable, HistoryScore, KillerTable}, movegen::MoveList, u16_to_uci, from, to};
 use std::{cmp::{min, max}, time::Instant};
 
 /// Determines what is done in the node
-struct Nt(u8);
-impl Nt {
-    fn encode(pv: bool, check: bool, null: bool) -> Self {
-        Self(4 * u8::from(pv) + 2 * u8::from(check) + u8::from(null))
-    }
-}
+struct Nt(bool, bool, bool);
 
 /// Contains everything needed for a search.
 pub struct SearchContext {
     pub hash_table: HashTable,
     killer_table: KillerTable,
+    history_table: [[[HistoryScore; 64]; 64]; 2],
     pub alloc_time: u128,
     time: Instant,
     nodes: u64,
@@ -24,7 +20,10 @@ pub struct SearchContext {
 
 impl SearchContext{
     pub fn new(hash_table: HashTable, killer_table: KillerTable) -> Self {
-        Self { hash_table, killer_table, time: Instant::now(), alloc_time: 1000, nodes: 0, qnodes: 0, ply: 0, seldepth: 0, abort: false}
+        Self {
+            hash_table, killer_table, history_table: [[[HistoryScore::default(); 64]; 64]; 2],
+            time: Instant::now(), alloc_time: 1000, nodes: 0, qnodes: 0, ply: 0, seldepth: 0, abort: false
+        }
     }
 
     fn reset(&mut self) {
@@ -35,6 +34,7 @@ impl SearchContext{
         self.seldepth = 0;
         self.abort = false;
         self.killer_table.clear();
+        self.history_table = [[[HistoryScore::default(); 64]; 64]; 2];
     }
 
     fn timer(&self) -> u128 {
@@ -49,7 +49,7 @@ impl Position {
         MVV_LVA[cpc * usize::from(cpc != 6)][mpc]
     }
 
-    fn score_move(&self, m: u16, hash_move: u16, killers: &[u16; KILLERS_PER_PLY]) -> u16 {
+    fn score_move(&self, m: u16, hash_move: u16, killers: &[u16; KILLERS_PER_PLY], d: i8, ctx: &mut SearchContext) -> u16 {
         if m == hash_move {
             HASH_MOVE
         } else if m & 0b0100_0000_0000_0000 > 0 {
@@ -59,20 +59,22 @@ impl Position {
         } else if killers.contains(&m) {
             KILLER
         } else {
-            0
+            let entry: &mut HistoryScore = &mut ctx.history_table[usize::from(self.c)][from!(m)][to!(m)];
+            entry.1 += (d as u64).pow(2);
+            (800 * entry.0 / (entry.1 + 1)) as u16
         }
     }
 
-    fn score(&self, moves: &MoveList, hash_move: u16, ply: i16, ctx: &SearchContext) -> MoveList {
+    fn score(&self, moves: &MoveList, hash_move: u16, d: i8, ctx: &mut SearchContext) -> MoveList {
         let mut scores: MoveList = MoveList::default();
-        let killers: [u16; KILLERS_PER_PLY] = ctx.killer_table.0[ply as usize];
-        for i in 0..moves.len { scores.push(self.score_move(moves.list[i], hash_move, &killers)) }
+        let killers: [u16; KILLERS_PER_PLY] = ctx.killer_table.0[ctx.ply as usize];
+        for i in 0..moves.len { scores.push(self.score_move(moves.list[i], hash_move, &killers, d, ctx)) }
         scores
     }
 
-    fn score_captures(&self, moves: &MoveList) -> MoveList {
+    fn score_caps(&self, caps: &MoveList) -> MoveList {
         let mut scores: MoveList = MoveList::default();
-        for i in 0..moves.len { scores.push(self.mvv_lva(moves.list[i])) }
+        for i in 0..caps.len { scores.push(self.mvv_lva(caps.list[i])) }
         scores
     }
 }
@@ -107,7 +109,7 @@ fn pvs(pos: &mut Position, nt: Nt, mut a: i16, mut b: i16, mut d: i8, ctx: &mut 
     }
 
     if pos.is_draw(ctx.ply) { return 0 }
-    let (pv, in_check, null): (bool, bool, bool) = (nt.0 & 4 > 0, nt.0 & 2 > 0, nt.0 & 1 > 0);
+    let Nt(pv, in_check, null): Nt = nt;
 
     // mate distance pruning
     a = max(a, -MAX + ctx.ply);
@@ -146,8 +148,7 @@ fn pvs(pos: &mut Position, nt: Nt, mut a: i16, mut b: i16, mut d: i8, ctx: &mut 
         // null move pruning
         if null && d >= 3 && pos.phase >= 6 && eval >= b {
             let copy: (u16, u64) = pos.do_null();
-            let r: i8 = 3 + i8::from(d > 8);
-            eval = -pvs(pos, Nt::encode(false, false, false), -b, -b + 1, d - r, ctx, &mut Vec::new());
+            eval = -pvs(pos, Nt(false, false, false), -b, -b + 1, d - 3, ctx, &mut Vec::new());
             pos.undo_null(copy);
             if eval >= b {return eval}
         }
@@ -155,29 +156,34 @@ fn pvs(pos: &mut Position, nt: Nt, mut a: i16, mut b: i16, mut d: i8, ctx: &mut 
 
     ctx.nodes += 1;
     ctx.ply += 1;
-    let lmr: bool = d >= 2 && ctx.ply > 0 && !in_check;
+    let lmr: bool = d > 2 && ctx.ply > 1 && !in_check;
     let mut moves: MoveList = pos.gen::<ALL>();
-    let mut scores: MoveList = pos.score(&moves, bm, ctx.ply, ctx);
-    let (mut legal, mut eval, mut bound): (u16, i16, Bound) = (0, -MAX, Bound::Upper);
+    let mut scores: MoveList = pos.score(&moves, bm, d, ctx);
+    let (mut legal, mut eval, mut bound, mut quiet): (u16, i16, Bound, u16) = (0, -MAX, Bound::Upper, 0);
+    let (mut check, mut r, mut score, mut zw): (bool, i8, i16, i16);
+    let mut sline: Vec<u16> = Vec::new();
     while let Some((m, ms)) = moves.pick(&mut scores) {
-        if pos.do_move(m) { continue }
+        if pos.r#do(m) { continue }
         legal += 1;
-        let check: bool = pos.is_in_check();
+        check = pos.is_in_check();
 
         // late move reductions
-        let r: i8 = i8::from(lmr && !check && legal > 2 && ms < KILLER);
+        quiet += u16::from(ms < KILLER);
+        r = if lmr && !check && legal > 1 && quiet > 0 {
+            1 + min(2 - i8::from(pv), (quiet / 4) as i8)
+        } else {0};
 
         // principle variation search
-        let mut sline: Vec<u16> = Vec::new();
-        let score: i16 = if legal == 1 {
-            -pvs(pos, Nt::encode(pv, check, false), -b, -a, d - 1, ctx, &mut sline)
+        sline.clear();
+        score = if legal == 1 {
+            -pvs(pos, Nt(pv, check, false), -b, -a, d - 1, ctx, &mut sline)
         } else {
-            let zw_score: i16 = -pvs(pos, Nt::encode(false, check, true), -a - 1, -a, d - 1 - r, ctx, &mut sline);
-            if (a != b - 1 || r > 0) && zw_score > a {
-                -pvs(pos, Nt::encode(pv, check, false), -b, -a, d - 1, ctx, &mut sline)
-            } else { zw_score }
+            zw = -pvs(pos, Nt(false, check, true), -a - 1, -a, d - 1 - r, ctx, &mut sline);
+            if (a != b - 1 || r > 0) && zw > a {
+                -pvs(pos, Nt(pv, check, false), -b, -a, d - 1, ctx, &mut sline)
+            } else { zw }
         };
-        pos.undo_move();
+        pos.undo();
 
         if score > eval {
             eval = score;
@@ -190,7 +196,10 @@ fn pvs(pos: &mut Position, nt: Nt, mut a: i16, mut b: i16, mut d: i8, ctx: &mut 
                 line.append(&mut sline);
                 if score >= b {
                     bound = Bound::Lower;
-                    if ms <= KILLER {ctx.killer_table.push(m, ctx.ply)}
+                    if ms <= KILLER {
+                        ctx.killer_table.push(m, ctx.ply);
+                        ctx.history_table[usize::from(pos.c)][from!(m)][to!(m)].0 += (d as u64).pow(2);
+                    }
                     break
                 }
             }
@@ -202,22 +211,22 @@ fn pvs(pos: &mut Position, nt: Nt, mut a: i16, mut b: i16, mut d: i8, ctx: &mut 
     eval
 }
 
-fn quiesce(pos: &mut Position, mut a: i16, b: i16, qnodes: &mut u64) -> i16 {
-    *qnodes += 1;
-    let mut eval: i16 = pos.eval();
-    if eval >= b { return eval }
-    a = max(a, eval);
-    let mut captures: MoveList = pos.gen::<CAPTURES>();
-    let mut scores: MoveList = pos.score_captures(&captures);
-    while let Some((m, _)) = captures.pick(&mut scores) {
-        if pos.do_move(m) {continue}
-        let score: i16 = -quiesce(pos, -b, -a, qnodes);
-        pos.undo_move();
-        if score >= b { return score }
-        eval = max(eval, score);
-        a = max(a, score);
+fn quiesce(p: &mut Position, mut a: i16, b: i16, qn: &mut u64) -> i16 {
+    *qn += 1;
+    let mut e: i16 = p.eval();
+    if e >= b { return e }
+    a = max(a, e);
+    let mut caps: MoveList = p.gen::<CAPTURES>();
+    let mut scores: MoveList = p.score_caps(&caps);
+    while let Some((m, _)) = caps.pick(&mut scores) {
+        if p.r#do(m) {continue}
+        let s: i16 = -quiesce(p, -b, -a, qn);
+        p.undo();
+        if s >= b { return s }
+        e = max(e, s);
+        a = max(a, s);
     }
-    eval
+    e
 }
 
 pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
@@ -226,7 +235,7 @@ pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
     let in_check: bool = pos.is_in_check();
     for d in 1..=allocated_depth {
         let mut pv_line: Vec<u16> = Vec::new();
-        let score: i16 = pvs(pos, Nt::encode(true, in_check, false), -MAX, MAX, d, ctx, &mut pv_line);
+        let score: i16 = pvs(pos, Nt(true, in_check, false), -MAX, MAX, d, ctx, &mut pv_line);
         if ctx.abort { break }
         best_move = pv_line[0];
         let (stype, sval): (&str, i16) = if score.abs() >= MATE_THRESHOLD {

@@ -92,3 +92,6 @@ impl KillerTable {
         self.0.iter_mut().for_each(|bucket: &mut [u16; 3]| *bucket = [0; KILLERS_PER_PLY]);
     }
 }
+
+#[derive(Clone, Copy, Default)]
+pub struct HistoryScore(pub u64, pub u64);

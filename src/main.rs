@@ -69,9 +69,9 @@ fn perft(pos: &mut Position, depth_left: u8) -> u64 {
     let mut positions: u64 = 0;
     for m_idx in 0..moves.len {
         let m: u16 = moves.list[m_idx];
-        if pos.do_move(m) { continue }
+        if pos.r#do(m) { continue }
         positions += if depth_left > 1 {perft(pos, depth_left - 1)} else {1};
-        pos.undo_move();
+        pos.undo();
     }
     positions
 }
@@ -142,7 +142,7 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) -> Result<(), Message
         }
     }
     if !fen.is_empty() {*pos = parse_fen(&fen)?}
-    for m in moves {pos.do_move(uci_to_u16(pos, &m)?);}
+    for m in moves {pos.r#do(uci_to_u16(pos, &m)?);}
     Ok(())
 }
 

@@ -105,12 +105,12 @@ impl Position {
         self.state.zobrist ^= ZVALS.pieces[side][piece][from];
     }
 
-    pub fn do_move(&mut self, m: u16) -> bool {
+    pub fn r#do(&mut self, m: u16) -> bool {
         let side: usize = usize::from(self.c);
         self.do_unchecked(m);
         let king_idx: usize = lsb!(self.pieces[KING] & self.sides[side]) as usize;
         let invalid: bool = self.is_square_attacked(king_idx, side, self.sides[0] | self.sides[1]);
-        if invalid { self.undo_move() }
+        if invalid { self.undo() }
         invalid
     }
 
@@ -189,7 +189,7 @@ impl Position {
         }
     }
 
-    pub fn undo_move(&mut self) {
+    pub fn undo(&mut self) {
         let state: MoveContext = self.stack.pop().unwrap();
         let from: usize = from!(state.m);
         let to: usize = to!(state.m);
