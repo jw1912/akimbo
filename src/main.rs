@@ -9,10 +9,9 @@ mod search;
 
 use std::{error::Error, io::stdin, time::{Duration, Instant}};
 use consts::*;
-use tables::{HashTable, KillerTable};
 use position::{Position, State};
 use movegen::MoveList;
-use search::{go, SearchContext};
+use search::{go, Ctx};
 
 macro_rules! parse {($type: ty, $s: expr, $else: expr) => {$s.parse::<$type>()?}}
 macro_rules! err {($s:expr) => {return Err($s.into())}}
@@ -22,10 +21,7 @@ type Message = Box<dyn Error>;
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
     let mut pos: Position = parse_fen(STARTPOS).expect("hard coded");
-    let mut ctx: SearchContext = SearchContext::new(
-        HashTable::new(),
-        KillerTable([[0; KILLERS_PER_PLY]; MAX_PLY as usize + 1]),
-    );
+    let mut ctx: Ctx = Ctx::new();
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
@@ -34,7 +30,7 @@ fn main() {
     }
 }
 
-fn parse_commands(commands: Vec<&str>, pos: &mut Position, ctx: &mut SearchContext) -> Result<(), Message> {
+fn parse_commands(commands: Vec<&str>, pos: &mut Position, ctx: &mut Ctx) -> Result<(), Message> {
     match *commands.first().unwrap_or(&"oops") {
         "uci" => {
             println!("id name {NAME} {VERSION}");
@@ -86,7 +82,7 @@ fn parse_perft(pos: &mut Position, commands: &[&str]) -> Result<(), Message> {
     Ok(())
 }
 
-fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut SearchContext) -> Result<(), Message> {
+fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut Ctx) -> Result<(), Message> {
     enum Tokens {None, Depth, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
     let mut token: Tokens = Tokens::None;
     let (mut times, mut moves_to_go, mut depth, mut skip): ([u64; 2], Option<u16>, i8, bool) = ([0, 0], None, 64, false);

@@ -87,10 +87,6 @@ impl KillerTable {
         (0..{KILLERS_PER_PLY - 1}).rev().for_each(|i: usize| self.0[ply][i + 1] = self.0[ply][i]);
         self.0[ply][0] = new;
     }
-
-    pub fn clear(&mut self) {
-        self.0.iter_mut().for_each(|bucket: &mut [u16; 3]| *bucket = [0; KILLERS_PER_PLY]);
-    }
 }
 
 #[derive(Clone, Copy, Default)]
