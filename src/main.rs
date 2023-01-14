@@ -220,7 +220,7 @@ fn parse_fen(s: &str) -> Result<Position, Message> {
                 pos.pieces[pc] ^= 1 << idx;
                 pos.squares[idx] = pc as u8;
                 pos.phase += PHASE_VALS[pc];
-                pos.material[pc] += SIDE_FACTOR[side];
+                pos.material[pc] += SIDE[side];
                 pos.state.zobrist ^= ZVALS.pieces[side][pc][idx];
                 idx -= usize::from(idx > 0);
             }

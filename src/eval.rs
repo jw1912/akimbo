@@ -84,7 +84,7 @@ impl Position {
 
         // taper eval
         let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
-        SIDE_FACTOR[usize::from(self.c)] * ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16
+        SIDE[usize::from(self.c)] * ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16
     }
 
     fn mobility(&self, c: usize, opp_att: u64) -> S {
@@ -115,6 +115,6 @@ impl Position {
             score += MOBILITY_BISHOP[count!(attacks & safe) as usize];
         }
 
-        score * SIDE_FACTOR[c]
+        score * SIDE[c]
     }
 }

@@ -1,4 +1,4 @@
-use super::consts::{KILLERS_PER_PLY, MATE_THRESHOLD, MAX_PLY};
+use super::consts::{KILLERS_PER_PLY, MATE, MAX_PLY};
 
 /// The type of bound determined by the hash entry when it was searched.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -59,7 +59,7 @@ impl HashTable {
                 continue;
             }
         }
-        score += if score > MATE_THRESHOLD {ply} else if score < -MATE_THRESHOLD {-ply} else {0};
+        score += if score > MATE {ply} else if score < -MATE {-ply} else {0};
         bucket[desired_idx] = HashEntry { key, best_move, score, depth, bound };
     }
 
@@ -71,7 +71,7 @@ impl HashTable {
         for entry in bucket {
             if entry.key == key {
                 let mut res: HashEntry = *entry;
-                res.score += if res.score > MATE_THRESHOLD {-ply} else if res.score < -MATE_THRESHOLD {ply} else {0};
+                res.score += if res.score > MATE {-ply} else if res.score < -MATE {ply} else {0};
                 return Some(res);
             }
         }

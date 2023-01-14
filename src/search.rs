@@ -138,8 +138,8 @@ fn pvs(pos: &mut Position, nt: Nt, mut a: i16, mut b: i16, mut d: i8, ctx: &mut 
     }
 
     // pruning
-    if !pv && !in_check && b.abs() < MATE_THRESHOLD {
-        let mut eval: i16 = pos.eval();
+    if !pv && !in_check && b.abs() < MATE {
+        let eval: i16 = pos.eval();
 
         // reverse futility pruning
         let margin: i16 = eval - 120 * i16::from(d);
@@ -148,9 +148,10 @@ fn pvs(pos: &mut Position, nt: Nt, mut a: i16, mut b: i16, mut d: i8, ctx: &mut 
         // null move pruning
         if null && d >= 3 && pos.phase >= 6 && eval >= b {
             let copy: (u16, u64) = pos.do_null();
-            eval = -pvs(pos, Nt(false, false, false), -b, -b + 1, d - 3, ctx, &mut Vec::new());
+            let nw: i16 = -pvs(pos, Nt(false, false, false), -b, -b + 1, d - 3, ctx, &mut Vec::new());
             pos.undo_null(copy);
-            if eval >= b {return eval}
+            if nw >= b {return nw}
+            if nw.abs() >= MATE {d += 1}
         }
     }
 
@@ -169,9 +170,7 @@ fn pvs(pos: &mut Position, nt: Nt, mut a: i16, mut b: i16, mut d: i8, ctx: &mut 
 
         // late move reductions
         quiet += u16::from(ms < KILLER);
-        r = if lmr && !check && legal > 1 && quiet > 0 {
-            1 + min(2 - i8::from(pv), (quiet / 4) as i8)
-        } else {0};
+        r = i8::from(lmr && !check && legal > 1 && quiet > 0);
 
         // principle variation search
         sline.clear();
@@ -238,7 +237,7 @@ pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut SearchContext) {
         let score: i16 = pvs(pos, Nt(true, in_check, false), -MAX, MAX, d, ctx, &mut pv_line);
         if ctx.abort { break }
         best_move = pv_line[0];
-        let (stype, sval): (&str, i16) = if score.abs() >= MATE_THRESHOLD {
+        let (stype, sval): (&str, i16) = if score.abs() >= MATE {
             ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2)
         } else {("cp", score)};
         let t: u128 = ctx.timer();

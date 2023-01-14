@@ -140,7 +140,7 @@ impl Position {
             self.toggle(side ^ 1, cpc, t);
             self.remove(to, side ^ 1, cpc);
             self.phase -= PHASE_VALS[cpc];
-            self.material[cpc] += SIDE_FACTOR[side];
+            self.material[cpc] += SIDE[side];
         }
         self.state.castle_rights &= self.castle_mask[from] & self.castle_mask[to];
         match flag {
@@ -150,7 +150,7 @@ impl Position {
                 self.toggle(side ^ 1, PAWN, p);
                 self.remove(pwn, side ^ 1, PAWN);
                 self.squares[pwn] = EMPTY as u8;
-                self.material[PAWN] += SIDE_FACTOR[side];
+                self.material[PAWN] += SIDE[side];
             }
             MoveFlags::DBL_PUSH => {
                 self.state.en_passant_sq = if side == WHITE {to - 8} else {to + 8} as u16;
@@ -174,8 +174,8 @@ impl Position {
                 self.phase += PHASE_VALS[ppc];
                 self.remove(to, side, mpc);
                 self.add(to, side, ppc);
-                self.material[PAWN] -= SIDE_FACTOR[side];
-                self.material[ppc] += SIDE_FACTOR[side];
+                self.material[PAWN] -= SIDE[side];
+                self.material[ppc] += SIDE[side];
             }
             _ => {}
         }
@@ -207,14 +207,14 @@ impl Position {
             let cpc: usize = state.captured_pc as usize;
             self.toggle(side ^ 1, cpc, t);
             self.phase += PHASE_VALS[cpc];
-            self.material[cpc] -= SIDE_FACTOR[side];
+            self.material[cpc] -= SIDE[side];
         }
         match flag {
             MoveFlags::EN_PASSANT => {
                 let pwn: usize = if side == BLACK {to + 8} else {to - 8};
                 self.toggle(side ^ 1, PAWN, bit!(pwn));
                 self.squares[pwn] = PAWN as u8;
-                self.material[PAWN] -= SIDE_FACTOR[side];
+                self.material[PAWN] -= SIDE[side];
             }
             MoveFlags::KS_CASTLE | MoveFlags::QS_CASTLE => {
                 let i: usize = (flag == MoveFlags::KS_CASTLE) as usize;
@@ -229,8 +229,8 @@ impl Position {
                 self.pieces[state.moved_pc as usize] ^= t;
                 self.pieces[ppc] ^= t;
                 self.phase -= PHASE_VALS[ppc];
-                self.material[ppc] -= SIDE_FACTOR[side];
-                self.material[PAWN] += SIDE_FACTOR[side];
+                self.material[ppc] -= SIDE[side];
+                self.material[PAWN] += SIDE[side];
             }
             _ => {}
         }
