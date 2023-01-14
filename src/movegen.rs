@@ -50,7 +50,7 @@ impl Position {
         let pawns: u64 = self.pieces[PAWN] & self.sides[side];
         if QUIETS {
             if self.c {pawn_pushes::<BLACK>(move_list, occ, pawns)} else {pawn_pushes::<WHITE>(move_list, occ, pawns)}
-            if self.state.castle_rights & CastleRights::SIDES[side] > 0 && !self.is_in_check() {self.castles(move_list, occ)}
+            if self.state.castle_rights & CS[side] > 0 && !self.is_in_check() {self.castles(move_list, occ)}
         }
         pawn_captures(move_list, pawns, opps, side);
         if self.state.en_passant_sq > 0 {en_passants(move_list, pawns, self.state.en_passant_sq, side)}
@@ -83,18 +83,18 @@ impl Position {
         let kbb: u64 = self.pieces[KING] & self.sides[usize::from(self.c)];
         let ksq: u16 = lsb!(kbb);
         if self.c {
-            if r & CastleRights::BLACK_QS > 0 && self.can_castle::<BLACK>(occ, 1 << (56 + self.castle[0]), kbb, 1 << 58, 1 << 59) {
-                move_list.push(MoveFlags::QS_CASTLE | 58 | ksq << 6);
+            if r & BQS > 0 && self.can_castle::<BLACK>(occ, 1 << (56 + self.castle[0]), kbb, 1 << 58, 1 << 59) {
+                move_list.push(QS | 58 | ksq << 6);
             }
-            if r & CastleRights::BLACK_KS > 0 && self.can_castle::<BLACK>(occ, 1 << (56 + self.castle[1]), kbb, 1 << 62, 1 << 61) {
-                move_list.push(MoveFlags::KS_CASTLE | 62 | ksq << 6);
+            if r & BKS > 0 && self.can_castle::<BLACK>(occ, 1 << (56 + self.castle[1]), kbb, 1 << 62, 1 << 61) {
+                move_list.push(KS | 62 | ksq << 6);
             }
         } else {
-            if r & CastleRights::WHITE_QS > 0 && self.can_castle::<WHITE>(occ, 1 << self.castle[0], kbb, 1 << 2, 1 << 3) {
-                move_list.push(MoveFlags::QS_CASTLE | 2 | ksq << 6);
+            if r & WQS > 0 && self.can_castle::<WHITE>(occ, 1 << self.castle[0], kbb, 1 << 2, 1 << 3) {
+                move_list.push(QS | 2 | ksq << 6);
             }
-            if r & CastleRights::WHITE_KS > 0 && self.can_castle::<WHITE>(occ, 1 << self.castle[1], kbb, 1 << 6, 1 << 5) {
-                move_list.push(MoveFlags::KS_CASTLE | 6 | ksq << 6);
+            if r & WKS > 0 && self.can_castle::<WHITE>(occ, 1 << self.castle[1], kbb, 1 << 6, 1 << 5) {
+                move_list.push(KS | 6 | ksq << 6);
             }
         }
     }
@@ -116,8 +116,8 @@ fn piece_moves<const PIECE: usize, const QUIETS: bool>(move_list: &mut MoveList,
             KING => KING_ATTACKS[idx],
             _ => 0,
         };
-        encode_moves(move_list, attacks & opps, from, MoveFlags::CAPTURE);
-        if QUIETS {encode_moves(move_list, attacks & !occ, from, MoveFlags::QUIET)}
+        encode_moves(move_list, attacks & opps, from, CAP);
+        if QUIETS {encode_moves(move_list, attacks & !occ, from, QUIET)}
     }
 }
 
@@ -132,7 +132,7 @@ fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents: u64, s
     while attackers > 0 {
         pop_lsb!(from, attackers);
         attacks = PAWN_ATTACKS[side][from as usize] & opponents;
-        encode_moves(move_list, attacks, from, MoveFlags::CAPTURE);
+        encode_moves(move_list, attacks, from, CAP);
     }
     while promo_attackers > 0 {
         pop_lsb!(from, promo_attackers);
@@ -140,10 +140,10 @@ fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents: u64, s
         while attacks > 0 {
             pop_lsb!(cidx, attacks);
             f = from << 6;
-            move_list.push(MoveFlags::QUEEN_PROMO_CAPTURE  | cidx | f);
-            move_list.push(MoveFlags::KNIGHT_PROMO_CAPTURE | cidx | f);
-            move_list.push(MoveFlags::BISHOP_PROMO_CAPTURE | cidx | f);
-            move_list.push(MoveFlags::ROOK_PROMO_CAPTURE   | cidx | f);
+            move_list.push(QPC  | cidx | f);
+            move_list.push(NPC | cidx | f);
+            move_list.push(BPC | cidx | f);
+            move_list.push(RPC | cidx | f);
         }
     }
 }
@@ -154,7 +154,7 @@ fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16, side: usize) {
     let mut cidx: u16;
     while attackers > 0 {
         pop_lsb!(cidx, attackers);
-        move_list.push( MoveFlags::EN_PASSANT | sq | cidx << 6 );
+        move_list.push( ENP | sq | cidx << 6 );
     }
 }
 
@@ -181,13 +181,13 @@ fn pawn_pushes<const SIDE: usize>(move_list: &mut MoveList, occ: u64, pawns: u64
         pop_lsb!(idx, promotable_pawns);
         let to: u16 = idx_shift::<SIDE, 8>(idx);
         let f: u16 = idx << 6;
-        move_list.push(MoveFlags::QUEEN_PROMO  | to | f);
-        move_list.push(MoveFlags::KNIGHT_PROMO | to | f);
-        move_list.push(MoveFlags::BISHOP_PROMO | to | f);
-        move_list.push(MoveFlags::ROOK_PROMO   | to | f);
+        move_list.push(QPR | to | f);
+        move_list.push( PR | to | f);
+        move_list.push(BPR | to | f);
+        move_list.push(RPR | to | f);
     }
     while dbl_pushable_pawns > 0 {
         pop_lsb!(idx, dbl_pushable_pawns);
-        move_list.push(MoveFlags::DBL_PUSH | idx_shift::<SIDE, 16>(idx) | idx << 6);
+        move_list.push(DBL | idx_shift::<SIDE, 16>(idx) | idx << 6);
     }
 }

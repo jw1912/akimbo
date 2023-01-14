@@ -3,7 +3,7 @@ akimbo is a UCI compatible Chess (and Chess960) engine written in Rust.
 
 ### Aims
 The main aim of akimbo is to stay under 1500 lines of code.
-At last count it was at 1235 lines, excluding blank lines and comments.
+At last count it was at 1214 lines, excluding blank lines and comments.
 
 ### Compiling
 If you have cargo installed, run `cargo build --release`.

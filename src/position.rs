@@ -112,7 +112,7 @@ impl Position {
         let moved_pc: u8 = self.squares[from];
         let mpc: usize = moved_pc as usize;
         let captured_pc: u8 = self.squares[to];
-        let flag: u16 = m & MoveFlags::ALL;
+        let flag: u16 = m & ALL_FLAGS;
         let rights: u8 = self.state.castle_rights;
         let side: usize = usize::from(self.c);
 
@@ -124,7 +124,7 @@ impl Position {
         if self.state.en_passant_sq > 0 {self.state.zobrist ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
         self.state.en_passant_sq = 0;
         self.state.zobrist ^= ZVALS.side;
-        if captured_pc != EMPTY as u8 && flag != MoveFlags::KS_CASTLE && flag != MoveFlags::QS_CASTLE {
+        if captured_pc != EMPTY as u8 && flag != KS && flag != QS {
             let cpc: usize = captured_pc as usize;
             self.toggle(side ^ 1, cpc, t);
             self.state.zobrist ^= ZVALS.pieces[side ^ 1][cpc][to];
@@ -133,7 +133,7 @@ impl Position {
         }
         self.state.castle_rights &= self.castle_mask[from] & self.castle_mask[to];
         match flag {
-            MoveFlags::EN_PASSANT => {
+            ENP => {
                 let pwn: usize = if side == BLACK {to + 8} else {to - 8};
                 let p: u64 = bit!(pwn);
                 self.toggle(side ^ 1, PAWN, p);
@@ -141,12 +141,12 @@ impl Position {
                 self.squares[pwn] = EMPTY as u8;
                 self.material[PAWN] += SIDE[side];
             }
-            MoveFlags::DBL_PUSH => {
+            DBL => {
                 self.state.en_passant_sq = if side == WHITE {to - 8} else {to + 8} as u16;
                 self.state.zobrist ^= ZVALS.en_passant[to & 7];
             }
-            MoveFlags::KS_CASTLE | MoveFlags::QS_CASTLE => {
-                let i: usize = (flag == MoveFlags::KS_CASTLE) as usize;
+            KS | QS => {
+                let i: usize = usize::from(flag == KS);
                 let sq: usize = 56 * usize::from(side == BLACK) + self.castle[i] as usize;
                 let idx: usize = CASTLE_MOVES[side][i];
                 self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
@@ -154,7 +154,7 @@ impl Position {
                 self.squares[idx] = ROOK as u8;
                 self.state.zobrist ^= ZVALS.pieces[side][ROOK][sq] ^ ZVALS.pieces[side][ROOK][idx];
             }
-            MoveFlags::KNIGHT_PROMO.. => {
+            PR.. => {
                 let ppc: usize = (((flag >> 12) & 3) + 1) as usize;
                 self.pieces[mpc] ^= t;
                 self.pieces[ppc] ^= t;
@@ -166,7 +166,7 @@ impl Position {
             }
             _ => {}
         }
-        self.state.halfmove_clock = u8::from(moved_pc > PAWN as u8 && flag != MoveFlags::CAPTURE) * (self.state.halfmove_clock + 1);
+        self.state.halfmove_clock = u8::from(moved_pc > PAWN as u8 && flag != CAP) * (self.state.halfmove_clock + 1);
         self.c = !self.c;
 
         let mut changed_castle: u8 = rights & !self.state.castle_rights;
@@ -182,7 +182,7 @@ impl Position {
         let to: usize = to!(state.m);
         let f: u64 = bit!(from);
         let t: u64 = bit!(to);
-        let flag: u16 = state.m & MoveFlags::ALL;
+        let flag: u16 = state.m & ALL_FLAGS;
         self.c = !self.c;
         let side: usize = usize::from(self.c);
 
@@ -190,28 +190,28 @@ impl Position {
         self.toggle(side, state.moved_pc as usize, f ^ t);
         self.squares[from] = state.moved_pc;
         self.squares[to] = state.captured_pc;
-        if state.captured_pc != EMPTY as u8 && flag != MoveFlags::KS_CASTLE && flag != MoveFlags::QS_CASTLE {
+        if state.captured_pc != EMPTY as u8 && flag != KS && flag != QS {
             let cpc: usize = state.captured_pc as usize;
             self.toggle(side ^ 1, cpc, t);
             self.phase += PHASE_VALS[cpc];
             self.material[cpc] -= SIDE[side];
         }
         match flag {
-            MoveFlags::EN_PASSANT => {
+            ENP => {
                 let pwn: usize = if side == BLACK {to + 8} else {to - 8};
                 self.toggle(side ^ 1, PAWN, bit!(pwn));
                 self.squares[pwn] = PAWN as u8;
                 self.material[PAWN] -= SIDE[side];
             }
-            MoveFlags::KS_CASTLE | MoveFlags::QS_CASTLE => {
-                let i: usize = (flag == MoveFlags::KS_CASTLE) as usize;
+            KS | QS => {
+                let i: usize = (flag == KS) as usize;
                 let sq: usize = 56 * usize::from(side == BLACK) + self.castle[i] as usize;
                 let idx: usize = CASTLE_MOVES[side][i];
                 self.squares[idx] = if from == idx {KING as u8} else {EMPTY as u8};
                 self.squares[sq] = ROOK as u8;
                 self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
             }
-            MoveFlags::KNIGHT_PROMO.. => {
+            PR.. => {
                 let ppc: usize = (((flag >> 12) & 3) + 1) as usize;
                 self.pieces[state.moved_pc as usize] ^= t;
                 self.pieces[ppc] ^= t;

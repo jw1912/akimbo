@@ -1,4 +1,10 @@
-// macro for calculating tables (until const fn pointers are stable)
+// Creates a set of constants similar to in a C enum, but with a strict type and starts at a given value with an offset shift.
+macro_rules! c_enum {
+    ($type:ty, $val:expr, $offset:expr, $name:ident) => {pub const $name: $type = $val << $offset;};
+    ($type:ty, $val:expr, $offset:expr, $name:ident, $($b:tt),*) => {pub const $name: $type = $val << $offset; c_enum!($type, $val + 1, $offset, $($b),*);}
+}
+
+// Macro for calculating tables (until const fn pointers are stable)
 macro_rules! init {
     ($idx:ident, $init:expr, $($rest:tt)+) => {{
         let mut res = [$init; 64];
@@ -49,41 +55,16 @@ pub const MVV_LVA: [[u16; 6]; 5] = [
 ];
 
 // Position
-pub const   PAWN: usize = 0;
-pub const KNIGHT: usize = 1;
-pub const BISHOP: usize = 2;
-pub const   ROOK: usize = 3;
-pub const  QUEEN: usize = 4;
-pub const   KING: usize = 5;
-pub const  EMPTY: usize = 6;
-pub const  WHITE: usize = 0;
-pub const  BLACK: usize = 1;
-pub struct MoveFlags;
-impl MoveFlags {
-    pub const ALL: u16 = 15 << 12;
-    pub const QUIET: u16 = 0 << 12;
-    pub const DBL_PUSH: u16 = 1 << 12;
-    pub const KS_CASTLE: u16 = 2 << 12;
-    pub const QS_CASTLE: u16 = 3 << 12;
-    pub const CAPTURE: u16 = 4 << 12;
-    pub const EN_PASSANT: u16 = 5 << 12;
-    pub const KNIGHT_PROMO: u16 = 8 << 12;
-    pub const BISHOP_PROMO: u16 = 9 << 12;
-    pub const   ROOK_PROMO: u16 = 10 << 12;
-    pub const  QUEEN_PROMO: u16 = 11 << 12;
-    pub const KNIGHT_PROMO_CAPTURE: u16 = 12 << 12;
-    pub const BISHOP_PROMO_CAPTURE: u16 = 13 << 12;
-    pub const   ROOK_PROMO_CAPTURE: u16 = 14 << 12;
-    pub const  QUEEN_PROMO_CAPTURE: u16 = 15 << 12;
-}
-pub struct CastleRights;
-impl CastleRights {
-    pub const WHITE_QS: u8 = 8;
-    pub const WHITE_KS: u8 = 4;
-    pub const BLACK_QS: u8 = 2;
-    pub const BLACK_KS: u8 = 1;
-    pub const SIDES: [u8; 2] = [Self::WHITE_KS | Self::WHITE_QS, Self::BLACK_KS | Self::BLACK_QS];
-}
+pub const WHITE: usize = 0;
+pub const BLACK: usize = 1;
+c_enum!(usize, 0, 0, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, EMPTY);
+pub const ALL_FLAGS: u16 = 15 << 12;
+c_enum!(u16, 0, 12, QUIET, DBL, KS, QS, CAP, ENP, _A, _B, PR, BPR, RPR, QPR, NPC, BPC, RPC, QPC);
+pub const WQS: u8 = 8;
+pub const WKS: u8 = 4;
+pub const BQS: u8 = 2;
+pub const BKS: u8 = 1;
+pub const CS: [u8; 2] = [WKS | WQS, BKS | BQS];
 
 // Move Generation
 #[derive(Clone, Copy)]

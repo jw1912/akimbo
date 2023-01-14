@@ -156,9 +156,9 @@ fn sq_to_idx(sq: &str) -> Result<u16, Message> {
 
 fn u16_to_uci(p: &Position, m: u16) -> String {
     let flag: u16 = m & 0xF000;
-    if p.chess960 && (flag == MoveFlags::QS_CASTLE || flag == MoveFlags::KS_CASTLE) {
+    if p.chess960 && (flag == QS || flag == KS) {
             let from: u16 = (m >> 6) & 63;
-            let rook: u16 = p.castle[(flag == MoveFlags::KS_CASTLE) as usize] as u16 + 56 * (from / 56);
+            let rook: u16 = p.castle[(flag == KS) as usize] as u16 + 56 * (from / 56);
             format!("{}{} ", idx_to_sq!(from), idx_to_sq!(rook))
     } else {
         let promo: &str = if m & 0b1000_0000_0000_0000 > 0 {["n","b","r","q"][((m >> 12) & 0b11) as usize]} else {""};
@@ -174,10 +174,10 @@ fn uci_to_u16(pos: &Position, m: &str) -> Result<u16, Message> {
     if pos.chess960 && pos.sides[usize::from(pos.c)] & (1 << to) > 0 {
         if to == pos.castle[0] as u16 + 56 * (from / 56) {
             to = 2 + 56 * (from / 56);
-            castle = MoveFlags::QS_CASTLE;
+            castle = QS;
         } else {
             to = 6 + 56 * (from / 56);
-            castle = MoveFlags::KS_CASTLE;
+            castle = KS;
         }
     }
     let mut no_flags: u16 = castle | (from << 6) | to;
@@ -187,7 +187,7 @@ fn uci_to_u16(pos: &Position, m: &str) -> Result<u16, Message> {
     for m_idx in 0..possible_moves.len {
         let um: u16 = possible_moves.list[m_idx];
         if no_flags & TWELVE == um & TWELVE && (l < 5 || no_flags & !TWELVE == um & 0xB000) // standard chess
-            && (!pos.chess960 || (um & !TWELVE != MoveFlags::KS_CASTLE && um & !TWELVE != MoveFlags::QS_CASTLE)) { // rare chess960 case
+            && (!pos.chess960 || (um & !TWELVE != KS && um & !TWELVE != QS)) { // rare chess960 case
             return Ok(um);
         }
     }
@@ -234,20 +234,20 @@ fn parse_fen(s: &str) -> Result<Position, Message> {
     let bkc: u8 = lsb!(pos.pieces[KING] & pos.sides[1]) as u8 & 7;
     for ch in vec[2].bytes() {
         rights |= match ch {
-            b'Q' => CastleRights::WHITE_QS,
-            b'K' => CastleRights::WHITE_KS,
-            b'q' => CastleRights::BLACK_QS,
-            b'k' => CastleRights::BLACK_KS,
+            b'Q' => WQS,
+            b'K' => WKS,
+            b'q' => BQS,
+            b'k' => BKS,
             b'A'..=b'H' => {
                 pos.chess960 = true;
                 king_col = wkc as usize;
                 let rook_col: u8 = ch - b'A';
                 if rook_col < wkc {
                     pos.castle[0] = rook_col;
-                    CastleRights::WHITE_QS
+                    WQS
                 } else {
                     pos.castle[1] = rook_col;
-                    CastleRights::WHITE_KS
+                    WKS
                 }
             }
             b'a'..=b'h' => {
@@ -256,10 +256,10 @@ fn parse_fen(s: &str) -> Result<Position, Message> {
                 let rook_col: u8 = ch - b'a';
                 if rook_col < bkc {
                     pos.castle[0] = rook_col;
-                    CastleRights::BLACK_QS
+                    BQS
                 } else {
                     pos.castle[1] = rook_col;
-                    CastleRights::BLACK_KS
+                    BKS
                 }
             }
             _ => 0
