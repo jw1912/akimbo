@@ -123,7 +123,7 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
 
     if d <= 0 || ctx.ply == MAX_PLY {
         ctx.seldepth = max(ctx.seldepth, ctx.ply);
-        return quiesce(pos, a, b, &mut ctx.qnodes)
+        return qs(pos, a, b, &mut ctx.qnodes)
     }
 
     // probing hash table
@@ -174,7 +174,6 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
         quiet += u16::from(ms < KILLER);
         r = i8::from(lmr && !check && legal > 1 && quiet > 0);
 
-        // principle variation search
         sline.clear();
         score = if legal == 1 {
             -pvs(pos, -b, -a, d - 1, ctx, Nt(pv, check, false), &mut sline)
@@ -212,20 +211,19 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
     eval
 }
 
-fn quiesce(p: &mut Position, mut a: i16, b: i16, qn: &mut u64) -> i16 {
+fn qs(p: &mut Position, mut a: i16, b: i16, qn: &mut u64) -> i16 {
     *qn += 1;
     let mut e: i16 = p.eval();
-    if e >= b { return e }
+    if e >= b {return e}
     a = max(a, e);
     let mut caps: MoveList = p.gen::<CAPTURES>();
     let mut scores: MoveList = p.score_caps(&caps);
     while let Some((m, _)) = caps.pick(&mut scores) {
         if p.r#do(m) {continue}
-        let s: i16 = -quiesce(p, -b, -a, qn);
+        e = max(e, -qs(p, -b, -a, qn));
         p.undo();
-        if s >= b { return s }
-        e = max(e, s);
-        a = max(a, s);
+        if e >= b {break}
+        a = max(a, e);
     }
     e
 }
