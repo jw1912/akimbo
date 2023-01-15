@@ -23,34 +23,37 @@ impl Mul<i16> for S {
 }
 
 // eval values
-const MATERIAL: [S; 5] = [S(86, 143), S(316, 266), S(338, 277), S(419, 516), S(927, 924)];
+const MATERIAL: [S; 5] = [S(84, 145), S(321, 259), S(343, 272), S(424, 512), S(931, 920)];
 const PAWN_HT: [S; 24] = [
-    S( 74, 126), S( 99, 115), S( 89,  96), S( 97,  80),
-    S(-32,  47), S(  2,  41), S( 21,  18), S( 39,   9),
-    S(-40, -14), S(-18, -20), S(-21, -33), S( -7, -44),
-    S(-41, -34), S(-24, -32), S(-21, -47), S(-11, -51),
-    S(-36, -41), S(-13, -37), S(-25, -45), S(-18, -43),
-    S(-37, -38), S(-11, -31), S(-18, -36), S(-22, -37),
+    S( 82, 121), S( 99, 115), S( 94,  91), S(110,  74),
+    S(-31,  45), S(  3,  39), S( 24,  16), S( 40,   8),
+    S(-39, -15), S(-17, -22), S(-18, -35), S( -4, -47),
+    S(-40, -36), S(-22, -34), S(-16, -50), S( -8, -53),
+    S(-34, -42), S( -7, -41), S(-22, -48), S(-16, -46),
+    S(-41, -40), S(-13, -34), S(-23, -37), S(-30, -33),
 ];
 const KING_QT: [S; 16] = [
-    S(-65,   8), S(-29,  26), S(-21,  35), S(-31,  38),
-    S(-44,   5), S(-23,  19), S(-36,  27), S(-42,  33),
-    S( 29, -23), S( 11,   0), S(-34,  19), S(-53,  23),
-    S( 21, -55), S( 42, -30), S(-16,  -9), S( -1, -30),
+    S(-63,  10), S(-30,  29), S(-29,  40), S(-36,  42),
+    S(-49,   8), S(-35,  23), S(-43,  31), S(-50,  38),
+    S( 21, -17), S( -5,   7), S(-35,  23), S(-48,  25),
+    S( 29, -53), S( 38, -25), S( -7,  -8), S( 13, -28),
 ];
 const MOBILITY_KNIGHT: [S; 9] = [
-    S(-34, -90), S( -8, -63), S( -1, -36),
-    S(  4, -17), S( 15,  -6), S( 19,   9),
-    S( 24,  13), S( 27,  19), S( 41,   8),
+    S(-40, -79), S(-12, -59), S( -3, -33),
+    S(  4, -14), S( 15,  -3), S( 19,  13),
+    S( 24,  16), S( 27,  23), S( 39,  11),
 ];
 const MOBILITY_BISHOP: [S; 14] = [
-    S(-15, -83), S( -6, -59), S(  1, -30), S(  6, -14), S( 10,  -1), S( 13,   8), S( 16,  17),
-    S( 16,  16), S( 20,  23), S( 23,  21), S( 34,  21), S( 36,  21), S( 37,  29), S( 47,  20),
+    S(-16, -81), S( -6, -55), S(  2, -29), S(  7, -12), S( 11,   0), S( 14,   9), S( 18,  17),
+    S( 19,  16), S( 21,  24), S( 25,  22), S( 35,  23), S( 44,  21), S( 38,  30), S( 46,  24),
 ];
+const PAWN_SHIELD: S = S(20, -4);
 
 impl Position {
     pub fn eval(&self) -> i16 {
         let mut score: S = S(0, 0);
+        let wp: u64 = self.pieces[PAWN] & self.sides[WHITE];
+        let bp: u64 = self.pieces[PAWN] & self.sides[BLACK];
 
         // material scores
         (PAWN..=QUEEN).for_each(|i: usize| score += MATERIAL[i] * self.material[i]);
@@ -60,11 +63,10 @@ impl Position {
         let bk_idx: usize = (self.pieces[KING] & self.sides[BLACK]).trailing_zeros() as usize;
         score += KING_QT[QT_IDX[wk_idx] as usize];
         score += KING_QT[QT_IDX[bk_idx] as usize] * -1;
+        score += PAWN_SHIELD * (count!(wp & KING_ATTACKS[wk_idx]) - count!(bp & KING_ATTACKS[bk_idx]));
 
         // pawns
         let mut p: u64;
-        let wp: u64 = self.pieces[PAWN] & self.sides[WHITE];
-        let bp: u64 = self.pieces[PAWN] & self.sides[BLACK];
         let wp_att: u64 = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
         let bp_att: u64 = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
         p = wp; // white pst bonuses
