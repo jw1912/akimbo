@@ -135,7 +135,7 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
         if ctx.ply > 0 && res.depth >= d && pos.state.halfmove_clock < 90 && match res.bound {
             Bound::Lower => res.score >= b,
             Bound::Upper => res.score <= a,
-            Bound::Exact => !pv, // want nice pv lines
+            Bound::Exact => true,
         } { return res.score }
     }
 

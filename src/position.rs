@@ -1,6 +1,8 @@
 use super::{lsb, consts::*};
 
 #[macro_export]
+macro_rules! flag {($m:expr) => {$m & ALL_FLAGS}}
+#[macro_export]
 macro_rules! from {($m:expr) => {(($m >> 6) & 63) as usize}}
 #[macro_export]
 macro_rules! to {($m:expr) => {($m & 63) as usize}}
@@ -112,7 +114,7 @@ impl Position {
         let moved_pc: u8 = self.squares[from];
         let mpc: usize = moved_pc as usize;
         let captured_pc: u8 = self.squares[to];
-        let flag: u16 = m & ALL_FLAGS;
+        let flag: u16 = flag!(m);
         let rights: u8 = self.state.castle_rights;
         let side: usize = usize::from(self.c);
 
@@ -182,7 +184,7 @@ impl Position {
         let to: usize = to!(state.m);
         let f: u64 = bit!(from);
         let t: u64 = bit!(to);
-        let flag: u16 = state.m & ALL_FLAGS;
+        let flag: u16 = flag!(state.m);
         self.c = !self.c;
         let side: usize = usize::from(self.c);
 
