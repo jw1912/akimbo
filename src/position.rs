@@ -225,19 +225,20 @@ impl Position {
         }
     }
 
-    pub fn do_null(&mut self) -> (u16, u64) {
+    pub fn do_null(&mut self, ply: &mut i16) -> u16 {
         self.nulls += 1;
+        *ply += 1;
         let enp: u16 = self.state.en_passant_sq;
-        let hash: u64 = self.state.zobrist;
         self.state.zobrist ^= u64::from(enp > 0) * ZVALS.en_passant[(enp & 7) as usize];
         self.state.en_passant_sq = 0;
         self.c = !self.c;
         self.state.zobrist ^= ZVALS.side;
-        (enp, hash)
+        enp
     }
 
-    pub fn undo_null(&mut self, (enp, hash): (u16, u64)) {
+    pub fn undo_null(&mut self, enp: u16, hash: u64, ply: &mut i16) {
         self.nulls -= 1;
+        *ply -= 1;
         self.state.zobrist = hash;
         self.state.en_passant_sq = enp;
         self.c = !self.c;

@@ -127,15 +127,16 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
     }
 
     // probing hash table
+    let hash: u64 = pos.state.zobrist;
     let mut bm: u16 = 0;
     let mut write: bool = true;
-    if let Some(res) = ctx.hash_table.probe(pos.state.zobrist, ctx.ply) {
+    if let Some(res) = ctx.hash_table.probe(hash, ctx.ply) {
         write = d > res.depth;
         bm = res.best_move;
         if ctx.ply > 0 && res.depth >= d && pos.state.halfmove_clock < 90 && match res.bound {
             Bound::Lower => res.score >= b,
             Bound::Upper => res.score <= a,
-            Bound::Exact => true,
+            Bound::Exact => !pv, // want nice pv lines
         } { return res.score }
     }
 
@@ -149,9 +150,9 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
 
         // null move pruning
         if null && d >= 3 && pos.phase >= 6 && eval >= b {
-            let copy: (u16, u64) = pos.do_null();
+            let enp: u16 = pos.do_null(&mut ctx.ply);
             let nw: i16 = -pvs(pos, -b, -b + 1, d - 3, ctx, Nt(false, false), &mut Vec::new());
-            pos.undo_null(copy);
+            pos.undo_null(enp, hash, &mut ctx.ply);
             if nw >= b {return nw}
         }
     }
@@ -207,7 +208,7 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
     }
     ctx.ply -= 1;
     if legal == 0 { return i16::from(in_check) * (-MAX + ctx.ply) }
-    if write && !ctx.abort { ctx.hash_table.push(pos.state.zobrist, bm, d, bound, eval, ctx.ply) }
+    if write && !ctx.abort { ctx.hash_table.push(hash, bm, d, bound, eval, ctx.ply) }
     eval
 }
 
