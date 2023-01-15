@@ -124,8 +124,8 @@ impl Position {
         }
 
         // rook mobility
-        // ingore friendly rooks and queens
-        // ignore enemy queens
+        // - ingore friendly rooks and queens
+        // - ignore enemy queens
         occ ^= rooks;
         pieces = rooks & boys;
         while pieces > 0 {
