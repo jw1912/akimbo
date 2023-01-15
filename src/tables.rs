@@ -1,4 +1,5 @@
-use super::consts::{KILLERS_PER_PLY, MATE, MAX_PLY};
+use std::cmp::max;
+use crate::{consts::{HISTORY, KILLERS, MATE, MAX_PLY}, from, to};
 
 /// The type of bound determined by the hash entry when it was searched.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -79,15 +80,27 @@ impl HashTable {
     }
 }
 
-pub struct KillerTable(pub [[u16; KILLERS_PER_PLY]; MAX_PLY as usize + 1]);
+pub struct KillerTable(pub [[u16; KILLERS]; MAX_PLY as usize + 1]);
 impl KillerTable {
     pub fn push(&mut self, m: u16, p: i16) {
         let ply: usize = p as usize - 1;
-        let new: u16 = if self.0[ply].contains(&m) {self.0[ply][KILLERS_PER_PLY - 1]} else {m};
-        (0..{KILLERS_PER_PLY - 1}).rev().for_each(|i: usize| self.0[ply][i + 1] = self.0[ply][i]);
+        let new: u16 = if self.0[ply].contains(&m) {self.0[ply][KILLERS - 1]} else {m};
+        (0..{KILLERS - 1}).rev().for_each(|i: usize| self.0[ply][i + 1] = self.0[ply][i]);
         self.0[ply][0] = new;
     }
 }
 
-#[derive(Clone, Copy, Default)]
-pub struct HistoryScore(pub u64, pub u64);
+#[derive(Clone, Copy)]
+pub struct HistoryTable(pub [[[u32; 64]; 64]; 2], pub u32);
+impl HistoryTable {
+    pub fn push(&mut self, m: u16, c: bool, d: i8) {
+        let entry: &mut u32 = &mut self.0[usize::from(c)][from!(m)][to!(m)];
+        *entry += (d as u32).pow(2);
+        self.1 = max(*entry, self.1);
+    }
+
+    pub fn get(&self, m: u16, c: bool) -> u16 {
+        let entry: u32 = self.0[usize::from(c)][from!(m)][to!(m)];
+        ((HISTORY * entry + self.1 - 1) / self.1) as u16
+    }
+}

@@ -25,7 +25,7 @@ pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -
 
 // Search & Eval
 pub const MAX_PLY: i16 = 96;
-pub const KILLERS_PER_PLY: usize = 3;
+pub const KILLERS: usize = 3;
 pub const MAX: i16 = 30000;
 pub const MATE: i16 = MAX - u8::MAX as i16;
 pub const SIDE: [i16; 2] = [1, -1];
@@ -45,6 +45,7 @@ pub const QT_IDX: [u8; 64] = init!(idx, 0, {
 pub const HASH_MOVE: u16 = 30000;
 pub const PROMOTION: u16 = 950;
 pub const KILLER: u16 = 900;
+pub const HISTORY: u32 = 800;
 pub const MVV_LVA: [[u16; 6]; 5] = [
     [1500, 1400, 1300, 1200, 1100, 1000],
     [2500, 2400, 2300, 2200, 2100, 2000],
