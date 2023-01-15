@@ -1,5 +1,5 @@
 use std::ops::{AddAssign, Mul};
-use super::{consts::*, position::{Position, bishop_attacks}};
+use super::{consts::*, position::{Position, bishop_attacks, rook_attacks}};
 
 macro_rules! count {($bb:expr) => {($bb).count_ones() as i16}}
 macro_rules! lsb {($x:expr) => {($x).trailing_zeros() as usize}}
@@ -23,31 +23,36 @@ impl Mul<i16> for S {
 }
 
 // eval values
-const MATERIAL: [S; 5] = [S(84, 145), S(321, 259), S(343, 272), S(424, 512), S(931, 920)];
+const MATERIAL: [S; 5] = [S(83, 145), S(316, 266), S(337, 280), S(432, 493), S(912, 942)];
 const PAWN_HT: [S; 24] = [
-    S( 82, 121), S( 99, 115), S( 94,  91), S(110,  74),
-    S(-31,  45), S(  3,  39), S( 24,  16), S( 40,   8),
-    S(-39, -15), S(-17, -22), S(-18, -35), S( -4, -47),
-    S(-40, -36), S(-22, -34), S(-16, -50), S( -8, -53),
-    S(-34, -42), S( -7, -41), S(-22, -48), S(-16, -46),
-    S(-41, -40), S(-13, -34), S(-23, -37), S(-30, -33),
+    S( 67, 126), S( 84, 119), S( 79,  94), S( 85,  78),
+    S(-28,  47), S( -3,  42), S( 17,  19), S( 36,  10),
+    S(-37, -14), S(-15, -22), S(-21, -33), S( -8, -45),
+    S(-36, -35), S(-19, -34), S(-15, -49), S( -9, -52),
+    S(-26, -43), S( -5, -41), S(-19, -47), S(-14, -45),
+    S(-32, -41), S(-11, -33), S(-22, -36), S(-29, -32),
 ];
 const KING_QT: [S; 16] = [
-    S(-63,  10), S(-30,  29), S(-29,  40), S(-36,  42),
-    S(-49,   8), S(-35,  23), S(-43,  31), S(-50,  38),
-    S( 21, -17), S( -5,   7), S(-35,  23), S(-48,  25),
-    S( 29, -53), S( 38, -25), S( -7,  -8), S( 13, -28),
+    S(-72,  13), S(-37,  31), S(-31,  41), S(-45,  45),
+    S(-51,  10), S(-40,  25), S(-48,  33), S(-49,  38),
+    S( 16, -16), S(-10,   8), S(-41,  24), S(-53,  26),
+    S( 28, -55), S( 42, -27), S( -3,  -7), S( 13, -22),
 ];
 const MOBILITY_KNIGHT: [S; 9] = [
-    S(-40, -79), S(-12, -59), S( -3, -33),
-    S(  4, -14), S( 15,  -3), S( 19,  13),
-    S( 24,  16), S( 27,  23), S( 39,  11),
+    S(-37, -87), S(-10, -58), S(  0, -33),
+    S(  6, -17), S( 14,  -6), S( 18,  11),
+    S( 23,  14), S( 25,  21), S( 39,  10),
 ];
 const MOBILITY_BISHOP: [S; 14] = [
-    S(-16, -81), S( -6, -55), S(  2, -29), S(  7, -12), S( 11,   0), S( 14,   9), S( 18,  17),
-    S( 19,  16), S( 21,  24), S( 25,  22), S( 35,  23), S( 44,  21), S( 38,  30), S( 46,  24),
+    S(-17, -72), S( -5, -55), S(  2, -33), S(  8, -18), S( 12,  -6), S( 15,   3), S( 18,  12),
+    S( 19,  13), S( 23,  20), S( 23,  20), S( 36,  19), S( 45,  19), S( 54,  24), S( 58,  19),
 ];
-const PAWN_SHIELD: S = S(20, -4);
+const MOBILITY_ROOK: [S; 15] = [
+    S(-35, -73), S(-21, -41), S(-18, -23), S(-13, -17), S(-13,  -7),
+    S(-10,   4), S( -6,  10), S(  1,  11), S(  7,  17), S( 18,  16),
+    S( 21,  19), S( 24,  23), S( 32,  22), S( 42,  19), S( 27,  25),
+];
+const PAWN_SHIELD: S = S(19, -5);
 
 impl Position {
     pub fn eval(&self) -> i16 {
@@ -97,6 +102,7 @@ impl Position {
         let boys: u64 = self.sides[c];
         let opps: u64 = self.sides[c ^ 1];
         let safe: u64 = !boys & !opp_att;
+        let rooks: u64 = self.pieces[ROOK];
 
         // knight mobility
         pieces = self.pieces[KNIGHT] & boys;
@@ -109,12 +115,23 @@ impl Position {
         // bishop mobility
         // - ignore friendly queens
         // - ignore enemy queens and rooks
-        let occ: u64 = (boys | opps) ^ (self.pieces[KING] & opps) ^ self.pieces[QUEEN] ^ (self.pieces[ROOK] & opps);
+        let mut occ: u64 = (boys | opps) ^ (self.pieces[KING] & opps) ^ self.pieces[QUEEN] ^ (rooks & opps);
         pieces = self.pieces[BISHOP] & boys;
         while pieces > 0 {
             pull_lsb!(from, pieces);
             attacks = bishop_attacks(from, occ);
             score += MOBILITY_BISHOP[count!(attacks & safe) as usize];
+        }
+
+        // rook mobility
+        // ingore friendly rooks and queens
+        // ignore enemy queens
+        occ ^= rooks;
+        pieces = rooks & boys;
+        while pieces > 0 {
+            pull_lsb!(from, pieces);
+            attacks = rook_attacks(from, occ);
+            score += MOBILITY_ROOK[count!(attacks & safe) as usize];
         }
 
         score * SIDE[c]
