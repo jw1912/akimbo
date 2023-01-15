@@ -84,7 +84,7 @@ impl Position {
         || (bishop_attacks(idx, occ) & (self.pieces[BISHOP] & s | q) > 0)
     }
 
-    pub fn is_in_check(&self) -> bool {
+    pub fn in_check(&self) -> bool {
         let king_idx: usize = lsb!(self.pieces[KING] & self.sides[usize::from(self.c)]) as usize;
         self.is_square_attacked(king_idx, usize::from(self.c), self.sides[0] | self.sides[1])
     }

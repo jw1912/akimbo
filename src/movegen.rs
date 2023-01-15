@@ -50,7 +50,7 @@ impl Position {
         let pawns: u64 = self.pieces[PAWN] & self.sides[side];
         if QUIETS {
             if self.c {pawn_pushes::<BLACK>(move_list, occ, pawns)} else {pawn_pushes::<WHITE>(move_list, occ, pawns)}
-            if self.state.castle_rights & CS[side] > 0 && !self.is_in_check() {self.castles(move_list, occ)}
+            if self.state.castle_rights & CS[side] > 0 && !self.in_check() {self.castles(move_list, occ)}
         }
         pawn_captures(move_list, pawns, opps, side);
         if self.state.en_passant_sq > 0 {en_passants(move_list, pawns, self.state.en_passant_sq, side)}
