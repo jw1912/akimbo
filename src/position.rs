@@ -26,7 +26,7 @@ pub struct Position {
 
 #[derive(Clone, Copy, Default)]
 pub struct State {
-    pub zobrist: u64,
+    pub hash: u64,
     pub en_passant_sq: u16,
     pub halfmove_clock: u8,
     pub castle_rights: u8,
@@ -120,16 +120,16 @@ impl Position {
 
         self.stack.push(MoveContext { state: self.state, m, moved_pc, captured_pc});
         self.toggle(side, mpc, f ^ t);
-        self.state.zobrist ^= ZVALS.pieces[side][mpc][from] ^ ZVALS.pieces[side][mpc][to];
+        self.state.hash ^= ZVALS.pieces[side][mpc][from] ^ ZVALS.pieces[side][mpc][to];
         self.squares[from] = EMPTY as u8;
         self.squares[to] = moved_pc;
-        if self.state.en_passant_sq > 0 {self.state.zobrist ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
+        if self.state.en_passant_sq > 0 {self.state.hash ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
         self.state.en_passant_sq = 0;
-        self.state.zobrist ^= ZVALS.side;
+        self.state.hash ^= ZVALS.side;
         if captured_pc != EMPTY as u8 && flag != KS && flag != QS {
             let cpc: usize = captured_pc as usize;
             self.toggle(side ^ 1, cpc, t);
-            self.state.zobrist ^= ZVALS.pieces[side ^ 1][cpc][to];
+            self.state.hash ^= ZVALS.pieces[side ^ 1][cpc][to];
             self.phase -= PHASE_VALS[cpc];
             self.material[cpc] += SIDE[side];
         }
@@ -139,13 +139,13 @@ impl Position {
                 let pwn: usize = if side == BLACK {to + 8} else {to - 8};
                 let p: u64 = bit!(pwn);
                 self.toggle(side ^ 1, PAWN, p);
-                self.state.zobrist ^= ZVALS.pieces[side ^ 1][PAWN][pwn];
+                self.state.hash ^= ZVALS.pieces[side ^ 1][PAWN][pwn];
                 self.squares[pwn] = EMPTY as u8;
                 self.material[PAWN] += SIDE[side];
             }
             DBL => {
                 self.state.en_passant_sq = if side == WHITE {to - 8} else {to + 8} as u16;
-                self.state.zobrist ^= ZVALS.en_passant[to & 7];
+                self.state.hash ^= ZVALS.en_passant[to & 7];
             }
             KS | QS => {
                 let i: usize = usize::from(flag == KS);
@@ -154,7 +154,7 @@ impl Position {
                 self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
                 self.squares[sq] = if to == sq {KING as u8} else {EMPTY as u8};
                 self.squares[idx] = ROOK as u8;
-                self.state.zobrist ^= ZVALS.pieces[side][ROOK][sq] ^ ZVALS.pieces[side][ROOK][idx];
+                self.state.hash ^= ZVALS.pieces[side][ROOK][sq] ^ ZVALS.pieces[side][ROOK][idx];
             }
             PR.. => {
                 let ppc: usize = (((flag >> 12) & 3) + 1) as usize;
@@ -162,7 +162,7 @@ impl Position {
                 self.pieces[ppc] ^= t;
                 self.squares[to] = ppc as u8;
                 self.phase += PHASE_VALS[ppc];
-                self.state.zobrist ^= ZVALS.pieces[side][mpc][to] ^ ZVALS.pieces[side][ppc][to];
+                self.state.hash ^= ZVALS.pieces[side][mpc][to] ^ ZVALS.pieces[side][ppc][to];
                 self.material[PAWN] -= SIDE[side];
                 self.material[ppc] += SIDE[side];
             }
@@ -173,7 +173,7 @@ impl Position {
 
         let mut changed_castle: u8 = rights & !self.state.castle_rights;
         while changed_castle > 0 {
-            self.state.zobrist ^= ZVALS.castle[lsb!(changed_castle) as usize];
+            self.state.hash ^= ZVALS.castle[lsb!(changed_castle) as usize];
             pop!(changed_castle);
         }
     }
@@ -229,17 +229,17 @@ impl Position {
         self.nulls += 1;
         *ply += 1;
         let enp: u16 = self.state.en_passant_sq;
-        self.state.zobrist ^= u64::from(enp > 0) * ZVALS.en_passant[(enp & 7) as usize];
+        self.state.hash ^= u64::from(enp > 0) * ZVALS.en_passant[(enp & 7) as usize];
         self.state.en_passant_sq = 0;
         self.c = !self.c;
-        self.state.zobrist ^= ZVALS.side;
+        self.state.hash ^= ZVALS.side;
         enp
     }
 
     pub fn undo_null(&mut self, enp: u16, hash: u64, ply: &mut i16) {
         self.nulls -= 1;
         *ply -= 1;
-        self.state.zobrist = hash;
+        self.state.hash = hash;
         self.state.en_passant_sq = enp;
         self.c = !self.c;
     }
@@ -251,7 +251,7 @@ impl Position {
         let from: usize = l.saturating_sub(self.state.halfmove_clock as usize);
         let mut repetitions_count: u8 = 1;
         for i in (from..to).rev().step_by(2) {
-            if self.stack[i].state.zobrist == self.state.zobrist {
+            if self.stack[i].state.hash == self.state.hash {
                 repetitions_count += 1;
                 if repetitions_count >= num { return true }
             }

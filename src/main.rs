@@ -218,7 +218,7 @@ fn parse_fen(s: &str) -> Result<Position, Message> {
                 pos.squares[idx] = pc as u8;
                 pos.phase += PHASE_VALS[pc];
                 pos.material[pc] += SIDE[side];
-                pos.state.zobrist ^= ZVALS.pieces[side][pc][idx];
+                pos.state.hash ^= ZVALS.pieces[side][pc][idx];
                 idx -= usize::from(idx > 0);
             }
         }
@@ -261,7 +261,7 @@ fn parse_fen(s: &str) -> Result<Position, Message> {
     }
     pos.state.castle_rights = rights;
     while rights > 0 {
-        pos.state.zobrist ^= ZVALS.castle[lsb!(rights) as usize];
+        pos.state.hash ^= ZVALS.castle[lsb!(rights) as usize];
         rights &= rights - 1;
     }
     pos.castle_mask[pos.castle[0] as usize] = 7;
@@ -276,7 +276,7 @@ fn parse_fen(s: &str) -> Result<Position, Message> {
     pos.state.en_passant_sq = enp;
     pos.state.halfmove_clock = parse!(u8, vec.get(4).unwrap_or(&"0"));
     pos.c = *vec.get(1).ok_or("no side to move provided")? == "b";
-    if enp > 0 {pos.state.zobrist ^= ZVALS.en_passant[(enp & 7) as usize]}
-    if !pos.c {pos.state.zobrist ^= ZVALS.side;}
+    if enp > 0 {pos.state.hash ^= ZVALS.en_passant[(enp & 7) as usize]}
+    if !pos.c {pos.state.hash ^= ZVALS.side;}
     Ok(pos)
 }

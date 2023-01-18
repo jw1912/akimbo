@@ -56,17 +56,11 @@ impl Position {
         for i in 0..moves.len {
             scores.push({
                 let m: u16 = moves.list[i];
-                if m == hash_move {
-                    HASH_MOVE
-                } else if m & 0b0100_0000_0000_0000 > 0 {
-                    self.mvv_lva(m)
-                } else if m & 0b1000_0000_0000_0000 > 0 {
-                    PROMOTION
-                } else if killers.contains(&m) {
-                    KILLER
-                } else {
-                    ctx.history_table.get(m, self.c)
-                }
+                if m == hash_move {HASH_MOVE}
+                else if m & 0b0100_0000_0000_0000 > 0 {self.mvv_lva(m)}
+                else if m & 0b1000_0000_0000_0000 > 0 {PROMOTION}
+                else if killers.contains(&m) {KILLER}
+                else {ctx.history_table.get(m, self.c)}
             })
         }
         scores
@@ -126,7 +120,7 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
     }
 
     // probing hash table
-    let hash: u64 = pos.state.zobrist;
+    let hash: u64 = pos.state.hash;
     let mut bm: u16 = 0;
     let mut write: bool = true;
     if let Some(res) = ctx.hash_table.probe(hash, ctx.ply) {
@@ -233,12 +227,12 @@ pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut Ctx) {
     let mut best_move: u16 = 0;
     let in_check: bool = pos.in_check();
     for d in 1..=allocated_depth {
-        let mut pv_line: Vec<u16> = Vec::new();
+        let mut pv_line: Vec<u16> = Vec::with_capacity(d as usize);
         let score: i16 = pvs(pos, -MAX, MAX, d, ctx, Nt(in_check, false), &mut pv_line);
-        if ctx.abort { break }
+        if ctx.abort {break}
         best_move = pv_line[0];
         let (stype, sval): (&str, i16) = if score.abs() >= MATE {
-            ("mate", if score < 0 { score.abs() - MAX } else { MAX - score + 1 } / 2)
+            ("mate", if score < 0 {score.abs() - MAX} else {MAX - score + 1} / 2)
         } else {("cp", score)};
         let t: u128 = ctx.timer();
         let nodes: u64 = ctx.nodes + ctx.qnodes;
