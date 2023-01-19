@@ -65,8 +65,8 @@ impl Position {
         (PAWN..=QUEEN).for_each(|i: usize| score += MATERIAL[i] * self.material[i]);
 
         // king
-        score += KING_QT[QT_IDX[lsb!(self.pieces[KING] & self.sides[WHITE])] as usize] * -1;
-        score += KING_QT[QT_IDX[lsb!(self.pieces[KING] & self.sides[BLACK])] as usize];
+        score += KING_QT[QT_IDX[lsb!(self.pieces[KING] & self.sides[WHITE])] as usize];
+        score += KING_QT[QT_IDX[lsb!(self.pieces[KING] & self.sides[BLACK])] as usize] * -1;
 
         // pawns
         let mut p: u64;
