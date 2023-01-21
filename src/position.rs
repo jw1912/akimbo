@@ -259,12 +259,11 @@ impl Position {
         false
     }
 
-    fn material_draw(&self) -> bool {
-        let pawns: u64 = self.pieces[PAWN];
-        if pawns == 0 && self.phase <= 2 {
+    pub fn material_draw(&self) -> bool {
+        if self.phase <= 2 && self.pieces[PAWN] == 0 {
             if self.phase == 2 {
                 let b: u64 = self.pieces[BISHOP];
-                return b & self.sides[0] != b && b & self.sides[1] != b && (b & 0x55AA_55AA_55AA_55AA == b || b & 0xAA55_AA55_AA55_AA55 == b)
+                return b & self.sides[0] != b && b & self.sides[1] != b && (b & LSQ == b || b & DSQ == b)
             }
             return true
         }

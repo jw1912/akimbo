@@ -1,7 +1,7 @@
 use std::ops::{AddAssign, Mul};
 use super::{consts::*, position::{Position, bishop_attacks, rook_attacks}};
 
-macro_rules! count {($bb:expr) => {($bb).count_ones() as i16}}
+macro_rules! count {($bb:expr) => {($bb).count_ones() as usize}}
 macro_rules! lsb {($x:expr) => {($x).trailing_zeros() as usize}}
 macro_rules! pull_lsb {($idx:expr, $x:expr) => {$idx = lsb!($x); $x &= $x - 1}}
 
@@ -55,6 +55,10 @@ static MOBILITY_ROOK: [S; 15] = [
 
 impl Position {
     pub fn eval(&self) -> i16 {
+        // draws: KvK, KvKB, KvKN
+        if self.material_draw() {return 0}
+
+        // otherwise
         let mut score: S = S(0, 0);
         let wp: u64 = self.pieces[PAWN] & self.sides[WHITE];
         let bp: u64 = self.pieces[PAWN] & self.sides[BLACK];
@@ -105,7 +109,7 @@ impl Position {
         while pieces > 0 {
             pull_lsb!(from, pieces);
             attacks = KNIGHT_ATTACKS[from];
-            score += MOBILITY_KNIGHT[count!(attacks & safe) as usize];
+            score += MOBILITY_KNIGHT[count!(attacks & safe)];
         }
 
         // bishop mobility
@@ -116,7 +120,7 @@ impl Position {
         while pieces > 0 {
             pull_lsb!(from, pieces);
             attacks = bishop_attacks(from, occ);
-            score += MOBILITY_BISHOP[count!(attacks & safe) as usize];
+            score += MOBILITY_BISHOP[count!(attacks & safe)];
         }
 
         // rook mobility
@@ -127,7 +131,7 @@ impl Position {
         while pieces > 0 {
             pull_lsb!(from, pieces);
             attacks = rook_attacks(from, occ);
-            score += MOBILITY_ROOK[count!(attacks & safe) as usize];
+            score += MOBILITY_ROOK[count!(attacks & safe)];
         }
 
         score
