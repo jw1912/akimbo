@@ -1,4 +1,4 @@
-use std::ops::{AddAssign, Mul};
+use std::{cmp::min, ops::{AddAssign, Mul}};
 use super::{consts::*, position::{Position, bishop_attacks, rook_attacks}};
 
 macro_rules! count {($bb:expr) => {($bb).count_ones() as usize}}
@@ -58,8 +58,9 @@ impl Position {
         // draws: KvK, KvKB, KvKN
         if self.material_draw() {return 0}
 
-        // otherwise
         let mut score: S = S(0, 0);
+
+        // pawn bitboards
         let wp: u64 = self.pieces[PAWN] & self.sides[WHITE];
         let bp: u64 = self.pieces[PAWN] & self.sides[BLACK];
         let wp_att: u64 = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
@@ -68,11 +69,11 @@ impl Position {
         // material scores
         (PAWN..=QUEEN).for_each(|i: usize| score += MATERIAL[i] * self.material[i]);
 
-        // king
+        // king quarter table
         score += KING_QT[QT_IDX[lsb!(self.pieces[KING] & self.sides[WHITE])] as usize];
         score += KING_QT[QT_IDX[lsb!(self.pieces[KING] & self.sides[BLACK])] as usize] * -1;
 
-        // pawns
+        // pawn half table
         let mut p: u64;
         p = wp; // white pst bonuses
         while p > 0 {
@@ -85,13 +86,15 @@ impl Position {
             p &= p - 1;
         }
 
-        // mobility
+        // knight, bishop and rook mobility
         score += self.mobility(WHITE, bp_att);
         score += self.mobility(BLACK, wp_att) * -1;
 
         // taper eval
-        let phase: i32 = std::cmp::min(self.phase as i32, TPHASE);
-        SIDE[usize::from(self.c)] * ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16
+        let phase: i32 = min(self.phase as i32, TPHASE);
+        let mut score: i16 = ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16;
+        if self.drawish() {score /= 16}
+        SIDE[usize::from(self.c)] * score
     }
 
     fn mobility(&self, c: usize, opp_att: u64) -> S {
@@ -135,5 +138,19 @@ impl Position {
         }
 
         score
+    }
+
+    fn drawish(&self) -> bool {
+        if self.pieces[PAWN] == 0 {
+            let pieces: usize = count!(self.sides[WHITE] | self.sides[BLACK]);
+            let mat: [i16; 6] = self.material;
+            return match pieces {
+                4 => [[0, 0, 0, 0, 0, 0], [0, -1, 1, 0, 0, 0], [0, 1, -1, 0, 0, 0]].contains(&mat),
+                5 => mat[QUEEN].abs() == 1 && mat[KNIGHT..=ROOK].contains(&(-2 * mat[QUEEN])),
+                6 => count!(self.pieces[ROOK]) == 3 && mat[ROOK].abs() == 1 && mat[KNIGHT..=BISHOP].contains(&(-mat[ROOK])),
+                _ => false,
+            }
+        }
+        false
     }
 }
