@@ -92,8 +92,7 @@ impl Position {
 
         // taper eval
         let phase: i32 = min(self.phase as i32, TPHASE);
-        let mut score: i16 = ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16;
-        if self.drawish() {score /= 16}
+        let score: i16 = ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16;
         SIDE[usize::from(self.c)] * score
     }
 
@@ -138,19 +137,5 @@ impl Position {
         }
 
         score
-    }
-
-    fn drawish(&self) -> bool {
-        if self.pieces[PAWN] == 0 {
-            let pieces: usize = count!(self.sides[WHITE] | self.sides[BLACK]);
-            let mat: [i16; 6] = self.material;
-            return match pieces {
-                4 => [[0, 0, 0, 0, 0, 0], [0, -1, 1, 0, 0, 0], [0, 1, -1, 0, 0, 0]].contains(&mat),
-                5 => mat[QUEEN].abs() == 1 && mat[KNIGHT..=ROOK].contains(&(-2 * mat[QUEEN])),
-                6 => count!(self.pieces[ROOK]) == 3 && mat[ROOK].abs() == 1 && mat[KNIGHT..=BISHOP].contains(&(-mat[ROOK])),
-                _ => false,
-            }
-        }
-        false
     }
 }
