@@ -26,11 +26,11 @@ impl MoveList {
 
 #[inline(always)]
 fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16) {
-    let f: u16 = from << 6;
-    let mut aidx: u16;
+    let fr: u16 = from << 6;
+    let mut to: u16;
     while attacks > 0 {
-        pop_lsb!(aidx, attacks);
-        move_list.push(flag | f | aidx);
+        pop_lsb!(to, attacks);
+        move_list.push(flag | fr | to);
     }
 }
 

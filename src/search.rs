@@ -210,9 +210,11 @@ fn qs(p: &mut Position, mut a: i16, b: i16, qn: &mut u64) -> i16 {
     let mut e: i16 = p.eval();
     if e >= b {return e}
     a = max(a, e);
+    let ma: i16 = e + 100;
     let mut caps: MoveList = p.gen::<CAPTURES>();
     let mut scores: MoveList = p.score_caps(&caps);
-    while let Some((m, _)) = caps.pick(&mut scores) {
+    while let Some((m, ms)) = caps.pick(&mut scores) {
+        if ms as i16 / 10 + ma <= a {break}
         if p.r#do(m) {continue}
         e = max(e, -qs(p, -b, -a, qn));
         p.undo();
