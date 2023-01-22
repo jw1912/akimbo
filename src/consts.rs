@@ -44,17 +44,10 @@ pub const QT_IDX: [u8; 64] = init!(idx, 0, {
 });
 
 // Move Ordering
-pub const HASH_MOVE: u16 = 30000;
-pub const PROMOTION: u16 = 950;
-pub const KILLER: u16 = 900;
+pub const HASH_MOVE: i16 = 30000;
+pub const PROMOTION: i16 = 950;
+pub const KILLER: i16 = 900;
 pub const HISTORY: u32 = 800;
-pub const MVV_LVA: [[u16; 6]; 5] = [
-    [1500, 1400, 1300, 1200, 1100, 1000],
-    [3500, 3400, 3300, 3200, 3100, 3000],
-    [4100, 4000, 3900, 3800, 3700, 3600],
-    [5500, 5400, 5300, 5200, 5100, 5000],
-    [9500, 9400, 9300, 9200, 9100, 9000],
-];
 
 // Position
 pub const WHITE: usize = 0;

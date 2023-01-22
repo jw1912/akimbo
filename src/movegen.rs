@@ -5,20 +5,22 @@ use super::{consts::*, position::{Position, bishop_attacks, rook_attacks}};
 macro_rules! lsb {($x:expr) => {$x.trailing_zeros() as u16}}
 macro_rules! pop_lsb {($idx:expr, $x:expr) => {$idx = lsb!($x); $x &= $x - 1}}
 
-pub struct MoveList {
-    pub list: [u16; 252],
+pub type MoveList = List<u16>;
+pub type ScoreList = List<i16>;
+pub struct List<T> {
+    pub list: [T; 252],
     pub len: usize,
 }
 
-impl Default for MoveList {
+impl<T: Default> Default for List<T> {
     fn default() -> Self {
         Self { list: unsafe {#[allow(clippy::uninit_assumed_init, invalid_value)] MaybeUninit::uninit().assume_init()}, len: 0 }
     }
 }
 
-impl MoveList {
+impl<T> List<T> {
     #[inline(always)]
-    pub fn push(&mut self, m: u16) {
+    pub fn push(&mut self, m: T) {
         self.list[self.len] = m;
         self.len += 1;
     }

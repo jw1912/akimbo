@@ -1,4 +1,4 @@
-use super::{consts::*, position::Position, tables::{Bound, HashTable, HistoryTable, KillerTable}, movegen::MoveList, u16_to_uci, from, to};
+use super::{consts::*, position::Position, tables::{Bound, ExchangeTable, HashTable, HistoryTable, KillerTable}, movegen::{MoveList, ScoreList}, u16_to_uci, from, to};
 use std::{cmp::{min, max}, time::Instant};
 
 /// Determines what is done in the node
@@ -9,6 +9,7 @@ pub struct Ctx {
     pub hash_table: HashTable,
     killer_table: KillerTable,
     history_table: HistoryTable,
+    see_table: Box<ExchangeTable>,
     pub alloc_time: u128,
     time: Instant,
     nodes: u64,
@@ -22,6 +23,7 @@ impl Ctx {
     pub fn new() -> Self {
         Self {
             hash_table: HashTable::new(),
+            see_table: Box::new(ExchangeTable::new()),
             killer_table: KillerTable([[0; KILLERS]; MAX_PLY as usize + 1]),
             history_table: HistoryTable([[[0; 64]; 64]; 2], 1),
             time: Instant::now(), alloc_time: 1000, nodes: 0, qnodes: 0, ply: 0, seldepth: 0, abort: false
@@ -36,6 +38,7 @@ impl Ctx {
         self.seldepth = 0;
         self.abort = false;
         self.killer_table = KillerTable([[0; KILLERS]; MAX_PLY as usize + 1]);
+        self.history_table = HistoryTable([[[0; 64]; 64]; 2], 1);
     }
 
     fn timer(&self) -> u128 {
@@ -44,20 +47,14 @@ impl Ctx {
 }
 
 impl Position {
-    fn mvv_lva(&self, m: u16) -> u16 {
-        let mpc: usize = self.squares[from!(m)] as usize;
-        let cpc: usize = self.squares[to!(m)] as usize;
-        MVV_LVA[cpc * usize::from(cpc != 6)][mpc]
-    }
-
-    fn score(&self, moves: &MoveList, hash_move: u16, ctx: &Ctx) -> MoveList {
-        let mut scores: MoveList = MoveList::default();
+    fn score(&self, moves: &MoveList, hash_move: u16, ctx: &Ctx) -> ScoreList {
+        let mut scores: ScoreList = ScoreList::default();
         let killers: [u16; KILLERS] = ctx.killer_table.0[ctx.ply as usize];
         for i in 0..moves.len {
             scores.push({
                 let m: u16 = moves.list[i];
                 if m == hash_move {HASH_MOVE}
-                else if m & 0b0100_0000_0000_0000 > 0 {self.mvv_lva(m)}
+                else if m & 0b0100_0000_0000_0000 > 0 {self.see(m, ctx)}
                 else if m & 0b1000_0000_0000_0000 > 0 {PROMOTION}
                 else if killers.contains(&m) {KILLER}
                 else {ctx.history_table.get(m, self.c)}
@@ -66,20 +63,39 @@ impl Position {
         scores
     }
 
-    fn score_caps(&self, caps: &MoveList) -> MoveList {
-        let mut scores: MoveList = MoveList::default();
-        for i in 0..caps.len { scores.push(self.mvv_lva(caps.list[i])) }
+    fn score_caps(&self, caps: &MoveList, ctx: &Ctx) -> ScoreList {
+        let mut scores: ScoreList = ScoreList::default();
+        for i in 0..caps.len {scores.push(self.see(caps.list[i], ctx))}
         scores
+    }
+
+    fn see(&self, m: u16, ctx: &Ctx) -> i16 {
+        let to: usize = to!(m);
+        let attacker: usize = self.squares[from!(m)] as usize;
+        let mut target: usize = self.squares[to] as usize;
+        if target == EMPTY {target = PAWN} // en passant
+        let all_attackers: u64 = self.get_attackers(to);
+        let attackers: usize = self.encode_attackers(all_attackers & self.sides[usize::from(self.c)]);
+        let defenders: usize = self.encode_attackers(all_attackers & self.sides[usize::from(!self.c)]);
+        ctx.see_table.get(attacker, target, attackers, defenders)
+    }
+
+    fn encode_attackers(&self, attackers: u64) -> usize {
+        usize::from(attackers & self.pieces[PAWN] > 0)
+        | match (attackers & (self.pieces[KNIGHT] | self.pieces[BISHOP])).count_ones() {0 => 0, 1 => 0b10, 2 => 0b110, _ => 0b1110}
+        | match (attackers & self.pieces[ROOK]).count_ones() {0 => 0, 1 => 0b10000, _ => 0b110000}
+        | match (attackers & self.pieces[QUEEN]).count_ones() {0 => 0, _ => 0b1000000}
+        | match (attackers & self.pieces[KING]).count_ones() {0 => 0, _ => 0b10000000}
     }
 }
 
 impl MoveList {
     // O(n^2) algorithm to incrementally sort the move list as needed.
-    fn pick(&mut self, scores: &mut MoveList) -> Option<(u16, u16)> {
+    fn pick(&mut self, scores: &mut ScoreList) -> Option<(u16, i16)> {
         if scores.len == 0 {return None}
         let mut idx: usize = 0;
-        let mut best: u16 = 0;
-        let mut score: u16;
+        let mut best: i16 = 0;
+        let mut score: i16;
         for i in 0..scores.len {
             score = scores.list[i];
             if score > best {
@@ -116,7 +132,7 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
 
     if d <= 0 || ctx.ply == MAX_PLY {
         ctx.seldepth = max(ctx.seldepth, ctx.ply);
-        return qs(pos, a, b, &mut ctx.qnodes)
+        return qs(pos, a, b, ctx)
     }
 
     // probing hash table
@@ -155,7 +171,7 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
     ctx.ply += 1;
     let lmr: bool = d > 2 && ctx.ply > 1 && !in_check;
     let mut moves: MoveList = pos.gen::<ALL>();
-    let mut scores: MoveList = pos.score(&moves, bm, ctx);
+    let mut scores: ScoreList = pos.score(&moves, bm, ctx);
     let (mut legal, mut eval, mut bound): (u16, i16, Bound) = (0, -MAX, Bound::Upper);
     let (mut check, mut r, mut s, mut zw): (bool, i8, i16, i16);
     let mut sline: Vec<u16> = Vec::new();
@@ -205,18 +221,17 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
     eval
 }
 
-fn qs(p: &mut Position, mut a: i16, b: i16, qn: &mut u64) -> i16 {
-    *qn += 1;
+fn qs(p: &mut Position, mut a: i16, b: i16, ctx: &mut Ctx) -> i16 {
+    ctx.qnodes += 1;
     let mut e: i16 = p.eval();
     if e >= b {return e}
     a = max(a, e);
-    let ma: i16 = e + 100;
     let mut caps: MoveList = p.gen::<CAPTURES>();
-    let mut scores: MoveList = p.score_caps(&caps);
-    while let Some((m, ms)) = caps.pick(&mut scores) {
-        if ms as i16 / 10 + ma <= a {break}
+    let mut scores: ScoreList = p.score_caps(&caps, ctx);
+    while let Some((m, _)) = caps.pick(&mut scores) {
+        //if ms <= 0 {break}
         if p.r#do(m) {continue}
-        e = max(e, -qs(p, -b, -a, qn));
+        e = max(e, -qs(p, -b, -a, ctx));
         p.undo();
         if e >= b {break}
         a = max(a, e);

@@ -273,4 +273,16 @@ impl Position {
     pub fn is_draw(&self, ply: i16) -> bool {
         self.state.halfmove_clock >= 100 || self.repetition_draw(2 + u8::from(ply == 0)) || self.material_draw()
     }
+
+    pub fn get_attackers(&self, sq: usize) -> u64 {
+        let occ: u64 = self.sides[WHITE] | self.sides[BLACK];
+        let qr: u64 = self.pieces[QUEEN] | self.pieces[ROOK];
+        let qb: u64 = self.pieces[QUEEN] | self.pieces[BISHOP];
+          (rook_attacks(sq, occ ^ qr) & qr)
+        | (bishop_attacks(sq, occ ^ qb) & qb)
+        | (KNIGHT_ATTACKS[sq] & self.pieces[KNIGHT])
+        | (KING_ATTACKS[sq] & self.pieces[KING])
+        | (PAWN_ATTACKS[WHITE][sq] & self.pieces[PAWN] & self.sides[BLACK])
+        | (PAWN_ATTACKS[BLACK][sq] & self.pieces[PAWN] & self.sides[WHITE])
+    }
 }

@@ -1,5 +1,5 @@
 use std::cmp::max;
-use crate::{consts::{HISTORY, KILLERS, MATE, MAX_PLY}, from, to};
+use crate::{consts::*, from, to, lsb};
 
 /// The type of bound determined by the hash entry when it was searched.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -99,8 +99,35 @@ impl HistoryTable {
         self.1 = max(*entry, self.1);
     }
 
-    pub fn get(&self, m: u16, c: bool) -> u16 {
+    pub fn get(&self, m: u16, c: bool) -> i16 {
         let entry: u32 = self.0[usize::from(c)][from!(m)][to!(m)];
-        ((HISTORY * entry + self.1 - 1) / self.1) as u16
+        ((HISTORY * entry + self.1 - 1) / self.1) as i16
     }
+}
+
+const SEE_IDX: [usize; 6] = [0, 1, 1, 4, 6, 7];
+const SEE_VAL: [i16; 8] = [1000, 3000, 3000, 3000, 5000, 5000, 9000, 20000];
+pub struct ExchangeTable([[[i16; 256]; 256]; 6]);
+impl ExchangeTable {
+    pub fn new() -> Self {
+        let mut ret = ExchangeTable([[[0; 256]; 256]; 6]);
+        for pc in 0..6 {
+            for attackers in 0..256 {
+                for defenders in 0..256 {
+                    ret.0[pc][attackers][defenders] = see_eval(lsb!(attackers) as usize, SEE_IDX[pc], attackers, defenders);
+                }
+            }
+        }
+        ret
+    }
+
+    pub fn get(&self, attacker: usize, target: usize, attackers: usize, defenders: usize) -> i16 {
+        SEE_VAL[SEE_IDX[target]] - self.0[attacker][defenders][attackers & !(1 << SEE_IDX[attacker])] - attacker as i16
+    }
+}
+
+fn see_eval(att_pc: usize, target_pc: usize, attackers: usize, defenders: usize) -> i16 {
+    if attackers == 0 {return 0}
+    let new_pc: usize = if defenders == 0 {0} else {lsb!(defenders) as usize};
+    max(0, SEE_VAL[target_pc] - see_eval(new_pc, att_pc, defenders, attackers & !(1 << att_pc)))
 }
