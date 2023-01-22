@@ -94,7 +94,7 @@ impl MoveList {
     fn pick(&mut self, scores: &mut ScoreList) -> Option<(u16, i16)> {
         if scores.len == 0 {return None}
         let mut idx: usize = 0;
-        let mut best: i16 = 0;
+        let mut best: i16 = -MAX;
         let mut score: i16;
         for i in 0..scores.len {
             score = scores.list[i];
