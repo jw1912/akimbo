@@ -111,10 +111,10 @@ pub struct ExchangeTable([[[i16; 256]; 256]; 6]);
 impl ExchangeTable {
     pub fn new() -> Self {
         let mut ret = ExchangeTable([[[0; 256]; 256]; 6]);
-        for pc in 0..6 {
-            for attackers in 0..256 {
-                for defenders in 0..256 {
-                    ret.0[pc][attackers][defenders] = see_eval(lsb!(attackers) as usize, SEE_IDX[pc], attackers, defenders);
+        for (i, pc) in ret.0.iter_mut().enumerate() {
+            for (j, attackers) in pc.iter_mut().enumerate() {
+                for (k, slot) in attackers.iter_mut().enumerate() {
+                    *slot = see_eval(lsb!(j) as usize, SEE_IDX[i], j, k);
                 }
             }
         }
