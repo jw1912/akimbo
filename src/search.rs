@@ -1,4 +1,4 @@
-use super::{consts::*, position::Position, tables::{Bound, ExchangeTable, HashTable, HistoryTable, KillerTable}, movegen::{MoveList, ScoreList}, u16_to_uci, from, to};
+use super::{consts::*, position::{Position, bishop_attacks, rook_attacks}, tables::*, movegen::{MoveList, ScoreList}, u16_to_uci, from, to};
 use std::{cmp::{min, max}, time::Instant};
 
 /// Determines what is done in the node
@@ -46,6 +46,7 @@ impl Ctx {
     }
 }
 
+// move scoring
 impl Position {
     fn score(&self, moves: &MoveList, hash_move: u16, ctx: &Ctx) -> ScoreList {
         let mut scores: ScoreList = ScoreList::default();
@@ -67,6 +68,18 @@ impl Position {
         let mut scores: ScoreList = ScoreList::default();
         for i in 0..caps.len {scores.push(self.see(caps.list[i], ctx))}
         scores
+    }
+
+    fn get_attackers(&self, sq: usize) -> u64 {
+        let occ: u64 = self.sides[WHITE] | self.sides[BLACK];
+        let qr: u64 = self.pieces[QUEEN] | self.pieces[ROOK];
+        let qb: u64 = self.pieces[QUEEN] | self.pieces[BISHOP];
+          (rook_attacks(sq, occ ^ qr) & qr)
+        | (bishop_attacks(sq, occ ^ qb) & qb)
+        | (KNIGHT_ATTACKS[sq] & self.pieces[KNIGHT])
+        | (KING_ATTACKS[sq] & self.pieces[KING])
+        | (PAWN_ATTACKS[WHITE][sq] & self.pieces[PAWN] & self.sides[BLACK])
+        | (PAWN_ATTACKS[BLACK][sq] & self.pieces[PAWN] & self.sides[WHITE])
     }
 
     fn see(&self, m: u16, ctx: &Ctx) -> i16 {
