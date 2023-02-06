@@ -22,7 +22,7 @@ pub struct HashTable {
 impl HashTable {
     /// Instantiates a new hash table with size 1mb.
     pub fn new() -> Self {
-        let mut ret: Self = Self { table: Vec::new(), num_buckets: 0 };
+        let mut ret = Self { table: Vec::new(), num_buckets: 0 };
         ret.resize(1);
         ret
     }
@@ -44,11 +44,11 @@ impl HashTable {
     /// 2. Fill empty entries in bucket.
     /// 3. Replace lowest depth entry in bucket.
     pub fn push(&mut self, zobrist: u64, best_move: u16, depth: i8, bound: Bound, mut score: i16, ply: i16) {
-        let key: u16 = (zobrist >> 48) as u16;
-        let idx: usize = (zobrist as usize) & (self.num_buckets- 1);
-        let bucket: &mut [HashEntry] = &mut self.table[idx];
-        let mut desired_idx: usize = usize::MAX;
-        let mut smallest_depth: i8 = i8::MAX;
+        let key = (zobrist >> 48) as u16;
+        let idx = (zobrist as usize) & (self.num_buckets- 1);
+        let bucket = &mut self.table[idx];
+        let mut desired_idx = usize::MAX;
+        let mut smallest_depth = i8::MAX;
         for (entry_idx, &entry) in bucket.iter().enumerate() {
             if (entry.key == key && depth > entry.depth) || entry.depth == 0 {
                 desired_idx = entry_idx;
@@ -66,12 +66,12 @@ impl HashTable {
 
     /// Probes the hash table for an entry matching the provided hash value, returning first match.
     pub fn probe(&self, zobrist: u64, ply: i16) -> Option<HashEntry> {
-        let key: u16 = (zobrist >> 48) as u16;
-        let idx: usize = (zobrist as usize) & (self.num_buckets - 1);
-        let bucket: &[HashEntry; 8] = &self.table[idx];
+        let key = (zobrist >> 48) as u16;
+        let idx = (zobrist as usize) & (self.num_buckets - 1);
+        let bucket = &self.table[idx];
         for entry in bucket {
             if entry.key == key {
-                let mut res: HashEntry = *entry;
+                let mut res = *entry;
                 res.score += if res.score > MATE {-ply} else if res.score < -MATE {ply} else {0};
                 return Some(res);
             }
@@ -83,8 +83,8 @@ impl HashTable {
 pub struct KillerTable(pub [[u16; KILLERS]; MAX_PLY as usize + 1]);
 impl KillerTable {
     pub fn push(&mut self, m: u16, p: i16) {
-        let ply: usize = p as usize - 1;
-        let new: u16 = if self.0[ply].contains(&m) {self.0[ply][KILLERS - 1]} else {m};
+        let ply = p as usize - 1;
+        let new = if self.0[ply].contains(&m) {self.0[ply][KILLERS - 1]} else {m};
         (0..{KILLERS - 1}).rev().for_each(|i: usize| self.0[ply][i + 1] = self.0[ply][i]);
         self.0[ply][0] = new;
     }
@@ -94,13 +94,13 @@ impl KillerTable {
 pub struct HistoryTable(pub [[[u32; 64]; 64]; 2], pub u32);
 impl HistoryTable {
     pub fn push(&mut self, m: u16, c: bool, d: i8) {
-        let entry: &mut u32 = &mut self.0[usize::from(c)][from!(m)][to!(m)];
+        let entry = &mut self.0[usize::from(c)][from!(m)][to!(m)];
         *entry += (d as u32).pow(2);
         self.1 = max(*entry, self.1);
     }
 
     pub fn get(&self, m: u16, c: bool) -> i16 {
-        let entry: u32 = self.0[usize::from(c)][from!(m)][to!(m)];
+        let entry = self.0[usize::from(c)][from!(m)][to!(m)];
         ((HISTORY * entry + self.1 - 1) / self.1) as i16
     }
 }
@@ -128,6 +128,6 @@ impl ExchangeTable {
 
 fn see_eval(att_pc: usize, target_pc: usize, attackers: usize, defenders: usize) -> i16 {
     if attackers == 0 {return 0}
-    let new_pc: usize = if defenders == 0 {0} else {lsb!(defenders) as usize};
+    let new_pc = if defenders == 0 {0} else {lsb!(defenders) as usize};
     max(0, SEE_VAL[target_pc] - see_eval(new_pc, att_pc, defenders, attackers & !(1 << att_pc)))
 }

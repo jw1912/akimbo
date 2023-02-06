@@ -7,7 +7,7 @@ mod tables;
 mod eval;
 mod search;
 
-use std::{any::type_name, error::Error, io::stdin, time::{Duration, Instant}};
+use std::{any::type_name, error::Error, io::stdin, time::Instant};
 use consts::*;
 use position::{Position, State};
 use movegen::MoveList;
@@ -25,8 +25,8 @@ type Message = Box<dyn Error>;
 
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
-    let mut pos: Position = parse_fen(STARTPOS).expect("hard coded");
-    let mut ctx: Ctx = Ctx::new();
+    let mut pos = parse_fen(STARTPOS).expect("hard coded");
+    let mut ctx = Ctx::new();
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
@@ -66,10 +66,10 @@ fn parse_commands(commands: Vec<&str>, pos: &mut Position, ctx: &mut Ctx) -> Res
 }
 
 fn perft(pos: &mut Position, depth_left: u8) -> u64 {
-    let moves: MoveList = pos.gen::<ALL>();
-    let mut positions: u64 = 0;
+    let moves = pos.gen::<ALL>();
+    let mut positions = 0;
     for m_idx in 0..moves.len {
-        let m: u16 = moves.list[m_idx];
+        let m = moves.list[m_idx];
         if pos.r#do(m) { continue }
         positions += if depth_left > 1 {perft(pos, depth_left - 1)} else {1};
         pos.undo();
@@ -80,8 +80,8 @@ fn perft(pos: &mut Position, depth_left: u8) -> u64 {
 fn parse_perft(pos: &mut Position, commands: &[&str]) -> Result<(), Message> {
     for d in 0..=parse!(u8, commands[1]) {
         let now = Instant::now();
-        let count: u64 = perft(pos, d);
-        let time: Duration = now.elapsed();
+        let count = perft(pos, d);
+        let time = now.elapsed();
         println!("info depth {d} time {} nodes {count} Mnps {:.2}", time.as_millis(), count as f64 / time.as_micros() as f64);
     }
     Ok(())
@@ -89,8 +89,8 @@ fn parse_perft(pos: &mut Position, commands: &[&str]) -> Result<(), Message> {
 
 fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut Ctx) -> Result<(), Message> {
     enum Tokens {None, Depth, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
-    let mut token: Tokens = Tokens::None;
-    let (mut times, mut mtg, mut depth, mut skip): ([u128; 2], Option<u128>, i8, bool) = ([0, 0], None, 64, false);
+    let mut token = Tokens::None;
+    let (mut times, mut mtg, mut depth, mut skip) = ([0, 0], None, 64, false);
     ctx.alloc_time = 1000;
     for command in commands {
         match command {
@@ -117,7 +117,7 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut Ctx) -> Result<()
             },
         }
     }
-    let mytime: u128 = times[usize::from(pos.c)];
+    let mytime = times[usize::from(pos.c)];
     if !skip && mytime != 0 { ctx.alloc_time = mytime / mtg.unwrap_or(2 * pos.phase as u128 + 1) - 10 }
     go(pos, depth, ctx);
     Ok(())
@@ -126,8 +126,8 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut Ctx) -> Result<()
 fn parse_position(pos: &mut Position, commands: Vec<&str>) -> Result<(), Message> {
     enum Tokens {Nothing, Fen, Moves}
     let mut fen = String::new();
-    let mut moves: Vec<String> = Vec::new();
-    let mut token: Tokens = Tokens::Nothing;
+    let mut moves = Vec::new();
+    let mut token = Tokens::Nothing;
     for cmd in commands {
         match cmd {
             "position" => {},
@@ -155,33 +155,33 @@ fn sq_to_idx(sq: &str) -> Result<u16, Message> {
 }
 
 fn u16_to_uci(p: &Position, m: u16) -> String {
-    let flag: u16 = m & 0xF000;
+    let flag = m & 0xF000;
     if p.chess960 && (flag == QS || flag == KS) {
-            let from: u16 = from!(m) as u16;
-            let rook: u16 = p.castle[(flag == KS) as usize] as u16 + 56 * (from / 56);
+            let from = from!(m) as u16;
+            let rook = p.castle[(flag == KS) as usize] as u16 + 56 * (from / 56);
             format!("{}{} ", idx_to_sq!(from), idx_to_sq!(rook))
     } else {
-        let promo: &str = if m & 0b1000_0000_0000_0000 > 0 {["n","b","r","q"][((m >> 12) & 0b11) as usize]} else {""};
+        let promo = if m & 0b1000_0000_0000_0000 > 0 {["n","b","r","q"][((m >> 12) & 0b11) as usize]} else {""};
         format!("{}{}{} ", idx_to_sq!((m >> 6) & 63), idx_to_sq!(m & 63), promo)
     }
 }
 
 fn uci_to_u16(pos: &Position, m: &str) -> Result<u16, Message> {
-    let l: usize = m.len();
+    let l = m.len();
     if ![4, 5].contains(&l) {err!(format!("invalid move: {m}"))}
-    let from: u16 = sq_to_idx(&m[0..2])?;
-    let mut to: u16 = sq_to_idx(&m[2..4])?;
-    let mut castle: u16 = 0;
+    let from = sq_to_idx(&m[0..2])?;
+    let mut to = sq_to_idx(&m[2..4])?;
+    let mut castle = 0;
     if pos.chess960 && pos.sides[usize::from(pos.c)] & (1 << to) > 0 {
-        let s: u16 = 56 * (from / 56);
+        let s = 56 * (from / 56);
         (to, castle) = if to == pos.castle[0] as u16 + s {(2 + s, QS)} else {(6 + s, KS)}
     }
-    let mut no_flags: u16 = castle | (from << 6) | to;
+    let mut no_flags = castle | (from << 6) | to;
     if castle > 0 {return Ok(no_flags)}
     no_flags |= match m.chars().nth(4).unwrap_or('f') {'n' => 0x8000, 'b' => 0x9000, 'r' => 0xA000, 'q' => 0xB000, _ => 0};
     let possible_moves: MoveList = pos.gen::<ALL>();
     for m_idx in 0..possible_moves.len {
-        let um: u16 = possible_moves.list[m_idx];
+        let um = possible_moves.list[m_idx];
         if no_flags & !ALL_FLAGS == um & !ALL_FLAGS // from-to the same?
             && (l < 5 || flag!(no_flags) == um & 0xB000) // promotions?
             && (!pos.chess960 || (flag!(um) != KS && flag!(um) != QS)) { // rare chess960 case
@@ -193,26 +193,26 @@ fn uci_to_u16(pos: &Position, m: &str) -> Result<u16, Message> {
 
 fn parse_fen(s: &str) -> Result<Position, Message> {
     let vec: Vec<&str> = s.split_whitespace().collect();
-    let mut pos: Position = Position {
+    let mut pos = Position {
         pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: false, state: State::default(),
         nulls: 0, stack: Vec::new(), phase: 0, castle: [0, 7], castle_mask: [15; 64], chess960: false, material: [0; 6],
     };
 
     // board
-    let mut idx: usize = 63;
+    let mut idx = 63;
     let rows: Vec<&str> = vec.first().ok_or("no board string".to_string())?.split('/').collect();
     for row in rows {
         for ch in row.chars().rev() {
             if ch == '/' { continue }
             if ch.is_numeric() {
-                let len: usize = parse!(usize, ch.to_string());
+                let len = parse!(usize, ch.to_string());
                 idx -= usize::from(idx >= len) * len;
             } else {
-                let idx2: usize = ['P','N','B','R','Q','K','p','n','b','r','q','k']
+                let idx2 = ['P','N','B','R','Q','K','p','n','b','r','q','k']
                     .iter()
                     .position(|&element: &char| element == ch)
                     .ok_or(format!("invalid piece: {ch}"))?;
-                let (side, pc): (usize, usize) = (usize::from(idx2 > 5), idx2 - 6 * usize::from(idx2 > 5));
+                let (side, pc) = (usize::from(idx2 > 5), idx2 - 6 * usize::from(idx2 > 5));
                 pos.sides[side] ^= 1 << idx;
                 pos.pieces[pc] ^= 1 << idx;
                 pos.squares[idx] = pc as u8;
@@ -225,17 +225,17 @@ fn parse_fen(s: &str) -> Result<Position, Message> {
     }
 
     // castle rights
-    let mut rights: u8 = 0;
-    let mut king_col: usize = 4;
-    let wkc: u8 = lsb!(pos.pieces[KING] & pos.sides[0]) as u8 & 7;
-    let bkc: u8 = lsb!(pos.pieces[KING] & pos.sides[1]) as u8 & 7;
+    let mut rights = 0;
+    let mut king_col = 4;
+    let wkc = lsb!(pos.pieces[KING] & pos.sides[0]) as u8 & 7;
+    let bkc = lsb!(pos.pieces[KING] & pos.sides[1]) as u8 & 7;
     for ch in vec[2].bytes() {
         rights |= match ch {
             b'Q' => WQS, b'K' => WKS, b'q' => BQS, b'k' => BKS, // standard chess
             b'A'..=b'H' => {
                 pos.chess960 = true;
                 king_col = wkc as usize;
-                let rook_col: u8 = ch - b'A';
+                let rook_col = ch - b'A';
                 if rook_col < wkc {
                     pos.castle[0] = rook_col;
                     WQS
@@ -247,7 +247,7 @@ fn parse_fen(s: &str) -> Result<Position, Message> {
             b'a'..=b'h' => {
                 pos.chess960 = true;
                 king_col = bkc as usize;
-                let rook_col: u8 = ch - b'a';
+                let rook_col = ch - b'a';
                 if rook_col < bkc {
                     pos.castle[0] = rook_col;
                     BQS
@@ -272,7 +272,7 @@ fn parse_fen(s: &str) -> Result<Position, Message> {
     pos.castle_mask[56 + king_col] = 12;
 
     // state
-    let enp: u16 = if vec[3] == "-" {0} else {sq_to_idx(vec[3])?};
+    let enp = if vec[3] == "-" {0} else {sq_to_idx(vec[3])?};
     pos.state.en_passant_sq = enp;
     pos.state.halfmove_clock = parse!(u8, vec.get(4).unwrap_or(&"0"));
     pos.c = *vec.get(1).ok_or("no side to move provided")? == "b";

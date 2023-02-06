@@ -28,8 +28,8 @@ impl<T> List<T> {
 
 #[inline(always)]
 fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16) {
-    let fr: u16 = from << 6;
-    let mut to: u16;
+    let fr = from << 6;
+    let mut to;
     while attacks > 0 {
         pop_lsb!(to, attacks);
         move_list.push(flag | fr | to);
@@ -43,13 +43,13 @@ fn btwn(bit1: u64, bit2: u64) -> u64 {
 
 impl Position {
     pub fn gen<const QUIETS: bool>(&self) -> MoveList {
-        let mut moves: MoveList = MoveList::default();
-        let move_list: &mut MoveList = &mut moves;
-        let side: usize = usize::from(self.c);
-        let occ: u64 = self.sides[0] | self.sides[1];
-        let friendly: u64 = self.sides[side];
-        let opps: u64 = self.sides[side ^ 1];
-        let pawns: u64 = self.pieces[PAWN] & self.sides[side];
+        let mut moves = MoveList::default();
+        let move_list = &mut moves;
+        let side = usize::from(self.c);
+        let occ = self.sides[0] | self.sides[1];
+        let friendly = self.sides[side];
+        let opps = self.sides[side ^ 1];
+        let pawns = self.pieces[PAWN] & self.sides[side];
         if QUIETS {
             if self.c {pawn_pushes::<BLACK>(move_list, occ, pawns)} else {pawn_pushes::<WHITE>(move_list, occ, pawns)}
             if self.state.castle_rights & CS[side] > 0 && !self.in_check() {self.castles(move_list, occ)}
@@ -65,7 +65,7 @@ impl Position {
     }
 
     fn path(&self, mut path: u64, side: usize, occ: u64) -> bool {
-        let mut idx: u16;
+        let mut idx;
         while path > 0 {
             pop_lsb!(idx, path);
             if self.is_square_attacked(idx as usize, side, occ) {
@@ -81,9 +81,9 @@ impl Position {
     }
 
     fn castles(&self, move_list: &mut MoveList, occ: u64) {
-        let r: u8 = self.state.castle_rights;
-        let kbb: u64 = self.pieces[KING] & self.sides[usize::from(self.c)];
-        let ksq: u16 = lsb!(kbb);
+        let r = self.state.castle_rights;
+        let kbb = self.pieces[KING] & self.sides[usize::from(self.c)];
+        let ksq = lsb!(kbb);
         if self.c {
             if r & BQS > 0 && self.can_castle::<BLACK>(occ, 1 << (56 + self.castle[0]), kbb, 1 << 58, 1 << 59) {
                 move_list.push(QS | 58 | ksq << 6);
@@ -103,9 +103,9 @@ impl Position {
 }
 
 fn piece_moves<const PIECE: usize, const QUIETS: bool>(move_list: &mut MoveList, occ: u64, friendly: u64, opps: u64, mut attackers: u64) {
-    let mut from: u16;
-    let mut idx: usize;
-    let mut attacks: u64;
+    let mut from;
+    let mut idx;
+    let mut attacks;
     attackers &= friendly;
     while attackers > 0 {
         pop_lsb!(from, attackers);
@@ -125,11 +125,11 @@ fn piece_moves<const PIECE: usize, const QUIETS: bool>(move_list: &mut MoveList,
 
 #[inline(always)]
 fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents: u64, side: usize) {
-    let mut from: u16;
-    let mut attacks: u64;
-    let mut cidx: u16;
-    let mut f: u16;
-    let mut promo_attackers: u64 = attackers & PENRANK[side];
+    let mut from;
+    let mut attacks;
+    let mut cidx;
+    let mut f;
+    let mut promo_attackers = attackers & PENRANK[side];
     attackers &= !PENRANK[side];
     while attackers > 0 {
         pop_lsb!(from, attackers);
@@ -152,8 +152,8 @@ fn pawn_captures(move_list: &mut MoveList, mut attackers: u64, opponents: u64, s
 
 #[inline(always)]
 fn en_passants(move_list: &mut MoveList, pawns: u64, sq: u16, side: usize) {
-    let mut attackers: u64 = PAWN_ATTACKS[side ^ 1][sq as usize] & pawns;
-    let mut cidx: u16;
+    let mut attackers = PAWN_ATTACKS[side ^ 1][sq as usize] & pawns;
+    let mut cidx;
     while attackers > 0 {
         pop_lsb!(cidx, attackers);
         move_list.push( ENP | sq | cidx << 6 );
@@ -169,20 +169,20 @@ fn idx_shift<const SIDE: usize, const AMOUNT: u16>(idx: u16) -> u16 {
 }
 
 fn pawn_pushes<const SIDE: usize>(move_list: &mut MoveList, occ: u64, pawns: u64) {
-    let empty: u64 = !occ;
-    let mut pushable_pawns: u64 = shift::<SIDE, 8>(empty) & pawns;
-    let mut dbl_pushable_pawns: u64 = shift::<SIDE, 8>(shift::<SIDE, 8>(empty & DBLRANK[SIDE]) & empty) & pawns;
-    let mut promotable_pawns: u64 = pushable_pawns & PENRANK[SIDE];
+    let empty = !occ;
+    let mut pushable_pawns = shift::<SIDE, 8>(empty) & pawns;
+    let mut dbl_pushable_pawns = shift::<SIDE, 8>(shift::<SIDE, 8>(empty & DBLRANK[SIDE]) & empty) & pawns;
+    let mut promotable_pawns = pushable_pawns & PENRANK[SIDE];
     pushable_pawns &= !PENRANK[SIDE];
-    let mut idx: u16;
+    let mut idx;
     while pushable_pawns > 0 {
         pop_lsb!(idx, pushable_pawns);
         move_list.push(idx_shift::<SIDE, 8>(idx) | idx << 6);
     }
     while promotable_pawns > 0 {
         pop_lsb!(idx, promotable_pawns);
-        let to: u16 = idx_shift::<SIDE, 8>(idx);
-        let f: u16 = idx << 6;
+        let to = idx_shift::<SIDE, 8>(idx);
+        let f = idx << 6;
         move_list.push(QPR | to | f);
         move_list.push( PR | to | f);
         move_list.push(BPR | to | f);

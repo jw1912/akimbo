@@ -58,13 +58,13 @@ impl Position {
         // draws: KvK, KvKB, KvKN
         if self.material_draw() {return 0}
 
-        let mut score: S = S(0, 0);
+        let mut score = S(0, 0);
 
         // pawn bitboards
-        let wp: u64 = self.pieces[PAWN] & self.sides[WHITE];
-        let bp: u64 = self.pieces[PAWN] & self.sides[BLACK];
-        let wp_att: u64 = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
-        let bp_att: u64 = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
+        let wp = self.pieces[PAWN] & self.sides[WHITE];
+        let bp = self.pieces[PAWN] & self.sides[BLACK];
+        let wp_att = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
+        let bp_att = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
 
         // material scores
         (PAWN..=QUEEN).for_each(|i: usize| score += MATERIAL[i] * self.material[i]);
@@ -74,8 +74,7 @@ impl Position {
         score += KING_QT[QT_IDX[lsb!(self.pieces[KING] & self.sides[BLACK])] as usize] * -1;
 
         // pawn half table
-        let mut p: u64;
-        p = wp; // white pst bonuses
+        let mut p = wp; // white pst bonuses
         while p > 0 {
             score += PAWN_HT[PAWN_IDX[56 ^ lsb!(p)] as usize];
             p &= p - 1;
@@ -91,20 +90,20 @@ impl Position {
         score += self.mobility(BLACK, wp_att) * -1;
 
         // taper eval
-        let phase: i32 = min(self.phase as i32, TPHASE);
-        let score: i16 = ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16;
+        let phase = min(self.phase as i32, TPHASE);
+        let score = ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16;
         SIDE[usize::from(self.c)] * score
     }
 
     fn mobility(&self, c: usize, opp_att: u64) -> S {
-        let mut score: S = S(0, 0);
-        let mut from: usize;
-        let mut attacks: u64;
-        let mut pieces: u64;
-        let boys: u64 = self.sides[c];
-        let opps: u64 = self.sides[c ^ 1];
-        let safe: u64 = !boys & !opp_att;
-        let rooks: u64 = self.pieces[ROOK];
+        let mut score= S(0, 0);
+        let mut from;
+        let mut attacks;
+        let mut pieces;
+        let boys = self.sides[c];
+        let opps = self.sides[c ^ 1];
+        let safe = !boys & !opp_att;
+        let rooks = self.pieces[ROOK];
 
         // knight mobility
         pieces = self.pieces[KNIGHT] & boys;
@@ -117,7 +116,7 @@ impl Position {
         // bishop mobility
         // - ignore friendly queens
         // - ignore enemy queens and rooks
-        let mut occ: u64 = (boys | opps) ^ (self.pieces[KING] & opps) ^ self.pieces[QUEEN] ^ (rooks & opps);
+        let mut occ = (boys | opps) ^ (self.pieces[KING] & opps) ^ self.pieces[QUEEN] ^ (rooks & opps);
         pieces = self.pieces[BISHOP] & boys;
         while pieces > 0 {
             pull_lsb!(from, pieces);

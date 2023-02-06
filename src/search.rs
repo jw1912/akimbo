@@ -49,14 +49,14 @@ impl Ctx {
 // move scoring
 impl Position {
     fn score(&self, moves: &MoveList, hash_move: u16, ctx: &Ctx) -> ScoreList {
-        let mut scores: ScoreList = ScoreList::default();
+        let mut scores = ScoreList::default();
         let killers: [u16; KILLERS] = ctx.killer_table.0[ctx.ply as usize];
         for i in 0..moves.len {
             scores.push({
-                let m: u16 = moves.list[i];
+                let m = moves.list[i];
                 if m == hash_move {HASH_MOVE}
-                else if m & 0b0100_0000_0000_0000 > 0 {self.see(m, ctx)}
-                else if m & 0b1000_0000_0000_0000 > 0 {PROMOTION}
+                else if m & 0x4000 > 0 {self.see(m, ctx)}
+                else if m & 0x8000 > 0 {PROMOTION + ((m & 0x7000) >> 12) as i16}
                 else if killers.contains(&m) {KILLER}
                 else {ctx.history_table.get(m, self.c)}
             })
@@ -65,15 +65,15 @@ impl Position {
     }
 
     fn score_caps(&self, caps: &MoveList, ctx: &Ctx) -> ScoreList {
-        let mut scores: ScoreList = ScoreList::default();
+        let mut scores = ScoreList::default();
         for i in 0..caps.len {scores.push(self.see(caps.list[i], ctx))}
         scores
     }
 
     fn get_attackers(&self, sq: usize) -> u64 {
-        let occ: u64 = self.sides[WHITE] | self.sides[BLACK];
-        let qr: u64 = self.pieces[QUEEN] | self.pieces[ROOK];
-        let qb: u64 = self.pieces[QUEEN] | self.pieces[BISHOP];
+        let occ = self.sides[WHITE] | self.sides[BLACK];
+        let qr = self.pieces[QUEEN] | self.pieces[ROOK];
+        let qb = self.pieces[QUEEN] | self.pieces[BISHOP];
           (rook_attacks(sq, occ ^ qr) & qr)
         | (bishop_attacks(sq, occ ^ qb) & qb)
         | (KNIGHT_ATTACKS[sq] & self.pieces[KNIGHT])
@@ -83,13 +83,13 @@ impl Position {
     }
 
     fn see(&self, m: u16, ctx: &Ctx) -> i16 {
-        let to: usize = to!(m);
-        let attacker: usize = self.squares[from!(m)] as usize;
-        let mut target: usize = self.squares[to] as usize;
+        let to = to!(m);
+        let attacker = self.squares[from!(m)] as usize;
+        let mut target = self.squares[to] as usize;
         if target == EMPTY {target = PAWN} // en passant
-        let all_attackers: u64 = self.get_attackers(to);
-        let attackers: usize = self.encode_attackers(all_attackers & self.sides[usize::from(self.c)]);
-        let defenders: usize = self.encode_attackers(all_attackers & self.sides[usize::from(!self.c)]);
+        let all_attackers = self.get_attackers(to);
+        let attackers = self.encode_attackers(all_attackers & self.sides[usize::from(self.c)]);
+        let defenders = self.encode_attackers(all_attackers & self.sides[usize::from(!self.c)]);
         ctx.see_table.get(attacker, target, attackers, defenders)
     }
 
@@ -106,9 +106,9 @@ impl MoveList {
     // O(n^2) algorithm to incrementally sort the move list as needed.
     fn pick(&mut self, scores: &mut ScoreList) -> Option<(u16, i16)> {
         if scores.len == 0 {return None}
-        let mut idx: usize = 0;
-        let mut best: i16 = -MAX;
-        let mut score: i16;
+        let mut idx = 0;
+        let mut best = -MAX;
+        let mut score;
         for i in 0..scores.len {
             score = scores.list[i];
             if score > best {
@@ -132,8 +132,8 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
     }
 
     if pos.is_draw(ctx.ply) { return 0 }
-    let Nt(in_check, null): Nt = nt;
-    let pv: bool = b > a + 1;
+    let Nt(in_check, null) = nt;
+    let pv = b > a + 1;
 
     // mate distance pruning
     a = max(a, -MAX + ctx.ply);
@@ -149,9 +149,9 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
     }
 
     // probing hash table
-    let hash: u64 = pos.state.hash;
-    let mut bm: u16 = 0;
-    let mut write: bool = true;
+    let hash = pos.state.hash;
+    let mut bm = 0;
+    let mut write = true;
     if let Some(res) = ctx.hash_table.probe(hash, ctx.ply) {
         write = d > res.depth;
         bm = res.best_move;
@@ -164,16 +164,16 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
 
     // pruning
     if !pv && !in_check && b.abs() < MATE {
-        let eval: i16 = pos.eval();
+        let eval = pos.eval();
 
         // reverse futility pruning
-        let margin: i16 = eval - 120 * i16::from(d);
+        let margin = eval - 120 * i16::from(d);
         if d <= 8 && margin >= b { return margin }
 
         // null move pruning
         if null && d >= 3 && pos.phase >= 6 && eval >= b {
-            let enp: u16 = pos.do_null(&mut ctx.ply);
-            let nw: i16 = -pvs(pos, -b, -b + 1, d - 3, ctx, Nt(false, false), &mut Vec::new());
+            let enp = pos.do_null(&mut ctx.ply);
+            let nw = -pvs(pos, -b, -b + 1, d - 3, ctx, Nt(false, false), &mut Vec::new());
             pos.undo_null(enp, hash, &mut ctx.ply);
             if nw >= b {return nw}
             if nw < -MATE {d += 1}
@@ -182,42 +182,41 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
 
     ctx.nodes += 1;
     ctx.ply += 1;
-    let lmr: bool = d > 2 && ctx.ply > 1 && !in_check;
-    let mut moves: MoveList = pos.gen::<ALL>();
-    let mut scores: ScoreList = pos.score(&moves, bm, ctx);
-    let (mut legal, mut eval, mut bound): (u16, i16, Bound) = (0, -MAX, Bound::Upper);
-    let (mut check, mut r, mut s, mut zw): (bool, i8, i16, i16);
-    let mut sline: Vec<u16> = Vec::new();
+    let lmr = d > 2 && ctx.ply > 1 && !in_check;
+    let mut moves = pos.gen::<ALL>();
+    let mut scores = pos.score(&moves, bm, ctx);
+    let (mut legal, mut eval, mut bound) = (0, -MAX, Bound::Upper);
+    let mut sline = Vec::new();
     while let Some((m, ms)) = moves.pick(&mut scores) {
         if pos.r#do(m) { continue }
         legal += 1;
-        check = pos.in_check();
+        let check = pos.in_check();
 
         // late move reductions
-        r = i8::from(lmr && !check && legal > 2 && ms < KILLER);
+        let r = i8::from(lmr && !check && legal > 2 && ms < KILLER);
 
         // principle variation search
         sline.clear();
-        s = if legal == 1 {
+        let score = if legal == 1 {
             -pvs(pos, -b, -a, d - 1, ctx, Nt(check, false), &mut sline)
         } else {
-            zw = -pvs(pos, -a - 1, -a, d - 1 - r, ctx, Nt(check, true), &mut sline);
+            let zw = -pvs(pos, -a - 1, -a, d - 1 - r, ctx, Nt(check, true), &mut sline);
             if (a != b - 1 || r > 0) && zw > a {
                 -pvs(pos, -b, -a, d - 1, ctx, Nt(check, false), &mut sline)
             } else { zw }
         };
         pos.undo();
 
-        if s > eval {
-            eval = s;
+        if score > eval {
+            eval = score;
             bm = m;
-            if s > a {
-                a = s;
+            if score > a {
+                a = score;
                 bound = Bound::Exact;
                 line.clear();
                 line.push(m);
                 line.append(&mut sline);
-                if s >= b {
+                if score >= b {
                     bound = Bound::Lower;
                     if ms <= KILLER {
                         ctx.killer_table.push(m, ctx.ply);
@@ -241,8 +240,8 @@ fn qs(p: &mut Position, mut a: i16, b: i16, ctx: &mut Ctx) -> i16 {
     a = max(a, e);
     let mut caps: MoveList = p.gen::<CAPTURES>();
     let mut scores: ScoreList = p.score_caps(&caps, ctx);
-    while let Some((m, _)) = caps.pick(&mut scores) {
-        //if ms <= 0 {break}
+    while let Some((m, ms)) = caps.pick(&mut scores) {
+        if ms < 0 {break}
         if p.r#do(m) {continue}
         e = max(e, -qs(p, -b, -a, ctx));
         p.undo();

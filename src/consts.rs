@@ -110,14 +110,14 @@ pub const CASTLE_MOVES: [[usize; 2]; 2] = [[3, 5], [59, 61]];
 
 // Zobrist Hashing Values
 pub static ZVALS: ZobristVals = {
-    let mut seed: u64 = 180_620_142;
+    let mut seed = 180_620_142;
     seed = xor_shift(seed);
-    let mut vals: ZobristVals = ZobristVals { pieces: [[[0; 64]; 6]; 2], castle: [0; 4], en_passant: [0; 8], side: seed };
-    let mut idx: usize = 0;
+    let mut vals = ZobristVals { pieces: [[[0; 64]; 6]; 2], castle: [0; 4], en_passant: [0; 8], side: seed };
+    let mut idx = 0;
     while idx < 2 {
-        let mut piece: usize = 0;
+        let mut piece = 0;
         while piece < 6 {
-            let mut square: usize = 0;
+            let mut square = 0;
             while square < 64 {
                 seed = xor_shift(seed);
                 vals.pieces[idx][piece][square] = seed;
