@@ -9,7 +9,7 @@ macro_rules! to {($m:expr) => {($m & 63) as usize}}
 macro_rules! bit {($x:expr) => {1 << $x}}
 macro_rules! pop {($x:expr) => {$x &= $x - 1}}
 
-pub struct Position {
+pub struct Pos {
     pub pieces: [u64; 6],
     pub sides: [u64; 2],
     pub squares: [u8; 64],
@@ -17,9 +17,6 @@ pub struct Position {
     pub state: State,
     pub phase: i16,
     pub nulls: u8,
-    pub castle: [u8; 2],
-    pub chess960: bool,
-    pub castle_mask: [u8; 64],
     pub material: [i16; 6],
     pub stack: Vec<MoveContext>,
 }
@@ -27,9 +24,9 @@ pub struct Position {
 #[derive(Clone, Copy, Default)]
 pub struct State {
     pub hash: u64,
-    pub en_passant_sq: u16,
-    pub halfmove_clock: u8,
-    pub castle_rights: u8,
+    pub enp: u16,
+    pub hfm: u8,
+    pub cr: u8,
 }
 
 #[derive(Clone, Copy)]
@@ -74,9 +71,9 @@ pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
     f | f2
 }
 
-impl Position {
+impl Pos {
     #[inline(always)]
-    pub fn is_square_attacked(&self, idx: usize, side: usize, occ: u64) -> bool {
+    pub fn is_sq_att(&self, idx: usize, side: usize, occ: u64) -> bool {
         let s = self.sides[side ^ 1];
         let q = self.pieces[QUEEN] & s;
         (KNIGHT_ATTACKS[idx] & self.pieces[KNIGHT] & s > 0)
@@ -88,7 +85,7 @@ impl Position {
 
     pub fn in_check(&self) -> bool {
         let king_idx = lsb!(self.pieces[KING] & self.sides[usize::from(self.c)]) as usize;
-        self.is_square_attacked(king_idx, usize::from(self.c), self.sides[0] | self.sides[1])
+        self.is_sq_att(king_idx, usize::from(self.c), self.sides[0] | self.sides[1])
     }
 
     #[inline(always)]
@@ -101,7 +98,7 @@ impl Position {
         let side = usize::from(self.c);
         self.do_unchecked(m);
         let king_idx = lsb!(self.pieces[KING] & self.sides[side]) as usize;
-        let invalid = self.is_square_attacked(king_idx, side, self.sides[0] | self.sides[1]);
+        let invalid = self.is_sq_att(king_idx, side, self.sides[0] | self.sides[1]);
         if invalid { self.undo() }
         invalid
     }
@@ -115,7 +112,7 @@ impl Position {
         let mpc = moved_pc as usize;
         let captured_pc = self.squares[to];
         let flag = flag!(m);
-        let rights = self.state.castle_rights;
+        let rights = self.state.cr;
         let side = usize::from(self.c);
 
         self.stack.push(MoveContext { state: self.state, m, moved_pc, captured_pc});
@@ -123,8 +120,8 @@ impl Position {
         self.state.hash ^= ZVALS.pieces[side][mpc][from] ^ ZVALS.pieces[side][mpc][to];
         self.squares[from] = EMPTY as u8;
         self.squares[to] = moved_pc;
-        if self.state.en_passant_sq > 0 {self.state.hash ^= ZVALS.en_passant[(self.state.en_passant_sq & 7) as usize]}
-        self.state.en_passant_sq = 0;
+        if self.state.enp > 0 {self.state.hash ^= ZVALS.en_passant[(self.state.enp & 7) as usize]}
+        self.state.enp = 0;
         self.state.hash ^= ZVALS.side;
         if captured_pc != EMPTY as u8 && flag != KS && flag != QS {
             let cpc = captured_pc as usize;
@@ -133,7 +130,7 @@ impl Position {
             self.phase -= PHASE_VALS[cpc];
             self.material[cpc] += SIDE[side];
         }
-        self.state.castle_rights &= self.castle_mask[from] & self.castle_mask[to];
+        self.state.cr &= CM[from] & CM[to];
         match flag {
             ENP => {
                 let pwn = if side == BLACK {to + 8} else {to - 8};
@@ -144,17 +141,15 @@ impl Position {
                 self.material[PAWN] += SIDE[side];
             }
             DBL => {
-                self.state.en_passant_sq = if side == WHITE {to - 8} else {to + 8} as u16;
+                self.state.enp = if side == WHITE {to - 8} else {to + 8} as u16;
                 self.state.hash ^= ZVALS.en_passant[to & 7];
             }
             KS | QS => {
-                let i = usize::from(flag == KS);
-                let sq = 56 * usize::from(side == BLACK) + self.castle[i] as usize;
-                let idx = CASTLE_MOVES[side][i];
-                self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
-                self.squares[sq] = if to == sq {KING as u8} else {EMPTY as u8};
-                self.squares[idx] = ROOK as u8;
-                self.state.hash ^= ZVALS.pieces[side][ROOK][sq] ^ ZVALS.pieces[side][ROOK][idx];
+                let (bits, idx1, idx2) = CMOV[usize::from(flag == KS)][side];
+                self.toggle(side, ROOK, bits);
+                self.squares[idx1] = EMPTY as u8;
+                self.squares[idx2] = ROOK as u8;
+                self.state.hash ^= ZVALS.pieces[side][ROOK][idx1] ^ ZVALS.pieces[side][ROOK][idx2];
             }
             PR.. => {
                 let ppc = (((flag >> 12) & 3) + 1) as usize;
@@ -168,10 +163,10 @@ impl Position {
             }
             _ => {}
         }
-        self.state.halfmove_clock = u8::from(moved_pc > PAWN as u8 && flag != CAP) * (self.state.halfmove_clock + 1);
+        self.state.hfm = u8::from(moved_pc > PAWN as u8 && flag != CAP) * (self.state.hfm + 1);
         self.c = !self.c;
 
-        let mut changed_castle = rights & !self.state.castle_rights;
+        let mut changed_castle = rights & !self.state.cr;
         while changed_castle > 0 {
             self.state.hash ^= ZVALS.castle[lsb!(changed_castle) as usize];
             pop!(changed_castle);
@@ -206,12 +201,10 @@ impl Position {
                 self.material[PAWN] -= SIDE[side];
             }
             KS | QS => {
-                let i = (flag == KS) as usize;
-                let sq = 56 * usize::from(side == BLACK) + self.castle[i] as usize;
-                let idx = CASTLE_MOVES[side][i];
-                self.squares[idx] = if from == idx {KING as u8} else {EMPTY as u8};
-                self.squares[sq] = ROOK as u8;
-                self.toggle(side, ROOK, (1 << idx) ^ (1 << sq));
+                let (bits, idx1, idx2) = CMOV[usize::from(flag == KS)][side];
+                self.toggle(side, ROOK, bits);
+                self.squares[idx1] = ROOK as u8;
+                self.squares[idx2] = EMPTY as u8;
             }
             PR.. => {
                 let ppc = (((flag >> 12) & 3) + 1) as usize;
@@ -228,9 +221,9 @@ impl Position {
     pub fn do_null(&mut self, ply: &mut i16) -> u16 {
         self.nulls += 1;
         *ply += 1;
-        let enp = self.state.en_passant_sq;
+        let enp = self.state.enp;
         self.state.hash ^= u64::from(enp > 0) * ZVALS.en_passant[(enp & 7) as usize];
-        self.state.en_passant_sq = 0;
+        self.state.enp = 0;
         self.c = !self.c;
         self.state.hash ^= ZVALS.side;
         enp
@@ -240,7 +233,7 @@ impl Position {
         self.nulls -= 1;
         *ply -= 1;
         self.state.hash = hash;
-        self.state.en_passant_sq = enp;
+        self.state.enp = enp;
         self.c = !self.c;
     }
 
@@ -248,12 +241,12 @@ impl Position {
         let l = self.stack.len();
         if l < 6 || self.nulls > 0 { return false }
         let to = l - 1;
-        let from = l.saturating_sub(self.state.halfmove_clock as usize);
-        let mut repetitions_count: u8 = 1;
+        let from = l.saturating_sub(self.state.hfm as usize);
+        let mut reps: u8 = 1;
         for i in (from..to).rev().step_by(2) {
             if self.stack[i].state.hash == self.state.hash {
-                repetitions_count += 1;
-                if repetitions_count >= num { return true }
+                reps += 1;
+                if reps >= num { return true }
             }
         }
         false
@@ -271,6 +264,6 @@ impl Position {
     }
 
     pub fn is_draw(&self, ply: i16) -> bool {
-        self.state.halfmove_clock >= 100 || self.repetition_draw(2 + u8::from(ply == 0)) || self.material_draw()
+        self.state.hfm >= 100 || self.repetition_draw(2 + u8::from(ply == 0)) || self.material_draw()
     }
 }

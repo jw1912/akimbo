@@ -1,5 +1,5 @@
 use std::{cmp::min, ops::{AddAssign, Mul}};
-use super::{consts::*, position::{Position, bishop_attacks, rook_attacks}};
+use super::{consts::*, position::{Pos, bishop_attacks, rook_attacks}};
 
 macro_rules! count {($bb:expr) => {($bb).count_ones() as usize}}
 macro_rules! lsb {($x:expr) => {($x).trailing_zeros() as usize}}
@@ -53,7 +53,7 @@ static MOBILITY_ROOK: [S; 15] = [
     S( 21,  18), S( 26,  21), S( 30,  22), S( 41,  19), S( 30,  23),
 ];
 
-impl Position {
+impl Pos {
     pub fn eval(&self) -> i16 {
         // draws: KvK, KvKB, KvKN
         if self.material_draw() {return 0}

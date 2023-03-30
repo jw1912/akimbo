@@ -1,26 +1,22 @@
-use std::{cmp::{min, max}, mem::MaybeUninit};
-use super::{consts::*, position::{Position, bishop_attacks, rook_attacks}};
+use std::mem::MaybeUninit;
+use super::{consts::*, position::{Pos, bishop_attacks, rook_attacks}};
 
 #[macro_export]
 macro_rules! lsb {($x:expr) => {$x.trailing_zeros() as u16}}
 macro_rules! pop_lsb {($idx:expr, $x:expr) => {$idx = lsb!($x); $x &= $x - 1}}
 
-pub type MoveList = List<u16>;
-pub type ScoreList = List<i16>;
-pub struct List<T> {
-    pub list: [T; 252],
+pub struct MoveList {
+    pub list: [u16; 252],
     pub len: usize,
 }
 
-impl<T: Default> Default for List<T> {
-    fn default() -> Self {
+impl MoveList {
+    pub fn uninit() -> Self {
         Self { list: unsafe {#[allow(clippy::uninit_assumed_init, invalid_value)] MaybeUninit::uninit().assume_init()}, len: 0 }
     }
-}
 
-impl<T> List<T> {
     #[inline(always)]
-    pub fn push(&mut self, m: T) {
+    pub fn push(&mut self, m: u16) {
         self.list[self.len] = m;
         self.len += 1;
     }
@@ -36,14 +32,9 @@ fn encode_moves(move_list: &mut MoveList, mut attacks: u64, from: u16, flag: u16
     }
 }
 
-#[inline(always)]
-fn btwn(bit1: u64, bit2: u64) -> u64 {
-    (max(bit1, bit2) - min(bit1, bit2)) ^ min(bit1, bit2)
-}
-
-impl Position {
+impl Pos {
     pub fn gen<const QUIETS: bool>(&self) -> MoveList {
-        let mut moves = MoveList::default();
+        let mut moves = MoveList::uninit();
         let move_list = &mut moves;
         let side = usize::from(self.c);
         let occ = self.sides[0] | self.sides[1];
@@ -52,10 +43,10 @@ impl Position {
         let pawns = self.pieces[PAWN] & self.sides[side];
         if QUIETS {
             if self.c {pawn_pushes::<BLACK>(move_list, occ, pawns)} else {pawn_pushes::<WHITE>(move_list, occ, pawns)}
-            if self.state.castle_rights & CS[side] > 0 && !self.in_check() {self.castles(move_list, occ)}
+            if self.state.cr & CS[side] > 0 && !self.in_check() {self.castles(move_list, occ)}
         }
         pawn_captures(move_list, pawns, opps, side);
-        if self.state.en_passant_sq > 0 {en_passants(move_list, pawns, self.state.en_passant_sq, side)}
+        if self.state.enp > 0 {en_passants(move_list, pawns, self.state.enp, side)}
         piece_moves::<KNIGHT, QUIETS>(move_list, occ, friendly, opps, self.pieces[KNIGHT]);
         piece_moves::<BISHOP, QUIETS>(move_list, occ, friendly, opps, self.pieces[BISHOP]);
         piece_moves::<ROOK  , QUIETS>(move_list, occ, friendly, opps, self.pieces[ROOK]);
@@ -64,40 +55,13 @@ impl Position {
         moves
     }
 
-    fn path(&self, mut path: u64, side: usize, occ: u64) -> bool {
-        let mut idx;
-        while path > 0 {
-            pop_lsb!(idx, path);
-            if self.is_square_attacked(idx as usize, side, occ) {
-                return false;
-            }
-        }
-        true
-    }
-
-    #[inline]
-    fn can_castle<const SIDE: usize>(&self, occ: u64, bit: u64, kbb: u64, kto: u64, rto: u64) -> bool {
-        (occ ^ bit) & (btwn(kbb, kto) ^ kto) == 0 && (occ ^ kbb) & (btwn(bit, rto) ^ rto) == 0 && self.path(btwn(kbb, kto), SIDE, occ)
-    }
-
-    fn castles(&self, move_list: &mut MoveList, occ: u64) {
-        let r = self.state.castle_rights;
-        let kbb = self.pieces[KING] & self.sides[usize::from(self.c)];
-        let ksq = lsb!(kbb);
+    fn castles(&self, moves: &mut MoveList, occ: u64) {
         if self.c {
-            if r & BQS > 0 && self.can_castle::<BLACK>(occ, 1 << (56 + self.castle[0]), kbb, 1 << 58, 1 << 59) {
-                move_list.push(QS | 58 | ksq << 6);
-            }
-            if r & BKS > 0 && self.can_castle::<BLACK>(occ, 1 << (56 + self.castle[1]), kbb, 1 << 62, 1 << 61) {
-                move_list.push(KS | 62 | ksq << 6);
-            }
+            if self.state.cr & BQS > 0 && occ & B8C8D8 == 0 && !self.is_sq_att(59, BLACK, occ) {moves.push(60 << 6 | 58 | QS)}
+            if self.state.cr & BKS > 0 && occ & F8G8 == 0 && !self.is_sq_att(61, BLACK, occ) {moves.push(60 << 6 | 62 | KS)}
         } else {
-            if r & WQS > 0 && self.can_castle::<WHITE>(occ, 1 << self.castle[0], kbb, 1 << 2, 1 << 3) {
-                move_list.push(QS | 2 | ksq << 6);
-            }
-            if r & WKS > 0 && self.can_castle::<WHITE>(occ, 1 << self.castle[1], kbb, 1 << 6, 1 << 5) {
-                move_list.push(KS | 6 | ksq << 6);
-            }
+            if self.state.cr & WQS > 0 && occ & B1C1D1 == 0 && !self.is_sq_att(3, WHITE, occ) {moves.push(4 << 6 | 2 | QS)}
+            if self.state.cr & WKS > 0 && occ & F1G1 == 0 && !self.is_sq_att(5, WHITE, occ) {moves.push(4 << 6 | 6 | KS)}
         }
     }
 }

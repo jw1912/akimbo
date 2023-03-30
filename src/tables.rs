@@ -1,5 +1,4 @@
-use std::cmp::max;
-use crate::{consts::*, from, to, lsb};
+use crate::consts::*;
 
 /// The type of bound determined by the hash entry when it was searched.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -40,7 +39,7 @@ impl HashTable {
 
     /// Push a search result to the hash table.
     /// #### Replacement Scheme
-    /// 1. Prioritise replacing entries for the same position (key) that have lower depth.
+    /// 1. Prioritise replacing entries for the same Pos (key) that have lower depth.
     /// 2. Fill empty entries in bucket.
     /// 3. Replace lowest depth entry in bucket.
     pub fn push(&mut self, zobrist: u64, best_move: u16, depth: i8, bound: Bound, mut score: i16, ply: i16) {
@@ -88,46 +87,4 @@ impl KillerTable {
         (0..{KILLERS - 1}).rev().for_each(|i: usize| self.0[ply][i + 1] = self.0[ply][i]);
         self.0[ply][0] = new;
     }
-}
-
-#[derive(Clone, Copy)]
-pub struct HistoryTable(pub [[[u32; 64]; 64]; 2], pub u32);
-impl HistoryTable {
-    pub fn push(&mut self, m: u16, c: bool, d: i8) {
-        let entry = &mut self.0[usize::from(c)][from!(m)][to!(m)];
-        *entry += (d as u32).pow(2);
-        self.1 = max(*entry, self.1);
-    }
-
-    pub fn get(&self, m: u16, c: bool) -> i16 {
-        let entry = self.0[usize::from(c)][from!(m)][to!(m)];
-        ((HISTORY * entry + self.1 - 1) / self.1) as i16
-    }
-}
-
-const SEE_IDX: [usize; 6] = [0, 1, 1, 4, 6, 7];
-const SEE_VAL: [i16; 8] = [1000, 3000, 3000, 3000, 5000, 5000, 9000, 20000];
-pub struct ExchangeTable([[[i16; 256]; 256]; 6]);
-impl ExchangeTable {
-    pub fn new() -> Self {
-        let mut ret = ExchangeTable([[[0; 256]; 256]; 6]);
-        for (i, pc) in ret.0.iter_mut().enumerate() {
-            for (j, attackers) in pc.iter_mut().enumerate() {
-                for (k, slot) in attackers.iter_mut().enumerate() {
-                    *slot = see_eval(lsb!(j) as usize, SEE_IDX[i], j, k);
-                }
-            }
-        }
-        ret
-    }
-
-    pub fn get(&self, attacker: usize, target: usize, attackers: usize, defenders: usize) -> i16 {
-        SEE_VAL[SEE_IDX[target]] - self.0[attacker][defenders][attackers & !(1 << SEE_IDX[attacker])] - attacker as i16
-    }
-}
-
-fn see_eval(att_pc: usize, target_pc: usize, attackers: usize, defenders: usize) -> i16 {
-    if attackers == 0 {return 0}
-    let new_pc = if defenders == 0 {0} else {lsb!(defenders) as usize};
-    max(0, SEE_VAL[target_pc] - see_eval(new_pc, att_pc, defenders, attackers & !(1 << att_pc)))
 }

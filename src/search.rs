@@ -1,4 +1,4 @@
-use super::{consts::*, position::{Position, bishop_attacks, rook_attacks}, tables::*, movegen::{MoveList, ScoreList}, u16_to_uci, from, to};
+use super::{consts::*, position::Pos, tables::*, movegen::MoveList, u16_to_uci, from, to};
 use std::{cmp::{min, max}, time::Instant};
 
 /// Determines what is done in the node
@@ -8,8 +8,6 @@ struct Nt(bool, bool);
 pub struct Ctx {
     pub hash_table: HashTable,
     killer_table: KillerTable,
-    history_table: HistoryTable,
-    see_table: Box<ExchangeTable>,
     pub alloc_time: u128,
     time: Instant,
     nodes: u64,
@@ -23,9 +21,7 @@ impl Ctx {
     pub fn new() -> Self {
         Self {
             hash_table: HashTable::new(),
-            see_table: Box::new(ExchangeTable::new()),
             killer_table: KillerTable([[0; KILLERS]; MAX_PLY as usize + 1]),
-            history_table: HistoryTable([[[0; 64]; 64]; 2], 1),
             time: Instant::now(), alloc_time: 1000, nodes: 0, qnodes: 0, ply: 0, seldepth: 0, abort: false
         }
     }
@@ -38,7 +34,6 @@ impl Ctx {
         self.seldepth = 0;
         self.abort = false;
         self.killer_table = KillerTable([[0; KILLERS]; MAX_PLY as usize + 1]);
-        self.history_table = HistoryTable([[[0; 64]; 64]; 2], 1);
     }
 
     fn timer(&self) -> u128 {
@@ -47,67 +42,42 @@ impl Ctx {
 }
 
 // move scoring
-impl Position {
-    fn score(&self, moves: &MoveList, hash_move: u16, ctx: &Ctx) -> ScoreList {
-        let mut scores = ScoreList::default();
+impl Pos {
+    fn score(&self, moves: &MoveList, hash_move: u16, ctx: &Ctx) -> MoveList {
+        let mut scores = MoveList::uninit();
         let killers: [u16; KILLERS] = ctx.killer_table.0[ctx.ply as usize];
         for i in 0..moves.len {
             scores.push({
                 let m = moves.list[i];
                 if m == hash_move {HASH_MOVE}
-                else if m & 0x4000 > 0 {self.see(m, ctx)}
-                else if m & 0x8000 > 0 {PROMOTION + ((m & 0x7000) >> 12) as i16}
+                else if m & 0x4000 > 0 {self.mvv_lva(m)}
+                else if m & 0x8000 > 0 {PROMOTION + ((m & 0x7000) >> 12)}
                 else if killers.contains(&m) {KILLER}
-                else {ctx.history_table.get(m, self.c)}
+                else {0}
             })
         }
         scores
     }
 
-    fn score_caps(&self, caps: &MoveList, ctx: &Ctx) -> ScoreList {
-        let mut scores = ScoreList::default();
-        for i in 0..caps.len {scores.push(self.see(caps.list[i], ctx))}
+    fn score_caps(&self, caps: &MoveList) -> MoveList {
+        let mut scores = MoveList::uninit();
+        for i in 0..caps.len {scores.push(self.mvv_lva(caps.list[i]))}
         scores
     }
 
-    fn get_attackers(&self, sq: usize) -> u64 {
-        let occ = self.sides[WHITE] | self.sides[BLACK];
-        let qr = self.pieces[QUEEN] | self.pieces[ROOK];
-        let qb = self.pieces[QUEEN] | self.pieces[BISHOP];
-          (rook_attacks(sq, occ ^ qr) & qr)
-        | (bishop_attacks(sq, occ ^ qb) & qb)
-        | (KNIGHT_ATTACKS[sq] & self.pieces[KNIGHT])
-        | (KING_ATTACKS[sq] & self.pieces[KING])
-        | (PAWN_ATTACKS[WHITE][sq] & self.pieces[PAWN] & self.sides[BLACK])
-        | (PAWN_ATTACKS[BLACK][sq] & self.pieces[PAWN] & self.sides[WHITE])
-    }
-
-    fn see(&self, m: u16, ctx: &Ctx) -> i16 {
-        let to = to!(m);
-        let attacker = self.squares[from!(m)] as usize;
-        let mut target = self.squares[to] as usize;
-        if target == EMPTY {target = PAWN} // en passant
-        let all_attackers = self.get_attackers(to);
-        let attackers = self.encode_attackers(all_attackers & self.sides[usize::from(self.c)]);
-        let defenders = self.encode_attackers(all_attackers & self.sides[usize::from(!self.c)]);
-        ctx.see_table.get(attacker, target, attackers, defenders)
-    }
-
-    fn encode_attackers(&self, attackers: u64) -> usize {
-        usize::from(attackers & self.pieces[PAWN] > 0)
-        | match (attackers & (self.pieces[KNIGHT] | self.pieces[BISHOP])).count_ones() {0 => 0, 1 => 0b10, 2 => 0b110, _ => 0b1110}
-        | match (attackers & self.pieces[ROOK]).count_ones() {0 => 0, 1 => 0b10000, _ => 0b110000}
-        | match (attackers & self.pieces[QUEEN]).count_ones() {0 => 0, _ => 0b1000000}
-        | match (attackers & self.pieces[KING]).count_ones() {0 => 0, _ => 0b10000000}
+    fn mvv_lva(&self, m: u16) -> u16 {
+        let moved_pc: usize = self.squares[from!(m)] as usize;
+        let captured_pc: usize = self.squares[to!(m)] as usize;
+        MVV_LVA[captured_pc][moved_pc]
     }
 }
 
 impl MoveList {
     // O(n^2) algorithm to incrementally sort the move list as needed.
-    fn pick(&mut self, scores: &mut ScoreList) -> Option<(u16, i16)> {
+    fn pick(&mut self, scores: &mut MoveList) -> Option<(u16, u16)> {
         if scores.len == 0 {return None}
         let mut idx = 0;
-        let mut best = -MAX;
+        let mut best = 0;
         let mut score;
         for i in 0..scores.len {
             score = scores.list[i];
@@ -123,7 +93,7 @@ impl MoveList {
     }
 }
 
-fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt: Nt, line: &mut Vec<u16>) -> i16 {
+fn pvs(pos: &mut Pos, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt: Nt, line: &mut Vec<u16>) -> i16 {
     // search aborting
     if ctx.abort { return 0 }
     if ctx.nodes & 1023 == 0 && ctx.timer() >= ctx.alloc_time {
@@ -155,7 +125,7 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
     if let Some(res) = ctx.hash_table.probe(hash, ctx.ply) {
         write = d > res.depth;
         bm = res.best_move;
-        if ctx.ply > 0 && res.depth >= d && pos.state.halfmove_clock < 90 && match res.bound {
+        if ctx.ply > 0 && res.depth >= d && pos.state.hfm < 90 && match res.bound {
             Bound::Lower => res.score >= b,
             Bound::Upper => res.score <= a,
             Bound::Exact => !pv, // want nice pv lines
@@ -218,10 +188,7 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
                 line.append(&mut sline);
                 if score >= b {
                     bound = Bound::Lower;
-                    if ms <= KILLER {
-                        ctx.killer_table.push(m, ctx.ply);
-                        ctx.history_table.push(m, pos.c, d);
-                    }
+                    if ms <= KILLER {ctx.killer_table.push(m, ctx.ply)}
                     break
                 }
             }
@@ -233,15 +200,14 @@ fn pvs(pos: &mut Position, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt:
     eval
 }
 
-fn qs(p: &mut Position, mut a: i16, b: i16, ctx: &mut Ctx) -> i16 {
+fn qs(p: &mut Pos, mut a: i16, b: i16, ctx: &mut Ctx) -> i16 {
     ctx.qnodes += 1;
     let mut e: i16 = p.eval();
     if e >= b {return e}
     a = max(a, e);
-    let mut caps: MoveList = p.gen::<CAPTURES>();
-    let mut scores: ScoreList = p.score_caps(&caps, ctx);
-    while let Some((m, ms)) = caps.pick(&mut scores) {
-        if ms < 0 {break}
+    let mut caps = p.gen::<CAPTURES>();
+    let mut scores = p.score_caps(&caps);
+    while let Some((m, _)) = caps.pick(&mut scores) {
         if p.r#do(m) {continue}
         e = max(e, -qs(p, -b, -a, ctx));
         p.undo();
@@ -251,11 +217,11 @@ fn qs(p: &mut Position, mut a: i16, b: i16, ctx: &mut Ctx) -> i16 {
     e
 }
 
-pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut Ctx) {
+pub fn go(pos: &mut Pos, ctx: &mut Ctx) {
     ctx.reset();
     let mut best_move: u16 = 0;
     let in_check: bool = pos.in_check();
-    for d in 1..=allocated_depth {
+    for d in 1..=64 {
         let mut pv_line: Vec<u16> = Vec::with_capacity(d as usize);
         let score: i16 = pvs(pos, -MAX, MAX, d, ctx, Nt(in_check, false), &mut pv_line);
         if ctx.abort {break}
@@ -266,8 +232,8 @@ pub fn go(pos: &mut Position, allocated_depth: i8, ctx: &mut Ctx) {
         let t: u128 = ctx.timer();
         let nodes: u64 = ctx.nodes + ctx.qnodes;
         let nps: u32 = ((nodes as f64) * 1000.0 / (t as f64)) as u32;
-        let pv_str: String = pv_line.iter().map(|&m: &u16| u16_to_uci(pos, m)).collect::<String>();
+        let pv_str: String = pv_line.iter().map(|&m: &u16| u16_to_uci(m)).collect::<String>();
         println!("info depth {d} seldepth {} score {stype} {sval} time {t} nodes {nodes} nps {nps} pv {pv_str}", ctx.seldepth);
     }
-    println!("bestmove {}", u16_to_uci(pos, best_move));
+    println!("bestmove {}", u16_to_uci(best_move));
 }

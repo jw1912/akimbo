@@ -23,11 +23,13 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-// Search & Eval
+// Search
 pub const MAX_PLY: i16 = 96;
 pub const KILLERS: usize = 3;
 pub const MAX: i16 = 30000;
 pub const MATE: i16 = MAX - u8::MAX as i16;
+
+// Eval
 pub const SIDE: [i16; 2] = [1, -1];
 pub const PHASE_VALS: [i16; 7] = [0, 1, 1, 2, 4, 0, 0];
 pub const TPHASE: i32 = 24;
@@ -44,12 +46,21 @@ pub const QT_IDX: [u8; 64] = init!(idx, 0, {
 });
 
 // Move Ordering
-pub const HASH_MOVE: i16 = 30000;
-pub const PROMOTION: i16 = 950;
-pub const KILLER: i16 = 900;
-pub const HISTORY: u32 = 800;
+pub const HASH_MOVE: u16 = 30000;
+pub const PROMOTION: u16 = 950;
+pub const KILLER: u16 = 900;
+pub const MVV_LVA: [[u16; 7]; 7] = [
+    [1500, 1400, 1300, 1200, 1100, 1000,   0],
+    [2500, 2400, 2300, 2200, 2100, 2000,   0],
+    [3500, 3400, 3300, 3200, 3100, 3000,   0],
+    [4500, 4400, 4300, 4200, 4100, 4000,   0],
+    [5500, 5400, 5300, 5200, 5100, 5000,   0],
+    [   0,    0,    0,    0,    0,    0,   0],
+    [   0,    0,    0,    0,    0,    0,   0],
+];
 
-// Position
+
+// Pos
 pub const WHITE: usize = 0;
 pub const BLACK: usize = 1;
 c_enum!(usize, 0, 0, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING, EMPTY);
@@ -59,7 +70,13 @@ pub const WQS: u8 = 8;
 pub const WKS: u8 = 4;
 pub const BQS: u8 = 2;
 pub const BKS: u8 = 1;
+pub const B1C1D1: u64 = 0x000000000000000E;
+pub const   F1G1: u64 = 0x0000000000000060;
+pub const B8C8D8: u64 = 0x0E00000000000000;
+pub const   F8G8: u64 = 0x6000000000000000;
 pub const CS: [u8; 2] = [WKS | WQS, BKS | BQS];
+pub const CM: [u8; 64] = init!(idx, 0, match idx {0 => 7, 4 => 3, 7 => 11, 56 => 13, 60 => 12, 63 => 14, _ => 15});
+pub const CMOV: [[(u64, usize, usize); 2]; 2] = [[(9, 0, 3), (0x0900000000000000, 56, 59)], [(160, 7, 5), (0xA000000000000000, 63, 61)]];
 
 // Move Generation
 #[derive(Clone, Copy)]
@@ -106,7 +123,6 @@ pub const RMASKS: [Mask; 64] = init!(idx, Mask { bit: 0, right: 0, left: 0, file
     let left = (bit - 1) & (0xFF << (idx & 56));
     Mask { bit, right: bit ^ left ^ (0xFF << (idx & 56)), left, file: bit ^ FILE << (idx & 7) }
 });
-pub const CASTLE_MOVES: [[usize; 2]; 2] = [[3, 5], [59, 61]];
 
 // Zobrist Hashing Values
 pub static ZVALS: ZobristVals = {

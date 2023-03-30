@@ -9,7 +9,7 @@ mod search;
 
 use std::{any::type_name, error::Error, io::stdin, time::Instant};
 use consts::*;
-use position::{Position, State};
+use position::{Pos, State};
 use movegen::MoveList;
 use search::{go, Ctx};
 
@@ -35,7 +35,7 @@ fn main() {
     }
 }
 
-fn parse_commands(commands: Vec<&str>, pos: &mut Position, ctx: &mut Ctx) -> Result<(), Message> {
+fn parse_commands(commands: Vec<&str>, pos: &mut Pos, ctx: &mut Ctx) -> Result<(), Message> {
     match *commands.first().unwrap_or(&"oops") {
         "uci" => {
             println!("id name {NAME} {VERSION}");
@@ -65,7 +65,7 @@ fn parse_commands(commands: Vec<&str>, pos: &mut Position, ctx: &mut Ctx) -> Res
     Ok(())
 }
 
-fn perft(pos: &mut Position, depth_left: u8) -> u64 {
+fn perft(pos: &mut Pos, depth_left: u8) -> u64 {
     let moves = pos.gen::<ALL>();
     let mut positions = 0;
     for m_idx in 0..moves.len {
@@ -77,7 +77,7 @@ fn perft(pos: &mut Position, depth_left: u8) -> u64 {
     positions
 }
 
-fn parse_perft(pos: &mut Position, commands: &[&str]) -> Result<(), Message> {
+fn parse_perft(pos: &mut Pos, commands: &[&str]) -> Result<(), Message> {
     for d in 0..=parse!(u8, commands[1]) {
         let now = Instant::now();
         let count = perft(pos, d);
@@ -87,14 +87,13 @@ fn parse_perft(pos: &mut Position, commands: &[&str]) -> Result<(), Message> {
     Ok(())
 }
 
-fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut Ctx) -> Result<(), Message> {
-    enum Tokens {None, Depth, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
+fn parse_go(pos: &mut Pos, commands: Vec<&str>, ctx: &mut Ctx) -> Result<(), Message> {
+    enum Tokens {None, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
     let mut token = Tokens::None;
-    let (mut times, mut mtg, mut depth, mut skip) = ([0, 0], None, 64, false);
+    let (mut times, mut mtg, mut skip) = ([0, 0], None, false);
     ctx.alloc_time = 1000;
     for command in commands {
         match command {
-            "depth" => token = Tokens::Depth,
             "movetime" => token = Tokens::Movetime,
             "wtime" => token = Tokens::WTime,
             "btime" => token = Tokens::BTime,
@@ -103,7 +102,6 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut Ctx) -> Result<()
             "movestogo" => token = Tokens::MovesToGo,
             _ => {
                 match token {
-                    Tokens::Depth => depth = std::cmp::min(parse!(i8, command), 64),
                     Tokens::Movetime => {
                         skip = true;
                         ctx.alloc_time = parse!(i64, command) as u128 - 10;
@@ -119,18 +117,18 @@ fn parse_go(pos: &mut Position, commands: Vec<&str>, ctx: &mut Ctx) -> Result<()
     }
     let mytime = times[usize::from(pos.c)];
     if !skip && mytime != 0 { ctx.alloc_time = mytime / mtg.unwrap_or(2 * pos.phase as u128 + 1) - 10 }
-    go(pos, depth, ctx);
+    go(pos, ctx);
     Ok(())
 }
 
-fn parse_position(pos: &mut Position, commands: Vec<&str>) -> Result<(), Message> {
+fn parse_position(pos: &mut Pos, commands: Vec<&str>) -> Result<(), Message> {
     enum Tokens {Nothing, Fen, Moves}
     let mut fen = String::new();
     let mut moves = Vec::new();
     let mut token = Tokens::Nothing;
     for cmd in commands {
         match cmd {
-            "position" => {},
+            "Pos" => {},
             "startpos" => *pos = parse_fen(STARTPOS)?,
             "fen" => token = Tokens::Fen,
             "moves" => token = Tokens::Moves,
@@ -154,48 +152,35 @@ fn sq_to_idx(sq: &str) -> Result<u16, Message> {
     Ok(8 * parse!(u16, chs[1].to_string()) + chs[0] as u16 - 105)
 }
 
-fn u16_to_uci(p: &Position, m: u16) -> String {
-    let flag = m & 0xF000;
-    if p.chess960 && (flag == QS || flag == KS) {
-            let from = from!(m) as u16;
-            let rook = p.castle[(flag == KS) as usize] as u16 + 56 * (from / 56);
-            format!("{}{} ", idx_to_sq!(from), idx_to_sq!(rook))
-    } else {
-        let promo = if m & 0b1000_0000_0000_0000 > 0 {["n","b","r","q"][((m >> 12) & 0b11) as usize]} else {""};
-        format!("{}{}{} ", idx_to_sq!((m >> 6) & 63), idx_to_sq!(m & 63), promo)
-    }
+fn u16_to_uci(m: u16) -> String {
+    let promo = if m & 0b1000_0000_0000_0000 > 0 {["n","b","r","q"][((m >> 12) & 0b11) as usize]} else {""};
+    format!("{}{}{} ", idx_to_sq!((m >> 6) & 63), idx_to_sq!(m & 63), promo)
 }
 
-fn uci_to_u16(pos: &Position, m: &str) -> Result<u16, Message> {
+fn uci_to_u16(pos: &Pos, m: &str) -> Result<u16, Message> {
     let l = m.len();
     if ![4, 5].contains(&l) {err!(format!("invalid move: {m}"))}
     let from = sq_to_idx(&m[0..2])?;
-    let mut to = sq_to_idx(&m[2..4])?;
-    let mut castle = 0;
-    if pos.chess960 && pos.sides[usize::from(pos.c)] & (1 << to) > 0 {
-        let s = 56 * (from / 56);
-        (to, castle) = if to == pos.castle[0] as u16 + s {(2 + s, QS)} else {(6 + s, KS)}
-    }
+    let to = sq_to_idx(&m[2..4])?;
+    let castle = 0;
     let mut no_flags = castle | (from << 6) | to;
     if castle > 0 {return Ok(no_flags)}
     no_flags |= match m.chars().nth(4).unwrap_or('f') {'n' => 0x8000, 'b' => 0x9000, 'r' => 0xA000, 'q' => 0xB000, _ => 0};
     let possible_moves: MoveList = pos.gen::<ALL>();
     for m_idx in 0..possible_moves.len {
         let um = possible_moves.list[m_idx];
-        if no_flags & !ALL_FLAGS == um & !ALL_FLAGS // from-to the same?
-            && (l < 5 || flag!(no_flags) == um & 0xB000) // promotions?
-            && (!pos.chess960 || (flag!(um) != KS && flag!(um) != QS)) { // rare chess960 case
-            return Ok(um);
+        if no_flags & !ALL_FLAGS == um & !ALL_FLAGS && (l < 5 || flag!(no_flags) == um & 0xB000) {
+            return Ok(um)
         }
     }
     err!(format!("invalid move: {m}"))
 }
 
-fn parse_fen(s: &str) -> Result<Position, Message> {
+fn parse_fen(s: &str) -> Result<Pos, Message> {
     let vec: Vec<&str> = s.split_whitespace().collect();
-    let mut pos = Position {
+    let mut pos = Pos {
         pieces: [0; 6], sides: [0; 2], squares: [EMPTY as u8; 64], c: false, state: State::default(),
-        nulls: 0, stack: Vec::new(), phase: 0, castle: [0, 7], castle_mask: [15; 64], chess960: false, material: [0; 6],
+        nulls: 0, stack: Vec::new(), phase: 0, material: [0; 6],
     };
 
     // board
@@ -226,55 +211,19 @@ fn parse_fen(s: &str) -> Result<Position, Message> {
 
     // castle rights
     let mut rights = 0;
-    let mut king_col = 4;
-    let wkc = lsb!(pos.pieces[KING] & pos.sides[0]) as u8 & 7;
-    let bkc = lsb!(pos.pieces[KING] & pos.sides[1]) as u8 & 7;
     for ch in vec[2].bytes() {
-        rights |= match ch {
-            b'Q' => WQS, b'K' => WKS, b'q' => BQS, b'k' => BKS, // standard chess
-            b'A'..=b'H' => {
-                pos.chess960 = true;
-                king_col = wkc as usize;
-                let rook_col = ch - b'A';
-                if rook_col < wkc {
-                    pos.castle[0] = rook_col;
-                    WQS
-                } else {
-                    pos.castle[1] = rook_col;
-                    WKS
-                }
-            }
-            b'a'..=b'h' => {
-                pos.chess960 = true;
-                king_col = bkc as usize;
-                let rook_col = ch - b'a';
-                if rook_col < bkc {
-                    pos.castle[0] = rook_col;
-                    BQS
-                } else {
-                    pos.castle[1] = rook_col;
-                    BKS
-                }
-            }
-            _ => 0
-        };
+        rights |= match ch {b'Q' => WQS, b'K' => WKS, b'q' => BQS, b'k' => BKS, _ => 0};
     }
-    pos.state.castle_rights = rights;
+    pos.state.cr = rights;
     while rights > 0 {
         pos.state.hash ^= ZVALS.castle[lsb!(rights) as usize];
         rights &= rights - 1;
     }
-    pos.castle_mask[pos.castle[0] as usize] = 7;
-    pos.castle_mask[pos.castle[1] as usize] = 11;
-    pos.castle_mask[56 + pos.castle[0] as usize] = 13;
-    pos.castle_mask[56 + pos.castle[1] as usize] = 14;
-    pos.castle_mask[king_col] = 3;
-    pos.castle_mask[56 + king_col] = 12;
 
     // state
     let enp = if vec[3] == "-" {0} else {sq_to_idx(vec[3])?};
-    pos.state.en_passant_sq = enp;
-    pos.state.halfmove_clock = parse!(u8, vec.get(4).unwrap_or(&"0"));
+    pos.state.enp = enp;
+    pos.state.hfm = parse!(u8, vec.get(4).unwrap_or(&"0"));
     pos.c = *vec.get(1).ok_or("no side to move provided")? == "b";
     if enp > 0 {pos.state.hash ^= ZVALS.en_passant[(enp & 7) as usize]}
     if !pos.c {pos.state.hash ^= ZVALS.side;}
