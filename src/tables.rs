@@ -1,8 +1,4 @@
-use crate::consts::*;
-
-/// The type of bound determined by the hash entry when it was searched.
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
-pub enum Bound {#[default] Lower, Upper, Exact}
+use crate::{consts::*, position::Move};
 
 #[derive(Clone, Copy, Default)]
 pub struct HashEntry {
@@ -10,23 +6,21 @@ pub struct HashEntry {
     pub best_move: u16,
     pub score: i16,
     pub depth: i8,
-    pub bound: Bound,
+    pub bound: u8,
 }
 
 pub struct HashTable {
     table: Vec<[HashEntry; 8]>,
     num_buckets: usize,
 }
-
-impl HashTable {
-    /// Instantiates a new hash table with size 1mb.
-    pub fn new() -> Self {
+impl Default for HashTable {
+    fn default() -> Self {
         let mut ret = Self { table: Vec::new(), num_buckets: 0 };
         ret.resize(1);
         ret
     }
-
-    /// Resizes the hash table to given size **in megabytes**, rounded down to nearest power of 2.
+}
+impl HashTable {
     pub fn resize(&mut self, mut size: usize) {
         size = 2usize.pow((size as f64).log2().floor() as u32);
         self.num_buckets = size * 1024 * 1024 / std::mem::size_of::<[HashEntry; 8]>();
@@ -37,12 +31,7 @@ impl HashTable {
         self.table.iter_mut().for_each(|bucket: &mut [HashEntry; 8]| *bucket = [HashEntry::default(); 8]);
     }
 
-    /// Push a search result to the hash table.
-    /// #### Replacement Scheme
-    /// 1. Prioritise replacing entries for the same Pos (key) that have lower depth.
-    /// 2. Fill empty entries in bucket.
-    /// 3. Replace lowest depth entry in bucket.
-    pub fn push(&mut self, zobrist: u64, best_move: u16, depth: i8, bound: Bound, mut score: i16, ply: i16) {
+    pub fn push(&mut self, zobrist: u64, m: Move, depth: i8, bound: u8, mut score: i16, ply: i16) {
         let key = (zobrist >> 48) as u16;
         let idx = (zobrist as usize) & (self.num_buckets- 1);
         let bucket = &mut self.table[idx];
@@ -60,10 +49,10 @@ impl HashTable {
             }
         }
         score += if score > MATE {ply} else if score < -MATE {-ply} else {0};
+        let best_move = (m.from as u16) << 6 | m.to as u16 | (m.flag as u16) << 12;
         bucket[desired_idx] = HashEntry { key, best_move, score, depth, bound };
     }
 
-    /// Probes the hash table for an entry matching the provided hash value, returning first match.
     pub fn probe(&self, zobrist: u64, ply: i16) -> Option<HashEntry> {
         let key = (zobrist >> 48) as u16;
         let idx = (zobrist as usize) & (self.num_buckets - 1);
@@ -79,9 +68,14 @@ impl HashTable {
     }
 }
 
-pub struct KillerTable(pub [[u16; KILLERS]; MAX_PLY as usize + 1]);
+pub struct KillerTable(pub [[Move; KILLERS]; MAX_PLY as usize + 1]);
+impl Default for KillerTable {
+    fn default() -> Self {
+        Self([[Move::default(); KILLERS]; MAX_PLY as usize + 1])
+    }
+}
 impl KillerTable {
-    pub fn push(&mut self, m: u16, p: i16) {
+    pub fn push(&mut self, m: Move, p: i16) {
         let ply = p as usize - 1;
         let new = if self.0[ply].contains(&m) {self.0[ply][KILLERS - 1]} else {m};
         (0..{KILLERS - 1}).rev().for_each(|i: usize| self.0[ply][i + 1] = self.0[ply][i]);

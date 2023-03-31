@@ -1,60 +1,40 @@
-use super::{lsb, consts::*};
-
-#[macro_export]
-macro_rules! flag {($m:expr) => {$m & ALL_FLAGS}}
-#[macro_export]
-macro_rules! from {($m:expr) => {(($m >> 6) & 63) as usize}}
-#[macro_export]
-macro_rules! to {($m:expr) => {($m & 63) as usize}}
-macro_rules! bit {($x:expr) => {1 << $x}}
-macro_rules! pop {($x:expr) => {$x &= $x - 1}}
-
-pub struct Pos {
-    pub pieces: [u64; 6],
-    pub sides: [u64; 2],
-    pub squares: [u8; 64],
-    pub c: bool,
-    pub state: State,
-    pub phase: i16,
-    pub nulls: u8,
-    pub material: [i16; 6],
-    pub stack: Vec<MoveContext>,
-}
+use super::consts::*;
 
 #[derive(Clone, Copy, Default)]
 pub struct State {
     pub hash: u64,
-    pub enp: u16,
-    pub hfm: u8,
+    pub enp: u8,
     pub cr: u8,
+    pub hfm: u8,
 }
 
 #[derive(Clone, Copy)]
-pub struct MoveContext {
+pub struct MoveCtx {
     state: State,
-    m: u16,
-    moved_pc: u8,
-    captured_pc: u8,
+    m: Move,
+    cpc: u8,
+}
+
+#[derive(Default)]
+pub struct Position {
+    pub bb: [u64; 8],
+    pub c: bool,
+    pub state: State,
+    pub stack: Vec<MoveCtx>,
+    pub phase: i16,
+    nulls: u16,
+}
+
+#[derive(Copy, Clone, Default, PartialEq, Eq)]
+pub struct Move {
+    pub from: u8,
+    pub to: u8,
+    pub flag: u8,
+    pub mpc: u8,
 }
 
 #[inline(always)]
-pub fn rook_attacks(idx: usize, occ: u64) -> u64 {
-    let m = RMASKS[idx];
-    let mut f = occ & m.file;
-    let mut r = f.swap_bytes();
-    f -= m.bit;
-    r -= m.bit.swap_bytes();
-    f ^= r.swap_bytes();
-    f &= m.file;
-    let mut e = m.right & occ;
-    r = e & e.wrapping_neg();
-    e = (r ^ (r - m.bit)) & m.right;
-    let w = m.left ^ WEST[(((m.left & occ)| 1).leading_zeros() ^ 63) as usize];
-    f | e | w
-}
-
-#[inline(always)]
-pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
+pub fn batt(idx: usize, occ: u64) -> u64 {
     let m = BMASKS[idx];
     let mut f = occ & m.right;
     let mut r = f.swap_bytes();
@@ -71,168 +51,155 @@ pub fn bishop_attacks(idx: usize, occ: u64) -> u64 {
     f | f2
 }
 
-impl Pos {
+#[inline(always)]
+pub fn ratt(idx: usize, occ: u64) -> u64 {
+    let m = RMASKS[idx];
+    let mut f = occ & m.file;
+    let mut r = f.swap_bytes();
+    f -= m.bit;
+    r -= m.bit.swap_bytes();
+    f ^= r.swap_bytes();
+    f &= m.file;
+    let mut e = m.right & occ;
+    r = e & e.wrapping_neg();
+    e = (r ^ (r - m.bit)) & m.right;
+    let w = m.left ^ WEST[(((m.left & occ)| 1).leading_zeros() ^ 63) as usize];
+    f | e | w
+}
+
+impl Position {
+    pub fn from_fen(fen: &str) -> Self {
+        let mut pos = Self::default();
+        let vec: Vec<&str> = fen.split_whitespace().collect();
+        let p: Vec<char> = vec[0].chars().collect();
+        let (mut row, mut col) = (7, 0);
+        for ch in p {
+            if ch == '/' { row -= 1; col = 0; }
+            else if ('1'..='8').contains(&ch) { col += ch.to_string().parse::<i16>().unwrap_or(0) }
+            else {
+                let idx = ['P','N','B','R','Q','K','p','n','b','r','q','k'].iter().position(|&element| element == ch).unwrap_or(6);
+                let side = usize::from(idx > 5);
+                let pc = idx + 2 - 6 * side;
+                let sq = 8 * row + col;
+                pos.toggle(side, pc, 1 << sq);
+                pos.state.hash ^= ZVALS.pieces[side][pc][sq as usize];
+                pos.phase += PHASE_VALS[pc];
+                col += 1;
+            }
+        }
+        pos.c = vec[1] == "b";
+        for ch in vec[2].chars() {pos.state.cr |= match ch {'Q' => WQS, 'K' => WKS, 'q' => BQS, 'k' => BKS, _ => 0}}
+        pos.state.enp = if vec[3] == "-" {0} else {
+            let chs: Vec<char> = vec[3].chars().collect();
+            8 * chs[1].to_string().parse::<u8>().unwrap_or(0) + chs[0] as u8 - 105
+        };
+        pos.state.hfm = vec[4].parse::<u8>().unwrap();
+        pos
+    }
+
+    pub fn hash(&self) -> u64 {
+        let mut hash = self.state.hash;
+        if self.c {hash ^= ZVALS.side}
+        if self.state.enp > 0 {hash ^= ZVALS.en_passant[self.state.enp as usize & 7]}
+        let mut r = self.state.cr;
+        while r > 0 {
+            hash ^= ZVALS.castle[r.trailing_zeros() as usize];
+            r &= r - 1;
+        }
+        hash
+    }
+
+    #[inline(always)]
+    pub fn toggle(&mut self, c: usize, pc: usize, bit: u64) {
+        self.bb[pc] ^= bit;
+        self.bb[c] ^= bit;
+    }
+
     #[inline(always)]
     pub fn is_sq_att(&self, idx: usize, side: usize, occ: u64) -> bool {
-        let s = self.sides[side ^ 1];
-        let q = self.pieces[QUEEN] & s;
-        (KNIGHT_ATTACKS[idx] & self.pieces[KNIGHT] & s > 0)
-        || (KING_ATTACKS[idx] & self.pieces[KING] & s > 0)
-        || (PAWN_ATTACKS[side][idx] & self.pieces[PAWN] & s > 0)
-        || (rook_attacks(idx, occ) & (self.pieces[ROOK] & s | q) > 0)
-        || (bishop_attacks(idx, occ) & (self.pieces[BISHOP] & s | q) > 0)
-    }
-
-    pub fn in_check(&self) -> bool {
-        let king_idx = lsb!(self.pieces[KING] & self.sides[usize::from(self.c)]) as usize;
-        self.is_sq_att(king_idx, usize::from(self.c), self.sides[0] | self.sides[1])
+        let s = self.bb[side ^ 1];
+        (NATT[idx] & self.bb[N] & s > 0)
+        || (KATT[idx] & self.bb[K] & s > 0)
+        || (PATT[side][idx] & self.bb[P] & s > 0)
+        || (ratt(idx, occ) & ((self.bb[R] | self.bb[Q]) & s) > 0)
+        || (batt(idx, occ) & ((self.bb[B] | self.bb[Q]) & s) > 0)
     }
 
     #[inline(always)]
-    fn toggle(&mut self, side: usize, pc: usize, bit: u64) {
-        self.pieces[pc] ^= bit;
-        self.sides[side] ^= bit;
+    pub fn get_pc(&self, bit: u64) -> usize {
+        usize::from((self.bb[N] | self.bb[R] | self.bb[K]) & bit > 0)
+        | (2 * usize::from((self.bb[N] | self.bb[P] | self.bb[Q] | self.bb[K]) & bit > 0))
+        | (4 * usize::from((self.bb[B] | self.bb[R] | self.bb[Q] | self.bb[K]) & bit > 0))
     }
 
-    pub fn r#do(&mut self, m: u16) -> bool {
+    pub fn r#do(&mut self, m: Move) -> bool {
+        let cpc = if m.flag & CAP == 0 || m.flag == ENP {E} else {self.get_pc(1 << m.to)};
         let side = usize::from(self.c);
-        self.do_unchecked(m);
-        let king_idx = lsb!(self.pieces[KING] & self.sides[side]) as usize;
-        let invalid = self.is_sq_att(king_idx, side, self.sides[0] | self.sides[1]);
-        if invalid { self.undo() }
+        self.stack.push(MoveCtx { state: self.state, m, cpc: cpc as u8 });
+        self.state.cr &= CR[m.to as usize] & CR[m.from as usize];
+        self.state.enp = if m.flag == DBL {if side == WH {m.to - 8} else {m.to + 8}} else {0};
+        self.state.hfm = u8::from(m.mpc > P as u8 && m.flag != CAP) * (self.state.hfm + 1);
+        self.r#move::<true>(m, side, cpc);
+        let kidx = (self.bb[K] & self.bb[side]).trailing_zeros() as usize;
+        let invalid = self.is_sq_att(kidx, side, self.bb[0] | self.bb[1]);
+        if invalid {self.undo()}
         invalid
     }
 
-    pub fn do_unchecked(&mut self, m: u16) {
-        let from = from!(m);
-        let to = to!(m);
-        let f = bit!(from);
-        let t = bit!(to);
-        let moved_pc = self.squares[from];
-        let mpc = moved_pc as usize;
-        let captured_pc = self.squares[to];
-        let flag = flag!(m);
-        let rights = self.state.cr;
-        let side = usize::from(self.c);
-
-        self.stack.push(MoveContext { state: self.state, m, moved_pc, captured_pc});
-        self.toggle(side, mpc, f ^ t);
-        self.state.hash ^= ZVALS.pieces[side][mpc][from] ^ ZVALS.pieces[side][mpc][to];
-        self.squares[from] = EMPTY as u8;
-        self.squares[to] = moved_pc;
-        if self.state.enp > 0 {self.state.hash ^= ZVALS.en_passant[(self.state.enp & 7) as usize]}
-        self.state.enp = 0;
-        self.state.hash ^= ZVALS.side;
-        if captured_pc != EMPTY as u8 && flag != KS && flag != QS {
-            let cpc = captured_pc as usize;
-            self.toggle(side ^ 1, cpc, t);
-            self.state.hash ^= ZVALS.pieces[side ^ 1][cpc][to];
-            self.phase -= PHASE_VALS[cpc];
-            self.material[cpc] += SIDE[side];
-        }
-        self.state.cr &= CM[from] & CM[to];
-        match flag {
-            ENP => {
-                let pwn = if side == BLACK {to + 8} else {to - 8};
-                let p = bit!(pwn);
-                self.toggle(side ^ 1, PAWN, p);
-                self.state.hash ^= ZVALS.pieces[side ^ 1][PAWN][pwn];
-                self.squares[pwn] = EMPTY as u8;
-                self.material[PAWN] += SIDE[side];
-            }
-            DBL => {
-                self.state.enp = if side == WHITE {to - 8} else {to + 8} as u16;
-                self.state.hash ^= ZVALS.en_passant[to & 7];
-            }
-            KS | QS => {
-                let (bits, idx1, idx2) = CMOV[usize::from(flag == KS)][side];
-                self.toggle(side, ROOK, bits);
-                self.squares[idx1] = EMPTY as u8;
-                self.squares[idx2] = ROOK as u8;
-                self.state.hash ^= ZVALS.pieces[side][ROOK][idx1] ^ ZVALS.pieces[side][ROOK][idx2];
-            }
-            PR.. => {
-                let ppc = (((flag >> 12) & 3) + 1) as usize;
-                self.pieces[mpc] ^= t;
-                self.pieces[ppc] ^= t;
-                self.squares[to] = ppc as u8;
-                self.phase += PHASE_VALS[ppc];
-                self.state.hash ^= ZVALS.pieces[side][mpc][to] ^ ZVALS.pieces[side][ppc][to];
-                self.material[PAWN] -= SIDE[side];
-                self.material[ppc] += SIDE[side];
-            }
-            _ => {}
-        }
-        self.state.hfm = u8::from(moved_pc > PAWN as u8 && flag != CAP) * (self.state.hfm + 1);
-        self.c = !self.c;
-
-        let mut changed_castle = rights & !self.state.cr;
-        while changed_castle > 0 {
-            self.state.hash ^= ZVALS.castle[lsb!(changed_castle) as usize];
-            pop!(changed_castle);
-        }
-    }
-
     pub fn undo(&mut self) {
-        let state = self.stack.pop().unwrap();
-        let from = from!(state.m);
-        let to = to!(state.m);
-        let f = bit!(from);
-        let t = bit!(to);
-        let flag = flag!(state.m);
-        self.c = !self.c;
-        let side = usize::from(self.c);
+        let ctx = self.stack.pop().unwrap();
+        self.state = ctx.state;
+        self.r#move::<false>(ctx.m, usize::from(!self.c), ctx.cpc as usize);
+    }
 
-        self.state = state.state;
-        self.toggle(side, state.moved_pc as usize, f ^ t);
-        self.squares[from] = state.moved_pc;
-        self.squares[to] = state.captured_pc;
-        if state.captured_pc != EMPTY as u8 && flag != KS && flag != QS {
-            let cpc = state.captured_pc as usize;
+    #[inline(always)]
+    fn r#move<const DO: bool>(&mut self, m: Move, side: usize, cpc: usize) {
+        let sign = SIDE[usize::from(!DO)];
+        let f = 1 << m.from;
+        let t = 1 << m.to;
+        let mpc = usize::from(m.mpc);
+        self.c = !self.c;
+        self.toggle(side, mpc, f | t);
+        if DO {self.state.hash ^= ZVALS.pieces[side][mpc][usize::from(m.from)] ^ ZVALS.pieces[side][mpc][usize::from(m.to)];}
+        if cpc != E {
             self.toggle(side ^ 1, cpc, t);
-            self.phase += PHASE_VALS[cpc];
-            self.material[cpc] -= SIDE[side];
+            if DO {self.state.hash ^= ZVALS.pieces[side ^ 1][cpc][usize::from(m.to)];}
+            self.phase -= sign * PHASE_VALS[cpc];
         }
-        match flag {
-            ENP => {
-                let pwn = if side == BLACK {to + 8} else {to - 8};
-                self.toggle(side ^ 1, PAWN, bit!(pwn));
-                self.squares[pwn] = PAWN as u8;
-                self.material[PAWN] -= SIDE[side];
-            }
+        match m.flag {
             KS | QS => {
-                let (bits, idx1, idx2) = CMOV[usize::from(flag == KS)][side];
-                self.toggle(side, ROOK, bits);
-                self.squares[idx1] = ROOK as u8;
-                self.squares[idx2] = EMPTY as u8;
-            }
-            PR.. => {
-                let ppc = (((flag >> 12) & 3) + 1) as usize;
-                self.pieces[state.moved_pc as usize] ^= t;
-                self.pieces[ppc] ^= t;
-                self.phase -= PHASE_VALS[ppc];
-                self.material[ppc] -= SIDE[side];
-                self.material[PAWN] += SIDE[side];
+                let (bits, idx1, idx2) = CM[usize::from(m.flag == KS)][side];
+                self.toggle(side, R, bits);
+                if DO {self.state.hash ^= ZVALS.pieces[side][R][idx1] ^ ZVALS.pieces[side][R][idx2];}
+            },
+            ENP => {
+                let pwn = usize::from(m.to + [8u8.wrapping_neg(), 8][side]);
+                self.toggle(side ^ 1, P, 1 << pwn);
+                if DO {self.state.hash ^= ZVALS.pieces[side ^ 1][P][pwn];}
+            },
+            NPR.. => {
+                let ppc = usize::from((m.flag & 3) + 3);
+                self.bb[P] ^= t;
+                self.bb[ppc] ^= t;
+                if DO {self.state.hash ^= ZVALS.pieces[side][P][usize::from(m.to)] ^ ZVALS.pieces[side][ppc][usize::from(m.to)];}
+                self.phase += sign * PHASE_VALS[ppc];
             }
             _ => {}
         }
     }
 
-    pub fn do_null(&mut self, ply: &mut i16) -> u16 {
-        self.nulls += 1;
-        *ply += 1;
+    pub fn do_null(&mut self) -> u8 {
         let enp = self.state.enp;
-        self.state.hash ^= u64::from(enp > 0) * ZVALS.en_passant[(enp & 7) as usize];
+        self.nulls += 1;
+        self.stack.push(MoveCtx { state: self.state, m: Move::default(), cpc: 0 });
         self.state.enp = 0;
         self.c = !self.c;
-        self.state.hash ^= ZVALS.side;
         enp
     }
 
-    pub fn undo_null(&mut self, enp: u16, hash: u64, ply: &mut i16) {
+    pub fn undo_null(&mut self, enp: u8) {
         self.nulls -= 1;
-        *ply -= 1;
-        self.state.hash = hash;
+        self.stack.pop();
         self.state.enp = enp;
         self.c = !self.c;
     }
@@ -240,30 +207,56 @@ impl Pos {
     fn repetition_draw(&self, num: u8) -> bool {
         let l = self.stack.len();
         if l < 6 || self.nulls > 0 { return false }
-        let to = l - 1;
-        let from = l.saturating_sub(self.state.hfm as usize);
         let mut reps: u8 = 1;
-        for i in (from..to).rev().step_by(2) {
-            if self.stack[i].state.hash == self.state.hash {
-                reps += 1;
-                if reps >= num { return true }
-            }
+        for i in (l.saturating_sub(self.state.hfm as usize)..(l - 1)).rev().step_by(2) {
+            reps += u8::from(self.stack[i].state.hash == self.state.hash);
+            if reps >= num { return true }
         }
         false
     }
 
-    pub fn material_draw(&self) -> bool {
-        if self.phase <= 2 && self.pieces[PAWN] == 0 {
-            if self.phase == 2 {
-                let b = self.pieces[BISHOP];
-                return b & self.sides[0] != b && b & self.sides[1] != b && (b & LSQ == b || b & DSQ == b)
-            }
-            return true
-        }
-        false
+    fn material_draw(&self) -> bool {
+        let (ph, b, p, wh, bl) = (self.phase, self.bb[B], self.bb[P], self.bb[0], self.bb[1]);
+        ph <= 2 && p == 0 && ((ph != 2) || (b & wh != b && b & bl != b && (b & LSQ == b || b & DSQ == b)))
     }
 
     pub fn is_draw(&self, ply: i16) -> bool {
         self.state.hfm >= 100 || self.repetition_draw(2 + u8::from(ply == 0)) || self.material_draw()
+    }
+
+    pub fn in_check(&self) -> bool {
+        let kidx = (self.bb[K] & self.bb[usize::from(self.c)]).trailing_zeros() as usize;
+        self.is_sq_att(kidx, usize::from(self.c), self.bb[0] | self.bb[1])
+    }
+}
+
+macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", char::from_u32(($idx & 7) as u32 + 97).unwrap(), ($idx >> 3) + 1)}}
+fn sq_to_idx(sq: &str) -> u8 {
+    let chs: Vec<char> = sq.chars().collect();
+    8 * chs[1].to_string().parse::<u8>().unwrap() + chs[0] as u8 - 105
+}
+impl Move {
+    pub fn from_u16(m: u16, pos: &Position) -> Self {
+        let from = ((m >> 6) & 63) as u8;
+        Self { from, to: (m & 63) as u8, flag: ((m >> 12) & 63) as u8, mpc: pos.get_pc(1 << from) as u8 }
+    }
+
+    pub fn to_uci(m: Self) -> String {
+        let promo = if m.flag & 0b1000 > 0 {["n","b","r","q"][(m.flag & 0b11) as usize]} else {""};
+        format!("{}{}{} ", idx_to_sq!(m.from), idx_to_sq!(m.to), promo)
+    }
+
+    pub fn from_uci(pos: &Position, m_str: &str) -> Self {
+        let from = sq_to_idx(&m_str[0..2]);
+        let to = sq_to_idx(&m_str[2..4]);
+        let mut m = Move { from, to, flag: 0, mpc: 0};
+        m.flag |= match m_str.chars().nth(4).unwrap_or('f') {'n' => 8, 'b' => 9, 'r' => 10, 'q' => 11, _ => 0};
+        let possible_moves = pos.gen::<ALL>();
+        for um in &possible_moves.list[0..possible_moves.len] {
+            if m.from == um.from && m.to == um.to && (m_str.len() < 5 || m.flag == um.flag & 0b1011) {
+                return *um
+            }
+        }
+        panic!("")
     }
 }
