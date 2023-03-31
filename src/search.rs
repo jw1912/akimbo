@@ -133,7 +133,7 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, null
     let mut write = true;
     if let Some(res) = eng.hash_table.probe(hash, eng.ply) {
         write = d > res.depth;
-        bm = Move::from_u16(res.best_move, &eng.pos);
+        bm = Move::from_short(res.best_move, &eng.pos);
         if eng.ply > 0 && !write && match res.bound {
             LOWER => res.score >= b,
             UPPER => res.score <= a,

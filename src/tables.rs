@@ -9,16 +9,10 @@ pub struct HashEntry {
     pub bound: u8,
 }
 
+#[derive(Default)]
 pub struct HashTable {
     table: Vec<[HashEntry; 8]>,
     num_buckets: usize,
-}
-impl Default for HashTable {
-    fn default() -> Self {
-        let mut ret = Self { table: Vec::new(), num_buckets: 0 };
-        ret.resize(1);
-        ret
-    }
 }
 impl HashTable {
     pub fn resize(&mut self, mut size: usize) {

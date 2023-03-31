@@ -254,7 +254,7 @@ fn sq_to_idx(sq: &str) -> u8 {
     8 * chs[1].to_string().parse::<u8>().unwrap() + chs[0] as u8 - 105
 }
 impl Move {
-    pub fn from_u16(m: u16, pos: &Position) -> Self {
+    pub fn from_short(m: u16, pos: &Position) -> Self {
         let from = ((m >> 6) & 63) as u8;
         Self { from, to: (m & 63) as u8, flag: ((m >> 12) & 63) as u8, mpc: pos.get_pc(1 << from) as u8 }
     }
@@ -265,9 +265,7 @@ impl Move {
     }
 
     pub fn from_uci(pos: &Position, m_str: &str) -> Self {
-        let from = sq_to_idx(&m_str[0..2]);
-        let to = sq_to_idx(&m_str[2..4]);
-        let mut m = Move { from, to, flag: 0, mpc: 0};
+        let mut m = Move { from: sq_to_idx(&m_str[0..2]), to: sq_to_idx(&m_str[2..4]), flag: 0, mpc: 0};
         m.flag |= match m_str.chars().nth(4).unwrap_or('f') {'n' => 8, 'b' => 9, 'r' => 10, 'q' => 11, _ => 0};
         let possible_moves = pos.gen::<ALL>();
         for um in &possible_moves.list[0..possible_moves.len] {
