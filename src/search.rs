@@ -98,11 +98,12 @@ fn qs(eng: &mut Engine, mut a: i16, b: i16) -> i16 {
     a = max(a, e);
     let mut caps = eng.pos.gen::<CAPTURES>();
     let mut scores = eng.score_caps(&caps);
-    while let Some((m, _)) = caps.pick(&mut scores) {
-        if eng.pos.r#do(m) {continue}
+    while let Some((m, ms)) = caps.pick(&mut scores) {
+        if e + ms / 5 + 200 < a { break }
+        if eng.pos.r#do(m) { continue }
         e = max(e, -qs(eng, -b, -a));
         eng.pos.undo();
-        if e >= b {break}
+        if e >= b { break }
         a = max(a, e);
     }
     e
@@ -117,16 +118,11 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, null
 
     if eng.pos.state.hfm >= 100 || eng.pos.repetition_draw(2 + u8::from(eng.ply == 0)) || eng.pos.material_draw() { return 0 }
     let pv = b > a + 1;
-
     a = max(a, -MAX + eng.ply);
     b = min(b, MAX - eng.ply - 1);
     if a >= b { return a }
-
     d += i8::from(in_check);
-
-    if d <= 0 || eng.ply == MAX_PLY {
-        return qs(eng, a, b)
-    }
+    if d <= 0 || eng.ply == MAX_PLY { return qs(eng, a, b) }
 
     let hash = eng.pos.hash();
     let mut bm = Move::default();
@@ -146,22 +142,21 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, null
         let eval = eng.lazy_eval();
 
         // reverse futility pruning
-        let margin = eval - 120 * i16::from(d);
-        if d <= 8 && margin >= b { return margin }
+        let m = eval - 120 * i16::from(d);
+        if d <= 8 && m >= b { return m }
 
         // null move pruning
         if null && d >= 3 && eng.pos.phase >= 6 && eval >= b {
             let enp = eng.pos.do_null();
-            let nw = -pvs(eng, -b, -b + 1, d - 3, false, false, &mut Vec::new());
+            let nw = -pvs(eng, -a - 1, -a, d - 3, false, false, &mut Vec::new());
             eng.pos.undo_null(enp);
             if nw >= b {return nw}
-            if nw < -MATE {d += 1}
         }
     }
 
     eng.nodes += 1;
     eng.ply += 1;
-    let lmr = d > 2 && eng.ply > 1 && !in_check;
+    let lmr = d >= 2 && eng.ply > 0 && !in_check;
     let mut moves = eng.pos.gen::<ALL>();
     let mut scores = eng.score(&moves, bm);
     let (mut legal, mut eval, mut bound) = (0, -MAX, UPPER);
