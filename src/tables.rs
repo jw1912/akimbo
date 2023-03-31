@@ -31,7 +31,7 @@ impl HashTable {
         let mut desired_idx = usize::MAX;
         let mut smallest_depth = i8::MAX;
         for (entry_idx, entry) in self.table[idx].iter().enumerate() {
-            if (entry.key == key && depth > entry.depth) || entry.depth == 0 {
+            if entry.key == key {
                 desired_idx = entry_idx;
                 break;
             }
