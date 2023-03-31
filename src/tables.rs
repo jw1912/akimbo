@@ -28,10 +28,9 @@ impl HashTable {
     pub fn push(&mut self, zobrist: u64, m: Move, depth: i8, bound: u8, mut score: i16, ply: i16) {
         let key = (zobrist >> 48) as u16;
         let idx = (zobrist as usize) & (self.num_buckets- 1);
-        let bucket = &mut self.table[idx];
         let mut desired_idx = usize::MAX;
         let mut smallest_depth = i8::MAX;
-        for (entry_idx, &entry) in bucket.iter().enumerate() {
+        for (entry_idx, entry) in self.table[idx].iter().enumerate() {
             if (entry.key == key && depth > entry.depth) || entry.depth == 0 {
                 desired_idx = entry_idx;
                 break;
@@ -39,19 +38,17 @@ impl HashTable {
             if entry.depth < smallest_depth {
                 smallest_depth = entry.depth;
                 desired_idx = entry_idx;
-                continue;
             }
         }
         score += if score > MATE {ply} else if score < -MATE {-ply} else {0};
         let best_move = (m.from as u16) << 6 | m.to as u16 | (m.flag as u16) << 12;
-        bucket[desired_idx] = HashEntry { key, best_move, score, depth, bound };
+        self.table[idx][desired_idx] = HashEntry { key, best_move, score, depth, bound };
     }
 
     pub fn probe(&self, zobrist: u64, ply: i16) -> Option<HashEntry> {
         let key = (zobrist >> 48) as u16;
         let idx = (zobrist as usize) & (self.num_buckets - 1);
-        let bucket = &self.table[idx];
-        for entry in bucket {
+        for entry in &self.table[idx] {
             if entry.key == key {
                 let mut res = *entry;
                 res.score += if res.score > MATE {-ply} else if res.score < -MATE {ply} else {0};

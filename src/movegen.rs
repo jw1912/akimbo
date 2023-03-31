@@ -85,14 +85,8 @@ fn pc_moves<const PC: usize, const QUIETS: bool>(moves: &mut MoveList, occ: u64,
     attackers &= friends;
     while attackers > 0 {
         pop_lsb!(from, attackers);
-        let attacks = match PC {
-            N => NATT[from as usize],
-            R => ratt(from as usize, occ),
-            B => batt(from as usize, occ),
-            Q => ratt(from as usize, occ) | batt(from as usize, occ),
-            K => KATT[from as usize],
-            _ => 0,
-        };
+        let f = from as usize;
+        let attacks = match PC {N => NATT[f], R => ratt(f, occ), B => batt(f, occ), Q => ratt(f, occ) | batt(f, occ), K => KATT[f], _ => 0};
         encode::<PC, CAP>(moves, attacks & opps, from);
         if QUIETS { encode::<PC, QUIET>(moves, attacks & !occ, from) }
     }

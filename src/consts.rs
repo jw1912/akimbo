@@ -150,8 +150,10 @@ pub static ZVALS: ZobristVals = {
                 seed = xor_shift(seed);
                 vals.pieces[idx][piece][square] = seed;
                 square += 1;
-            } piece += 1;
-        } idx += 1;
+            }
+            piece += 1;
+        }
+        idx += 1;
     }
     while idx < 6 {seed = xor_shift(seed); vals.castle[idx - 2] = seed; idx += 1;}
     while idx < 14 {seed = xor_shift(seed); vals.en_passant[idx - 6] = seed; idx += 1;}

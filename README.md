@@ -5,7 +5,7 @@ A compact UCI Chess(960) engine written in Rust.
 If you have cargo installed, run `cargo build --release`.
 
 ### Aims
-The main aim is to stay under 1500 lines of code, currently at 909 excluding blank lines and comments (995 including).
+The main aim is to stay under 1500 lines of code, currently at 890 excluding blank lines and comments (976 including).
 
 ## Features
 

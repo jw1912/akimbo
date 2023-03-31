@@ -2,7 +2,7 @@ use super::consts::*;
 
 #[derive(Clone, Copy, Default)]
 pub struct State {
-    pub hash: u64,
+    hash: u64,
     pub pst: S,
     pub enp: u8,
     pub cr: u8,
@@ -10,19 +10,15 @@ pub struct State {
 }
 
 #[derive(Clone, Copy)]
-pub struct MoveCtx {
-    state: State,
-    m: Move,
-    cpc: u8,
-}
+pub struct MoveCtx(State, Move, u8);
 
 #[derive(Default)]
 pub struct Position {
     pub bb: [u64; 8],
     pub c: bool,
     pub state: State,
-    pub stack: Vec<MoveCtx>,
     pub phase: i16,
+    stack: Vec<MoveCtx>,
     nulls: u16,
 }
 
@@ -137,7 +133,7 @@ impl Position {
     pub fn r#do(&mut self, m: Move) -> bool {
         let cpc = if m.flag & CAP == 0 || m.flag == ENP {E} else {self.get_pc(1 << m.to)};
         let side = usize::from(self.c);
-        self.stack.push(MoveCtx { state: self.state, m, cpc: cpc as u8 });
+        self.stack.push(MoveCtx(self.state, m, cpc as u8));
         self.state.cr &= CR[m.to as usize] & CR[m.from as usize];
         self.state.enp = if m.flag == DBL {if side == WH {m.to - 8} else {m.to + 8}} else {0};
         self.state.hfm = u8::from(m.mpc > P as u8 && m.flag != CAP) * (self.state.hfm + 1);
@@ -150,8 +146,8 @@ impl Position {
 
     pub fn undo(&mut self) {
         let ctx = self.stack.pop().unwrap();
-        self.state = ctx.state;
-        self.r#move::<false>(ctx.m, usize::from(!self.c), ctx.cpc as usize);
+        self.state = ctx.0;
+        self.r#move::<false>(ctx.1, usize::from(!self.c), ctx.2 as usize);
     }
 
     #[inline(always)]
@@ -213,7 +209,7 @@ impl Position {
     pub fn do_null(&mut self) -> u8 {
         let enp = self.state.enp;
         self.nulls += 1;
-        self.stack.push(MoveCtx { state: self.state, m: Move::default(), cpc: 0 });
+        self.stack.push(MoveCtx(self.state, Move::default(), 0));
         self.state.enp = 0;
         self.c = !self.c;
         enp
@@ -231,7 +227,7 @@ impl Position {
         if l < 6 || self.nulls > 0 { return false }
         let mut reps: u8 = 1;
         for i in (l.saturating_sub(self.state.hfm as usize)..(l - 1)).rev().step_by(2) {
-            reps += u8::from(self.stack[i].state.hash == self.state.hash);
+            reps += u8::from(self.stack[i].0.hash == self.state.hash);
             if reps >= num { return true }
         }
         false
