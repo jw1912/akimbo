@@ -156,7 +156,7 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, null
 
     eng.nodes += 1;
     eng.ply += 1;
-    let lmr = d >= 2 && eng.ply > 0 && !in_check;
+    let lmr = d >= 2 && eng.ply > 1 && !in_check;
     let mut moves = eng.pos.gen::<ALL>();
     let mut scores = eng.score(&moves, bm);
     let (mut legal, mut eval, mut bound) = (0, -MAX, UPPER);

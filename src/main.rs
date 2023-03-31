@@ -23,7 +23,7 @@ fn main() {
 
 fn parse_commands(commands: Vec<&str>, eng: &mut Engine) {
     match *commands.first().unwrap_or(&"oops") {
-        "uci" => println!("id name {NAME} {VERSION}\nid author {AUTHOR}\noption name Hash type spin default 64 min 1 max 512\nuciok"),
+        "uci" => println!("id name {NAME} {VERSION}\nid author {AUTHOR}\noption name Hash type spin default 128 min 1 max 512\nuciok"),
         "isready" => println!("readyok"),
         "ucinewgame" => {
             eng.pos = Position::from_fen(STARTPOS);
