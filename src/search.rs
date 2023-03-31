@@ -13,6 +13,7 @@ pub struct Ctx {
     nodes: u64,
     qnodes: u64,
     ply: i16,
+    hits: u64,
     seldepth: i16,
     abort: bool,
 }
@@ -22,7 +23,7 @@ impl Ctx {
         Self {
             hash_table: HashTable::new(),
             killer_table: KillerTable([[0; KILLERS]; MAX_PLY as usize + 1]),
-            time: Instant::now(), alloc_time: 1000, nodes: 0, qnodes: 0, ply: 0, seldepth: 0, abort: false
+            time: Instant::now(), alloc_time: 1000, nodes: 0, qnodes: 0, ply: 0, seldepth: 0, abort: false, hits: 0,
         }
     }
 
@@ -123,6 +124,7 @@ fn pvs(pos: &mut Pos, mut a: i16, mut b: i16, mut d: i8, ctx: &mut Ctx, nt: Nt, 
     let mut bm = 0;
     let mut write = true;
     if let Some(res) = ctx.hash_table.probe(hash, ctx.ply) {
+        ctx.hits += 1;
         write = d > res.depth;
         bm = res.best_move;
         if ctx.ply > 0 && res.depth >= d && pos.state.hfm < 90 && match res.bound {
@@ -233,7 +235,7 @@ pub fn go(pos: &mut Pos, ctx: &mut Ctx) {
         let nodes: u64 = ctx.nodes + ctx.qnodes;
         let nps: u32 = ((nodes as f64) * 1000.0 / (t as f64)) as u32;
         let pv_str: String = pv_line.iter().map(|&m: &u16| u16_to_uci(m)).collect::<String>();
-        println!("info depth {d} seldepth {} score {stype} {sval} time {t} nodes {nodes} nps {nps} pv {pv_str}", ctx.seldepth);
+        println!("info depth {d} seldepth {} score {stype} {sval} time {t} nodes {nodes} hits {} nps {nps} pv {pv_str}", ctx.seldepth, ctx.hits);
     }
     println!("bestmove {}", u16_to_uci(best_move));
 }

@@ -35,15 +35,6 @@ pub const PHASE_VALS: [i16; 7] = [0, 1, 1, 2, 4, 0, 0];
 pub const TPHASE: i32 = 24;
 pub const LSQ: u64 = 0x55AA_55AA_55AA_55AA;
 pub const DSQ: u64 = 0xAA55_AA55_AA55_AA55;
-pub const PAWN_IDX: [u8; 64] = init!(idx, 0, {
-    let file = (idx & 7) as i8;
-    (((idx / 8) * 4).saturating_sub((4 - (file > 3) as i8 - file).unsigned_abs() as usize)) as u8
-});
-pub const QT_IDX: [u8; 64] = init!(idx, 0, {
-    let row = (idx / 8) as i8;
-    let col = (idx & 7) as i8;
-    ((row - 4 + (row > 3) as i8).abs() * 4 - (4 - col).abs() - (col > 3) as i8) as u8
-});
 
 // Move Ordering
 pub const HASH_MOVE: u16 = 30000;

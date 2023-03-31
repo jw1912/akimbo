@@ -1,9 +1,5 @@
 use std::{cmp::min, ops::{AddAssign, Mul}};
-use super::{consts::*, position::{Pos, bishop_attacks, rook_attacks}};
-
-macro_rules! count {($bb:expr) => {($bb).count_ones() as usize}}
-macro_rules! lsb {($x:expr) => {($x).trailing_zeros() as usize}}
-macro_rules! pull_lsb {($idx:expr, $x:expr) => {$idx = lsb!($x); $x &= $x - 1}}
+use super::{consts::*, position::Pos};
 
 #[derive(Clone, Copy)]
 struct S(i16, i16);
@@ -23,34 +19,13 @@ impl Mul<i16> for S {
 }
 
 // eval values
-const MATERIAL: [S; 5] = [S(86, 142), S(319, 262), S(339, 275), S(433, 491), S(909, 941)];
-static PAWN_HT: [S; 24] = [
-    S( 64, 127), S( 75, 123), S( 79,  95), S( 87,  78),
-    S(-29,  47), S( -4,  44), S( 17,  20), S( 33,  12),
-    S(-40, -12), S(-18, -19), S(-24, -32), S( -9, -43),
-    S(-39, -33), S(-23, -31), S(-20, -46), S(-11, -50),
-    S(-30, -40), S(-11, -37), S(-22, -45), S(-16, -43),
-    S(-30, -39), S(-10, -31), S(-17, -35), S(-22, -35),
-];
-static KING_QT: [S; 16] = [
-    S(-63,   8), S(-38,  29), S(-27,  38), S(-40,  41),
-    S(-47,   7), S(-26,  20), S(-38,  28), S(-50,  36),
-    S( 21, -19), S(  3,   3), S(-40,  22), S(-59,  25),
-    S( 18, -53), S( 45, -31), S(-12,  -7), S( -2, -20),
-];
-static MOBILITY_KNIGHT: [S; 9] = [
-    S(-35, -80), S( -9, -54), S(  0, -33),
-    S(  5, -15), S( 13,  -4), S( 17,  13),
-    S( 21,  17), S( 24,  23), S( 38,  12),
-];
-static MOBILITY_BISHOP: [S; 14] = [
-    S(-16, -66), S( -6, -50), S(  1, -29), S(  6, -14), S( 10,  -1), S( 13,   8), S( 16,  16),
-    S( 17,  17), S( 19,  24), S( 21,  23), S( 36,  23), S( 48,  21), S( 53,  26), S( 54,  24),
-];
-static MOBILITY_ROOK: [S; 15] = [
-    S(-36, -67), S(-20, -43), S(-17, -25), S(-12, -18), S(-11,  -9),
-    S( -9,   2), S( -5,   9), S(  2,  10), S(  8,  15), S( 20,  15),
-    S( 21,  18), S( 26,  21), S( 30,  22), S( 41,  19), S( 30,  23),
+static PST: [[S; 64]; 6] = [
+    [S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(234, 248), S(247, 246), S(208, 224), S(212, 207), S(213, 211), S(217, 217), S(147, 256), S(92, 273), S(86, 189), S(105, 182), S(127, 168), S(142, 147), S(151, 140), S(144, 136), S(131, 169), S(85, 170), S(69, 132), S(91, 121), S(84, 108), S(98, 95), S(103, 86), S(91, 94), S(100, 109), S(69, 108), S(60, 112), S(78, 107), S(79, 91), S(90, 84), S(92, 85), S(85, 87), S(99, 95), S(64, 91), S(62, 100), S(77, 102), S(74, 89), S(72, 97), S(82, 92), S(81, 89), S(122, 88), S(80, 84), S(54, 109), S(75, 107), S(62, 100), S(51, 102), S(64, 105), S(98, 93), S(126, 92), S(68, 85), S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100)],
+    [S(132, 240), S(217, 250), S(265, 276), S(294, 258), S(342, 256), S(222, 259), S(263, 228), S(175, 187), S(241, 265), S(266, 289), S(348, 267), S(353, 284), S(331, 277), S(373, 254), S(304, 257), S(284, 249), S(266, 270), S(346, 271), S(344, 298), S(359, 293), S(404, 275), S(414, 275), S(362, 272), S(348, 247), S(308, 270), S(309, 296), S(329, 308), S(342, 307), S(329, 308), S(358, 298), S(319, 298), S(333, 267), S(287, 266), S(303, 283), S(315, 303), S(307, 310), S(320, 304), S(310, 305), S(324, 286), S(302, 262), S(271, 253), S(296, 274), S(299, 284), S(299, 299), S(318, 291), S(308, 279), S(312, 267), S(276, 260), S(261, 244), S(249, 266), S(286, 265), S(298, 275), S(291, 281), S(307, 258), S(291, 259), S(287, 243), S(207, 239), S(272, 226), S(240, 267), S(263, 265), S(277, 259), S(296, 248), S(271, 240), S(246, 222)],
+    [S(260, 298), S(333, 282), S(255, 302), S(295, 295), S(270, 304), S(294, 296), S(307, 283), S(303, 279), S(291, 299), S(334, 307), S(323, 313), S(322, 300), S(356, 297), S(361, 291), S(323, 299), S(282, 285), S(306, 306), S(339, 304), S(354, 305), S(366, 305), S(361, 307), S(419, 297), S(368, 305), S(344, 299), S(307, 299), S(326, 317), S(356, 307), S(362, 318), S(352, 315), S(368, 308), S(329, 317), S(319, 303), S(330, 291), S(342, 302), S(333, 319), S(347, 319), S(351, 310), S(327, 315), S(330, 300), S(342, 286), S(324, 292), S(343, 298), S(333, 309), S(331, 315), S(327, 317), S(329, 306), S(339, 295), S(323, 290), S(342, 274), S(328, 286), S(333, 290), S(316, 308), S(322, 309), S(335, 289), S(339, 294), S(325, 265), S(288, 274), S(322, 284), S(304, 272), S(300, 293), S(315, 286), S(301, 287), S(303, 281), S(295, 278)],
+    [S(508, 504), S(519, 504), S(532, 504), S(539, 507), S(551, 501), S(513, 507), S(523, 504), S(529, 500), S(503, 509), S(509, 509), S(532, 509), S(540, 506), S(540, 500), S(547, 496), S(524, 502), S(534, 499), S(486, 507), S(506, 507), S(507, 508), S(527, 500), S(525, 496), S(539, 492), S(554, 488), S(518, 491), S(458, 505), S(479, 504), S(494, 508), S(505, 499), S(500, 498), S(510, 496), S(496, 496), S(480, 500), S(455, 494), S(459, 502), S(468, 505), S(480, 497), S(483, 491), S(463, 491), S(498, 483), S(463, 489), S(438, 488), S(459, 492), S(469, 486), S(465, 491), S(477, 480), S(479, 471), S(483, 479), S(461, 476), S(436, 487), S(460, 487), S(462, 493), S(469, 489), S(478, 480), S(477, 477), S(482, 478), S(407, 493), S(466, 476), S(474, 482), S(477, 494), S(486, 489), S(485, 481), S(474, 479), S(454, 490), S(458, 466)],
+    [S(882, 923), S(899, 953), S(919, 952), S(937, 940), S(958, 943), S(968, 932), S(968, 928), S(934, 944), S(878, 917), S(868, 952), S(905, 962), S(905, 973), S(905, 975), S(968, 944), S(921, 954), S(951, 922), S(895, 916), S(887, 941), S(898, 948), S(918, 963), S(940, 969), S(980, 955), S(963, 946), S(942, 935), S(890, 907), S(885, 949), S(892, 960), S(897, 965), S(917, 965), S(919, 958), S(915, 967), S(916, 944), S(893, 904), S(885, 937), S(891, 940), S(897, 965), S(902, 952), S(899, 956), S(911, 941), S(909, 932), S(893, 886), S(905, 885), S(895, 928), S(894, 918), S(895, 919), S(909, 912), S(913, 921), S(899, 913), S(867, 903), S(901, 891), S(910, 874), S(901, 894), S(902, 894), S(913, 878), S(884, 891), S(902, 884), S(909, 864), S(892, 873), S(886, 892), S(906, 864), S(889, 894), S(873, 872), S(852, 895), S(850, 869)],
+    [S(-12, -57), S(78, -24), S(106, -29), S(49, -3), S(8, 14), S(14, 26), S(45, 23), S(15, -14), S(77, -9), S(30, 34), S(21, 32), S(68, 23), S(18, 31), S(19, 49), S(11, 56), S(-40, 28), S(43, 10), S(29, 34), S(16, 38), S(17, 32), S(8, 37), S(50, 48), S(41, 57), S(-6, 32), S(11, 1), S(9, 30), S(-2, 39), S(-15, 41), S(-18, 39), S(9, 42), S(13, 38), S(-51, 21), S(-38, -4), S(22, 2), S(1, 25), S(-36, 34), S(-26, 34), S(-18, 30), S(-27, 21), S(-53, 2), S(17, -23), S(13, -2), S(-16, 14), S(-33, 24), S(-34, 26), S(-29, 19), S(0, 5), S(-32, -3), S(26, -29), S(-6, -4), S(-18, 8), S(-65, 17), S(-45, 17), S(-19, 7), S(14, -6), S(26, -24), S(-44, -38), S(19, -28), S(2, -12), S(-72, -5), S(4, -33), S(-46, -5), S(33, -30), S(25, -52)],
 ];
 
 impl Pos {
@@ -58,83 +33,22 @@ impl Pos {
         // draws: KvK, KvKB, KvKN
         if self.material_draw() {return 0}
 
-        let mut score = S(0, 0);
+        let mut scores = S(0, 0);
 
-        // pawn bitboards
-        let wp = self.pieces[PAWN] & self.sides[WHITE];
-        let bp = self.pieces[PAWN] & self.sides[BLACK];
-        let wp_att = ((wp & !FILE) << 7) | ((wp & NOTH) << 9);
-        let bp_att = ((bp & !FILE) >> 9) | ((bp & NOTH) >> 7);
-
-        // material scores
-        (PAWN..=QUEEN).for_each(|i: usize| score += MATERIAL[i] * self.material[i]);
-
-        // king quarter table
-        score += KING_QT[QT_IDX[lsb!(self.pieces[KING] & self.sides[WHITE])] as usize];
-        score += KING_QT[QT_IDX[lsb!(self.pieces[KING] & self.sides[BLACK])] as usize] * -1;
-
-        // pawn half table
-        let mut p = wp; // white pst bonuses
-        while p > 0 {
-            score += PAWN_HT[PAWN_IDX[56 ^ lsb!(p)] as usize];
-            p &= p - 1;
+        for (side, &sign) in SIDE.iter().enumerate() {
+            let flip = 56 * (side ^ 1);
+            for (pc, pst) in PST.iter().enumerate() {
+                let mut bb = self.sides[side] & self.pieces[pc];
+                while bb > 0 {
+                    scores += pst[flip ^ bb.trailing_zeros() as usize] * sign;
+                    bb &= bb - 1;
+                }
+            }
         }
-        p = bp; // black pst bonuses
-        while p > 0 {
-            score += PAWN_HT[PAWN_IDX[lsb!(p)] as usize] * -1;
-            p &= p - 1;
-        }
-
-        // knight, bishop and rook mobility
-        score += self.mobility(WHITE, bp_att);
-        score += self.mobility(BLACK, wp_att) * -1;
 
         // taper eval
         let phase = min(self.phase as i32, TPHASE);
-        let score = ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16;
+        let score = ((phase * scores.0 as i32 + (TPHASE - phase) * scores.1 as i32) / TPHASE) as i16;
         SIDE[usize::from(self.c)] * score
-    }
-
-    fn mobility(&self, c: usize, opp_att: u64) -> S {
-        let mut score= S(0, 0);
-        let mut from;
-        let mut attacks;
-        let mut pieces;
-        let boys = self.sides[c];
-        let opps = self.sides[c ^ 1];
-        let safe = !boys & !opp_att;
-        let rooks = self.pieces[ROOK];
-
-        // knight mobility
-        pieces = self.pieces[KNIGHT] & boys;
-        while pieces > 0 {
-            pull_lsb!(from, pieces);
-            attacks = KNIGHT_ATTACKS[from];
-            score += MOBILITY_KNIGHT[count!(attacks & safe)];
-        }
-
-        // bishop mobility
-        // - ignore friendly queens
-        // - ignore enemy queens and rooks
-        let mut occ = (boys | opps) ^ (self.pieces[KING] & opps) ^ self.pieces[QUEEN] ^ (rooks & opps);
-        pieces = self.pieces[BISHOP] & boys;
-        while pieces > 0 {
-            pull_lsb!(from, pieces);
-            attacks = bishop_attacks(from, occ);
-            score += MOBILITY_BISHOP[count!(attacks & safe)];
-        }
-
-        // rook mobility
-        // - ingore friendly rooks and queens
-        // - ignore enemy queens
-        occ ^= rooks;
-        pieces = rooks & boys;
-        while pieces > 0 {
-            pull_lsb!(from, pieces);
-            attacks = rook_attacks(from, occ);
-            score += MOBILITY_ROOK[count!(attacks & safe)];
-        }
-
-        score
     }
 }
