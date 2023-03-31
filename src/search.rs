@@ -45,7 +45,7 @@ impl Engine {
                 if m == hash_move {30000}
                 else if m.flag & 4 > 0 {self.mvv_lva(m)}
                 else if m.flag & 8 > 0 {950 + i16::from(m.flag & 7)}
-                else if killers.contains(&m) {KILLER}
+                else if killers.contains(&m) {900}
                 else {0}
             })
         }
@@ -59,12 +59,10 @@ impl Engine {
     }
 
     fn mvv_lva(&self, m: Move) -> i16 {
-        let mpc = self.pos.get_pc(1 << m.from);
-        let cpc = self.pos.get_pc(1 << m.to);
-        MVV_LVA[cpc][mpc]
+        1024 * self.pos.get_pc(1 << m.to) as i16 - self.pos.get_pc(1 << m.from) as i16
     }
 
-    pub fn lazy_eval(&self) -> i16 {
+    fn lazy_eval(&self) -> i16 {
         let score = self.pos.state.pst;
         let p = min(self.pos.phase as i32, TPHASE);
         SIDE[usize::from(self.pos.c)] * ((p * score.0 as i32 + (TPHASE - p) * score.1 as i32) / TPHASE) as i16
@@ -166,7 +164,7 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, null
         let check = eng.pos.in_check();
 
         // late move reductions
-        let r = i8::from(lmr && !check && legal > 2 && ms < KILLER);
+        let r = i8::from(lmr && !check && legal > 2 && ms == 0);
 
         sline.clear();
         let score = if legal == 1 {
@@ -190,7 +188,7 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, null
                 line.append(&mut sline);
                 if score >= b {
                     bound = LOWER;
-                    if ms <= KILLER {eng.killer_table.push(m, eng.ply)}
+                    if ms <= 1000 {eng.killer_table.push(m, eng.ply)}
                     break
                 }
             }
