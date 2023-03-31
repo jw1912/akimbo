@@ -1,6 +1,6 @@
 [package]
 name = "akimbo"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["Jamie Whiting"]
 
@@ -9,6 +9,3 @@ panic = 'abort'
 lto = true
 codegen-units = 1
 strip = true
-
-[profile.dev]
-overflow-checks = false
