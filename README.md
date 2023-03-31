@@ -1,5 +1,5 @@
 # akimbo
-A compact UCI Chess(960) engine written in Rust.
+A compact UCI Chess engine written in Rust.
 
 ### Compiling
 If you have cargo installed, run `cargo build --release`.
