@@ -3,6 +3,7 @@ use super::consts::*;
 #[derive(Clone, Copy, Default)]
 pub struct State {
     pub hash: u64,
+    pub pst: S,
     pub enp: u8,
     pub cr: u8,
     pub hfm: u8,
@@ -83,6 +84,7 @@ impl Position {
                 let sq = 8 * row + col;
                 pos.toggle(side, pc, 1 << sq);
                 pos.state.hash ^= ZVALS.pieces[side][pc][sq as usize];
+                pos.state.pst += SIDE[side] * PST[pc][sq as usize ^ (56 * (side^ 1))];
                 pos.phase += PHASE_VALS[pc];
                 col += 1;
             }
@@ -155,33 +157,53 @@ impl Position {
     #[inline(always)]
     fn r#move<const DO: bool>(&mut self, m: Move, side: usize, cpc: usize) {
         let sign = SIDE[usize::from(!DO)];
+        let psign = SIDE[side];
+        let (noflip, flip) = (56 * side, 56 * (side ^ 1));
         let f = 1 << m.from;
         let t = 1 << m.to;
         let mpc = usize::from(m.mpc);
         self.c = !self.c;
         self.toggle(side, mpc, f | t);
-        if DO {self.state.hash ^= ZVALS.pieces[side][mpc][usize::from(m.from)] ^ ZVALS.pieces[side][mpc][usize::from(m.to)];}
+        if DO {
+            self.state.hash ^= ZVALS.pieces[side][mpc][usize::from(m.from)] ^ ZVALS.pieces[side][mpc][usize::from(m.to)];
+            self.state.pst += psign * PST[mpc][usize::from(m.to) ^ flip];
+            self.state.pst += -psign * PST[mpc][usize::from(m.from) ^ flip];
+        }
         if cpc != E {
             self.toggle(side ^ 1, cpc, t);
-            if DO {self.state.hash ^= ZVALS.pieces[side ^ 1][cpc][usize::from(m.to)];}
+            if DO {
+                self.state.hash ^= ZVALS.pieces[side ^ 1][cpc][usize::from(m.to)];
+                self.state.pst += psign * PST[cpc][usize::from(m.to) ^ noflip];
+            }
             self.phase -= sign * PHASE_VALS[cpc];
         }
         match m.flag {
             KS | QS => {
                 let (bits, idx1, idx2) = CM[usize::from(m.flag == KS)][side];
                 self.toggle(side, R, bits);
-                if DO {self.state.hash ^= ZVALS.pieces[side][R][idx1] ^ ZVALS.pieces[side][R][idx2];}
+                if DO {
+                    self.state.hash ^= ZVALS.pieces[side][R][idx1] ^ ZVALS.pieces[side][R][idx2];
+                    self.state.pst += -psign * PST[R][idx1 ^ flip];
+                    self.state.pst += psign * PST[R][idx2 ^ flip];
+                }
             },
             ENP => {
                 let pwn = usize::from(m.to + [8u8.wrapping_neg(), 8][side]);
                 self.toggle(side ^ 1, P, 1 << pwn);
-                if DO {self.state.hash ^= ZVALS.pieces[side ^ 1][P][pwn];}
+                if DO {
+                    self.state.hash ^= ZVALS.pieces[side ^ 1][P][pwn];
+                    self.state.pst += psign * PST[P][pwn ^ noflip];
+                }
             },
             NPR.. => {
                 let ppc = usize::from((m.flag & 3) + 3);
                 self.bb[P] ^= t;
                 self.bb[ppc] ^= t;
-                if DO {self.state.hash ^= ZVALS.pieces[side][P][usize::from(m.to)] ^ ZVALS.pieces[side][ppc][usize::from(m.to)];}
+                if DO {
+                    self.state.hash ^= ZVALS.pieces[side][P][usize::from(m.to)] ^ ZVALS.pieces[side][ppc][usize::from(m.to)];
+                    self.state.pst += -psign * PST[P][usize::from(m.to) ^ flip];
+                    self.state.pst += psign * PST[ppc][usize::from(m.to) ^ flip];
+                }
                 self.phase += sign * PHASE_VALS[ppc];
             }
             _ => {}
@@ -204,7 +226,7 @@ impl Position {
         self.c = !self.c;
     }
 
-    fn repetition_draw(&self, num: u8) -> bool {
+    pub fn repetition_draw(&self, num: u8) -> bool {
         let l = self.stack.len();
         if l < 6 || self.nulls > 0 { return false }
         let mut reps: u8 = 1;
@@ -215,13 +237,9 @@ impl Position {
         false
     }
 
-    fn material_draw(&self) -> bool {
+    pub fn material_draw(&self) -> bool {
         let (ph, b, p, wh, bl) = (self.phase, self.bb[B], self.bb[P], self.bb[0], self.bb[1]);
         ph <= 2 && p == 0 && ((ph != 2) || (b & wh != b && b & bl != b && (b & LSQ == b || b & DSQ == b)))
-    }
-
-    pub fn is_draw(&self, ply: i16) -> bool {
-        self.state.hfm >= 100 || self.repetition_draw(2 + u8::from(ply == 0)) || self.material_draw()
     }
 
     pub fn in_check(&self) -> bool {

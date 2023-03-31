@@ -71,7 +71,7 @@ impl HashTable {
 pub struct KillerTable(pub [[Move; KILLERS]; MAX_PLY as usize + 1]);
 impl Default for KillerTable {
     fn default() -> Self {
-        Self([[Move::default(); KILLERS]; MAX_PLY as usize + 1])
+        Self([Default::default(); MAX_PLY as usize + 1])
     }
 }
 impl KillerTable {

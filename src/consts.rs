@@ -5,7 +5,6 @@ pub const NAME: &str = env!("CARGO_PKG_NAME");
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
 // Search
 pub const MAX_PLY: i16 = 96;
 pub const KILLERS: usize = 3;
@@ -14,18 +13,15 @@ pub const MATE: i16 = MAX - u8::MAX as i16;
 pub const LOWER: u8 = 0b0100_0000;
 pub const EXACT: u8 = 0b1100_0000;
 pub const UPPER: u8 = 0b1000_0000;
-
 // Eval
 pub const SIDE: [i16; 2] = [1, -1];
 pub const PHASE_VALS: [i16; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
 pub const TPHASE: i32 = 24;
-
 // Move Ordering
 pub const HASH_MOVE: i16 = 30000;
 pub const PROMOTION: i16 = 950;
 pub const KILLER: i16 = 900;
 pub const MVV_LVA: [[i16; 8]; 8] = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 1500, 1400, 1300, 1200, 1100, 1000], [0, 0, 2500, 2400, 2300, 2200, 2100, 2000], [0, 0, 3500, 3400, 3300, 3200, 3100, 3000], [0, 0, 4500, 4400, 4300, 4200, 4100, 4000], [0, 0, 5500, 5400, 5300, 5200, 5100, 5000], [0, 0, 0, 0, 0, 0, 0, 0]];
-
 // Evaluation
 #[derive(Clone, Copy, Debug, Default)]
 pub struct S(pub i16, pub i16);
@@ -50,12 +46,9 @@ pub static PST: [[S; 64]; 8] = [
     [S(882, 923), S(899, 953), S(919, 952), S(937, 940), S(958, 943), S(968, 932), S(968, 928), S(934, 944), S(878, 917), S(868, 952), S(905, 962), S(905, 973), S(905, 975), S(968, 944), S(921, 954), S(951, 922), S(895, 916), S(887, 941), S(898, 948), S(918, 963), S(940, 969), S(980, 955), S(963, 946), S(942, 935), S(890, 907), S(885, 949), S(892, 960), S(897, 965), S(917, 965), S(919, 958), S(915, 967), S(916, 944), S(893, 904), S(885, 937), S(891, 940), S(897, 965), S(902, 952), S(899, 956), S(911, 941), S(909, 932), S(893, 886), S(905, 885), S(895, 928), S(894, 918), S(895, 919), S(909, 912), S(913, 921), S(899, 913), S(867, 903), S(901, 891), S(910, 874), S(901, 894), S(902, 894), S(913, 878), S(884, 891), S(902, 884), S(909, 864), S(892, 873), S(886, 892), S(906, 864), S(889, 894), S(873, 872), S(852, 895), S(850, 869)],
     [S(-12, -57), S(78, -24), S(106, -29), S(49, -3), S(8, 14), S(14, 26), S(45, 23), S(15, -14), S(77, -9), S(30, 34), S(21, 32), S(68, 23), S(18, 31), S(19, 49), S(11, 56), S(-40, 28), S(43, 10), S(29, 34), S(16, 38), S(17, 32), S(8, 37), S(50, 48), S(41, 57), S(-6, 32), S(11, 1), S(9, 30), S(-2, 39), S(-15, 41), S(-18, 39), S(9, 42), S(13, 38), S(-51, 21), S(-38, -4), S(22, 2), S(1, 25), S(-36, 34), S(-26, 34), S(-18, 30), S(-27, 21), S(-53, 2), S(17, -23), S(13, -2), S(-16, 14), S(-33, 24), S(-34, 26), S(-29, 19), S(0, 5), S(-32, -3), S(26, -29), S(-6, -4), S(-18, 8), S(-65, 17), S(-45, 17), S(-19, 7), S(14, -6), S(26, -24), S(-44, -38), S(19, -28), S(2, -12), S(-72, -5), S(4, -33), S(-46, -5), S(33, -30), S(25, -52)],
 ];
-
 // Move generation
 pub const ALL: bool = true;
 pub const CAPTURES: bool = false;
-
-// Macro for calculating tables (until const fn pointers are stable).
 macro_rules! init {
     ($idx:ident, $init:expr, $($rest:tt)+) => {{
         let mut res = [$init; 64];
@@ -67,8 +60,6 @@ macro_rules! init {
         res
     }};
 }
-
-// Pieces and move flags
 macro_rules! c_enum {
     ($type:ty, $val:expr, $name:ident) => {pub const $name: $type = $val;};
     ($type:ty, $val:expr, $name:ident, $($b:tt),*) => {pub const $name: $type = $val; c_enum!($type, $val + 1, $($b),*);};
@@ -76,8 +67,7 @@ macro_rules! c_enum {
 pub const E: usize = 0;
 c_enum!(usize, 0, WH, BL, P, N, B, R, Q, K);
 c_enum!(u8, 0, QUIET, DBL, KS, QS, CAP, ENP, _E1, _E2, NPR, _BPR, _RPR, QPR, NPC, _BPC, _RPC, QPC);
-
-// castling
+// Castling
 pub const WQS: u8 = 0b1000;
 pub const WKS: u8 = 0b0100;
 pub const BQS: u8 = 0b0010;
@@ -89,7 +79,6 @@ pub const   F8G8: u64 = 0x6000000000000000;
 pub const CS: [u8; 2] = [WKS | WQS, BKS | BQS];
 pub const CR: [u8; 64] = init!(idx, 0, match idx {0 => 7, 4 => 3, 7 => 11, 56 => 13, 60 => 12, 63 => 14, _ => 15});
 pub const CM: [[(u64, usize, usize); 2]; 2] = [[(9, 0, 3), (0x0900000000000000, 56, 59)], [(160, 7, 5), (0xA000000000000000, 63, 61)]];
-
 // Pawns
 pub const PENRANK: [u64; 2] = [0x00FF000000000000, 0x000000000000FF00];
 pub const DBLRANK: [u64; 2] = [0x00000000FF000000, 0x000000FF00000000];
@@ -99,7 +88,6 @@ pub const PATT: [[u64; 64]; 2] = [
     init!(idx, 0, (((1 << idx) & !FILE) << 7) | (((1 << idx) & NOTH) << 9)),
     init!(idx, 0, (((1 << idx) & !FILE) >> 9) | (((1 << idx) & NOTH) >> 7)),
 ];
-
 // King and knight attacks
 pub const NATT: [u64; 64] = init!(idx, 0, {
     let n = 1 << idx;
@@ -113,7 +101,6 @@ pub const KATT: [u64; 64] = init!(idx, 0, {
     k |= ((k & !FILE) >> 1) | ((k & NOTH) << 1);
     k ^ (1 << idx)
 });
-
 // Slider attacks
 #[derive(Clone, Copy)]
 pub struct Mask {
@@ -137,7 +124,6 @@ pub const RMASKS: [Mask; 64] = init!(idx, Mask { bit: 0, right: 0, left: 0, file
     let left = (bit - 1) & (0xFF << (idx & 56));
     Mask { bit, right: bit ^ left ^ (0xFF << (idx & 56)), left, file: bit ^ FILE << (idx & 7) }
 );
-
 // Zobrist values
 pub struct ZobristVals {
     pub pieces: [[[u64; 64]; 8]; 2],
@@ -171,7 +157,6 @@ pub static ZVALS: ZobristVals = {
     while idx < 14 {seed = xor_shift(seed); vals.en_passant[idx - 6] = seed; idx += 1;}
     vals
 };
-
 // Draw detection
 pub const LSQ: u64 = 0x55AA_55AA_55AA_55AA;
 pub const DSQ: u64 = 0xAA55_AA55_AA55_AA55;

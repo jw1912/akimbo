@@ -17,8 +17,7 @@ fn main() {
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
-        let commands: Vec<&str> = input.split(' ').map(str::trim).collect();
-        parse_commands(commands, &mut eng)
+        parse_commands(input.split(' ').map(str::trim).collect(), &mut eng)
     }
 }
 
@@ -42,8 +41,7 @@ fn parse_commands(commands: Vec<&str>, eng: &mut Engine) {
 fn perft(pos: &mut Position, depth_left: u8) -> u64 {
     let moves = pos.gen::<ALL>();
     let mut positions = 0;
-    for m_idx in 0..moves.len {
-        let m = moves.list[m_idx];
+    for &m in &moves.list[0..moves.len] {
         if pos.r#do(m) { continue }
         positions += if depth_left > 1 {perft(pos, depth_left - 1)} else {1};
         pos.undo();
@@ -62,9 +60,7 @@ fn parse_perft(pos: &mut Position, commands: &[&str]) {
 
 fn parse_position(pos: &mut Position, commands: Vec<&str>) {
     enum Tokens {Nothing, Fen, Moves}
-    let mut fen = String::new();
-    let mut moves = Vec::new();
-    let mut token = Tokens::Nothing;
+    let (mut fen, mut moves, mut token) = (String::new(), Vec::new(), Tokens::Nothing);
     for cmd in commands {
         match cmd {
             "startpos" => *pos = Position::from_fen(STARTPOS),
@@ -72,7 +68,7 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
             "moves" => token = Tokens::Moves,
             _ => match token {
                 Tokens::Nothing => {},
-                Tokens::Fen => {fen.push_str(format!("{cmd} ").as_str());}
+                Tokens::Fen => fen.push_str(format!("{cmd} ").as_str()),
                 Tokens::Moves => moves.push(cmd.to_string()),
             },
         }
@@ -83,9 +79,7 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
 
 fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
     enum Tokens {None, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
-    let mut token = Tokens::None;
-    let (mut times, mut mtg, mut skip) = ([0, 0], None, false);
-    let mut alloc_time = 1000;
+    let (mut token, mut times, mut mtg, mut alloc) = (Tokens::None, [0, 0], None, 1000);
     for command in commands {
         match command {
             "movetime" => token = Tokens::Movetime,
@@ -96,11 +90,7 @@ fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
             "movestogo" => token = Tokens::MovesToGo,
             _ => {
                 match token {
-                    Tokens::Movetime => {
-                        skip = true;
-                        alloc_time = command.parse::<i64>().unwrap() as u128 - 10;
-                        break;
-                    },
+                    Tokens::Movetime => alloc = command.parse::<i64>().unwrap() as u128 - 10,
                     Tokens::WTime => times[0] = std::cmp::max(command.parse::<i64>().unwrap(), 0) as u128,
                     Tokens::BTime => times[1] = std::cmp::max(command.parse::<i64>().unwrap(), 0) as u128,
                     Tokens::MovesToGo => mtg = Some(command.parse::<u128>().unwrap()),
@@ -110,7 +100,7 @@ fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
         }
     }
     let mytime = times[usize::from(eng.pos.c)];
-    if !skip && mytime != 0 { alloc_time = mytime / mtg.unwrap_or(2 * eng.pos.phase as u128 + 1) - 10 }
-    eng.set_time(alloc_time);
+    if mytime != 0 { alloc = mytime / mtg.unwrap_or(2 * eng.pos.phase as u128 + 1) - 10 }
+    eng.timing.1 = alloc;
     go(eng);
 }

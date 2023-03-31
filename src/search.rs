@@ -1,7 +1,7 @@
 use std::{cmp::{max, min}, time::Instant};
 use super::{consts::*, position::{Move, Position}, movegen::{MoveList, ScoreList}, tables::{HashTable, KillerTable}};
 
-pub struct Timer(Instant, u128);
+pub struct Timer(Instant, pub u128);
 impl Default for Timer {
     fn default() -> Self {
         Timer(Instant::now(), 1000)
@@ -36,14 +36,6 @@ impl Engine {
         self.killer_table = KillerTable::default();
     }
 
-    fn timeup(&self) -> bool {
-        self.timing.0.elapsed().as_millis() >= self.timing.1
-    }
-
-    pub fn set_time(&mut self, t: u128) {
-        self.timing.1 = t;
-    }
-
     fn score(&self, moves: &MoveList, hash_move: Move) -> ScoreList {
         let mut scores = ScoreList::uninit();
         let killers = self.killer_table.0[self.ply as usize];
@@ -72,21 +64,10 @@ impl Engine {
         MVV_LVA[cpc][mpc]
     }
 
-    pub fn eval(&self) -> i16 {
-        let mut scores = S(0, 0);
-        for (side, &sign) in SIDE.iter().enumerate() {
-            let flip = 56 * (side ^ 1);
-            for (pc, pst) in PST.iter().enumerate().skip(2) {
-                let mut bb = self.pos.bb[side] & self.pos.bb[pc];
-                while bb > 0 {
-                    let sq = bb.trailing_zeros() as usize;
-                    scores += sign * pst[flip ^ sq];
-                    bb &= bb - 1;
-                }
-            }
-        }
+    pub fn lazy_eval(&self) -> i16 {
+        let score = self.pos.state.pst;
         let p = min(self.pos.phase as i32, TPHASE);
-        SIDE[usize::from(self.pos.c)] * ((p * scores.0 as i32 + (TPHASE - p) * scores.1 as i32) / TPHASE) as i16
+        SIDE[usize::from(self.pos.c)] * ((p * score.0 as i32 + (TPHASE - p) * score.1 as i32) / TPHASE) as i16
     }
 }
 
@@ -112,7 +93,7 @@ pub fn go(eng: &mut Engine) {
 
 fn qs(eng: &mut Engine, mut a: i16, b: i16) -> i16 {
     eng.nodes += 1;
-    let mut e = eng.eval();
+    let mut e = eng.lazy_eval();
     if e >= b {return e}
     a = max(a, e);
     let mut caps = eng.pos.gen::<CAPTURES>();
@@ -128,29 +109,25 @@ fn qs(eng: &mut Engine, mut a: i16, b: i16) -> i16 {
 }
 
 fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, null: bool, line: &mut Vec<Move>) -> i16 {
-    // search aborting
     if eng.abort { return 0 }
-    if eng.nodes & 1023 == 0 && eng.timeup() {
+    if eng.nodes & 1023 == 0 && eng.timing.0.elapsed().as_millis() >= eng.timing.1 {
         eng.abort = true;
         return 0
     }
 
-    if eng.pos.is_draw(eng.ply) { return 0 }
+    if eng.pos.state.hfm >= 100 || eng.pos.repetition_draw(2 + u8::from(eng.ply == 0)) || eng.pos.material_draw() { return 0 }
     let pv = b > a + 1;
 
-    // mate distance pruning
     a = max(a, -MAX + eng.ply);
     b = min(b, MAX - eng.ply - 1);
     if a >= b { return a }
 
-    // check extensions
     d += i8::from(in_check);
 
     if d <= 0 || eng.ply == MAX_PLY {
         return qs(eng, a, b)
     }
 
-    // probing hash table
     let hash = eng.pos.hash();
     let mut bm = Move::default();
     let mut write = true;
@@ -165,9 +142,8 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, null
         } { return res.score }
     }
 
-    // pruning
     if !pv && !in_check && b.abs() < MATE {
-        let eval = eng.eval();
+        let eval = eng.lazy_eval();
 
         // reverse futility pruning
         let margin = eval - 120 * i16::from(d);
@@ -198,7 +174,6 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, null
         // late move reductions
         let r = i8::from(lmr && !check && legal > 2 && ms < KILLER);
 
-        // principle variation search
         sline.clear();
         let score = if legal == 1 {
             -pvs(eng, -b, -a, d - 1, check, false, &mut sline)
