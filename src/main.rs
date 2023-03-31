@@ -59,17 +59,16 @@ fn parse_perft(pos: &mut Position, commands: &[&str]) {
 }
 
 fn parse_position(pos: &mut Position, commands: Vec<&str>) {
-    enum Tokens {Nothing, Fen, Moves}
-    let (mut fen, mut moves, mut token) = (String::new(), Vec::new(), Tokens::Nothing);
+    let (mut fen, mut moves, mut token) = (String::new(), Vec::new(), 0);
     for cmd in commands {
         match cmd {
             "startpos" => *pos = Position::from_fen(STARTPOS),
-            "fen" => token = Tokens::Fen,
-            "moves" => token = Tokens::Moves,
+            "fen" => token = 1,
+            "moves" => token = 2,
             _ => match token {
-                Tokens::Nothing => {},
-                Tokens::Fen => fen.push_str(format!("{cmd} ").as_str()),
-                Tokens::Moves => moves.push(cmd.to_string()),
+                1 => fen.push_str(format!("{cmd} ").as_str()),
+                2 => moves.push(cmd.to_string()),
+                _ => {}
             },
         }
     }
@@ -78,22 +77,21 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
 }
 
 fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
-    enum Tokens {None, Movetime, WTime, BTime, WInc, BInc, MovesToGo}
-    let (mut token, mut times, mut mtg, mut alloc) = (Tokens::None, [0, 0], None, 1000);
+    let (mut token, mut times, mut mtg, mut alloc) = (0, [0, 0], None, 1000);
     for command in commands {
         match command {
-            "movetime" => token = Tokens::Movetime,
-            "wtime" => token = Tokens::WTime,
-            "btime" => token = Tokens::BTime,
-            "winc" => token = Tokens::WInc,
-            "binc" => token = Tokens::BInc,
-            "movestogo" => token = Tokens::MovesToGo,
+            "movetime" => token = 1,
+            "wtime" => token = 2,
+            "btime" => token = 3,
+            "winc" => token = 4,
+            "binc" => token = 5,
+            "movestogo" => token = 6,
             _ => {
                 match token {
-                    Tokens::Movetime => alloc = command.parse::<i64>().unwrap() as u128 - 10,
-                    Tokens::WTime => times[0] = std::cmp::max(command.parse::<i64>().unwrap(), 0) as u128,
-                    Tokens::BTime => times[1] = std::cmp::max(command.parse::<i64>().unwrap(), 0) as u128,
-                    Tokens::MovesToGo => mtg = Some(command.parse::<u128>().unwrap()),
+                    1 => alloc = command.parse::<i64>().unwrap() as u128 - 10,
+                    2 => times[0] = std::cmp::max(command.parse::<i64>().unwrap(), 0) as u128,
+                    3 => times[1] = std::cmp::max(command.parse::<i64>().unwrap(), 0) as u128,
+                    6 => mtg = Some(command.parse::<u128>().unwrap()),
                     _ => {},
                 }
             },

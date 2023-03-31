@@ -10,16 +10,14 @@ pub const MAX_PLY: i16 = 96;
 pub const KILLERS: usize = 3;
 pub const MAX: i16 = 30000;
 pub const MATE: i16 = MAX - u8::MAX as i16;
-pub const LOWER: u8 = 0b0100_0000;
-pub const EXACT: u8 = 0b1100_0000;
-pub const UPPER: u8 = 0b1000_0000;
+pub const LOWER: u8 = 0x40;
+pub const EXACT: u8 = 0xC0;
+pub const UPPER: u8 = 0x80;
 // Eval
 pub const SIDE: [i16; 2] = [1, -1];
 pub const PHASE_VALS: [i16; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
 pub const TPHASE: i32 = 24;
 // Move Ordering
-pub const HASH_MOVE: i16 = 30000;
-pub const PROMOTION: i16 = 950;
 pub const KILLER: i16 = 900;
 pub const MVV_LVA: [[i16; 8]; 8] = [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 1500, 1400, 1300, 1200, 1100, 1000], [0, 0, 2500, 2400, 2300, 2200, 2100, 2000], [0, 0, 3500, 3400, 3300, 3200, 3100, 3000], [0, 0, 4500, 4400, 4300, 4200, 4100, 4000], [0, 0, 5500, 5400, 5300, 5200, 5100, 5000], [0, 0, 0, 0, 0, 0, 0, 0]];
 // Evaluation
@@ -68,10 +66,10 @@ pub const E: usize = 0;
 c_enum!(usize, 0, WH, BL, P, N, B, R, Q, K);
 c_enum!(u8, 0, QUIET, DBL, KS, QS, CAP, ENP, _E1, _E2, NPR, _BPR, _RPR, QPR, NPC, _BPC, _RPC, QPC);
 // Castling
-pub const WQS: u8 = 0b1000;
-pub const WKS: u8 = 0b0100;
-pub const BQS: u8 = 0b0010;
-pub const BKS: u8 = 0b0001;
+pub const WQS: u8 = 8;
+pub const WKS: u8 = 4;
+pub const BQS: u8 = 2;
+pub const BKS: u8 = 1;
 pub const B1C1D1: u64 = 0x000000000000000E;
 pub const   F1G1: u64 = 0x0000000000000060;
 pub const B8C8D8: u64 = 0x0E00000000000000;

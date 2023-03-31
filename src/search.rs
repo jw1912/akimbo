@@ -12,11 +12,11 @@ impl Default for Timer {
 pub struct Engine {
     pub pos: Position,
     pub hash_table: HashTable,
+    pub timing: Timer,
     killer_table: KillerTable,
     nodes: u64,
     ply: i16,
     abort: bool,
-    pub timing: Timer
 }
 
 impl ScoreList {
@@ -42,9 +42,9 @@ impl Engine {
         for i in 0..moves.len {
             scores.push({
                 let m = moves.list[i];
-                if m == hash_move {HASH_MOVE}
+                if m == hash_move {30000}
                 else if m.flag & 4 > 0 {self.mvv_lva(m)}
-                else if m.flag & 8 > 0 {PROMOTION + i16::from(m.flag & 7)}
+                else if m.flag & 8 > 0 {950 + i16::from(m.flag & 7)}
                 else if killers.contains(&m) {KILLER}
                 else {0}
             })
