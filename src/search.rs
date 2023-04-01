@@ -15,6 +15,7 @@ pub struct Engine {
     pub timing: Timer,
     killer_table: KillerTable,
     nodes: u64,
+    qnodes: u64,
     ply: i16,
     abort: bool,
 }
@@ -33,7 +34,6 @@ impl Engine {
         self.nodes = 0;
         self.ply = 0;
         self.abort = false;
-        self.killer_table = KillerTable::default();
     }
 
     fn score(&self, moves: &MoveList, hash_move: Move) -> ScoreList {
@@ -82,21 +82,24 @@ pub fn go(eng: &mut Engine) {
             ("mate", if score < 0 {score.abs() - MAX} else {MAX - score + 1} / 2)
         } else {("cp", score)};
         let t = eng.timing.0.elapsed();
-        let nps: u32 = ((eng.nodes as f64) / t.as_secs_f64()) as u32;
+        let nodes = eng.nodes + eng.qnodes;
+        let nps: u32 = ((nodes as f64) / t.as_secs_f64()) as u32;
         let pv_str: String = pv_line.iter().map(|&m| Move::to_uci(m)).collect::<String>();
-        println!("info depth {d} score {stype} {sval} time {} nodes {} nps {nps} pv {pv_str}", t.as_millis(), eng.nodes);
+        println!("info depth {d} score {stype} {sval} time {} nodes {nodes} nps {nps} pv {pv_str}", t.as_millis());
     }
     println!("bestmove {}", Move::to_uci(best_move));
+    eng.killer_table = KillerTable::default();
 }
 
 fn qs(eng: &mut Engine, mut a: i16, b: i16) -> i16 {
-    eng.nodes += 1;
+    eng.qnodes += 1;
     let mut e = eng.lazy_eval();
-    if e >= b {return e}
+    if e >= b { return e }
     a = max(a, e);
     let mut caps = eng.pos.gen::<CAPTURES>();
     let mut scores = eng.score_caps(&caps);
-    while let Some((m, _)) = caps.pick(&mut scores) {
+    while let Some((m, ms)) = caps.pick(&mut scores) {
+        if e + ms / 5 + 200 < a { break }
         if eng.pos.r#do(m) { continue }
         e = max(e, -qs(eng, -b, -a));
         eng.pos.undo();
@@ -120,6 +123,7 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, null
     if a >= b { return a }
     d += i8::from(in_check);
     if d <= 0 || eng.ply == MAX_PLY { return qs(eng, a, b) }
+    eng.nodes += 1;
 
     let hash = eng.pos.hash();
     let mut bm = Move::default();
@@ -127,7 +131,7 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, null
     if let Some(res) = eng.hash_table.probe(hash, eng.ply) {
         write = d > res.depth;
         bm = Move::from_short(res.best_move, &eng.pos);
-        if eng.ply > 0 && !write && match res.bound {
+        if eng.ply > 0 && res.depth >= d && match res.bound {
             LOWER => res.score >= b,
             UPPER => res.score <= a,
             EXACT => !pv, // want nice pv lines
@@ -136,35 +140,39 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, null
     }
 
     if !pv && !in_check && b.abs() < MATE {
-        let eval = eng.lazy_eval();
+        let e = eng.lazy_eval();
 
         // reverse futility pruning
-        let m = eval - 120 * i16::from(d);
+        let m = e - 120 * i16::from(d);
         if d <= 8 && m >= b { return m }
 
         // null move pruning
-        if null && d >= 3 && eng.pos.phase >= 6 && eval >= b {
+        if null && d >= 3 && eng.pos.phase >= 6 && e >= b {
+            eng.ply += 1;
             let enp = eng.pos.do_null();
             let nw = -pvs(eng, -a - 1, -a, d - 3, false, false, &mut Vec::new());
             eng.pos.undo_null(enp);
+            eng.ply -= 1;
             if nw >= b {return nw}
         }
     }
 
-    eng.nodes += 1;
-    eng.ply += 1;
-    let lmr = d > 2 && eng.ply > 1 && !in_check;
+    // threshold for late move reductions
+    let lmr = d >= 2 && eng.ply > 0 && !in_check;
+
     let mut moves = eng.pos.gen::<ALL>();
     let mut scores = eng.score(&moves, bm);
+
+    eng.ply += 1;
     let (mut legal, mut eval, mut bound) = (0, -MAX, UPPER);
     let mut sline = Vec::new();
     while let Some((m, ms)) = moves.pick(&mut scores) {
         if eng.pos.r#do(m) { continue }
-        legal += 1;
         let check = eng.pos.in_check();
+        legal += 1;
 
         // late move reductions
-        let r = i8::from(lmr && !check && legal > 2 && ms == 0);
+        let r = i8::from(lmr && !check && legal > 1 && ms == 0);
 
         sline.clear();
         let score = if legal == 1 {
