@@ -7,13 +7,16 @@ pub struct List<T> {
     pub list: [T; 252],
     pub len: usize,
 }
+
 pub type MoveList = List<Move>;
 pub type ScoreList = List<i16>;
+
 impl<T> List<T> {
     pub fn uninit() -> Self {
         Self { list: unsafe {#[allow(clippy::uninit_assumed_init, invalid_value)] MaybeUninit::uninit().assume_init()}, len: 0 }
     }
 }
+
 impl MoveList {
     #[inline(always)]
     pub fn push(&mut self, from: u8, to: u8, flag: u8, mpc: u8) {

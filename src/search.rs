@@ -117,7 +117,7 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, mut 
         return 0
     }
 
-    if eng.pos.state.hfm >= 100 || eng.pos.repetition_draw(2 + u8::from(eng.ply == 0)) || eng.pos.material_draw() { return 0 }
+    if eng.pos.state.hfm >= 100 || eng.pos.rep_draw(2 + 2 * u8::from(eng.ply == 0)) || eng.pos.mat_draw() { return 0 }
     let pv = b > a + 1;
     a = max(a, -MAX + eng.ply);
     b = min(b, MAX - eng.ply - 1);

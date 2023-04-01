@@ -230,18 +230,17 @@ impl Position {
         self.c = !self.c;
     }
 
-    pub fn repetition_draw(&self, num: u8) -> bool {
+    pub fn rep_draw(&self, mut num: u8) -> bool {
         let l = self.stack.len();
         if l < 6 || self.nulls > 0 { return false }
-        let mut reps: u8 = 1;
-        for i in (l.saturating_sub(self.state.hfm as usize)..(l - 1)).rev().step_by(2) {
-            reps += u8::from(self.stack[i].0.hash == self.state.hash);
-            if reps >= num { return true }
+        for ctx in self.stack.iter().rev().take(self.state.hfm as usize + 1).skip(1).step_by(2) {
+            num -= u8::from(ctx.0.hash == self.state.hash);
+            if num < 2 { return true }
         }
         false
     }
 
-    pub fn material_draw(&self) -> bool {
+    pub fn mat_draw(&self) -> bool {
         let (ph, b, p, wh, bl) = (self.phase, self.bb[B], self.bb[P], self.bb[0], self.bb[1]);
         ph <= 2 && p == 0 && ((ph != 2) || (b & wh != b && b & bl != b && (b & LSQ == b || b & DSQ == b)))
     }
