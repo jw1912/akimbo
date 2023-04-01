@@ -82,7 +82,7 @@ impl Position {
             if ch == '/' { row -= 1; col = 0; }
             else if ('1'..='8').contains(&ch) { col += ch.to_string().parse::<i16>().unwrap_or(0) }
             else {
-                let idx = ['P','N','B','R','Q','K','p','n','b','r','q','k'].iter().position(|&element| element == ch).unwrap_or(6);
+                let idx = ['P','N','B','R','Q','K','p','n','b','r','q','k'].iter().position(|&el| el == ch).unwrap_or(6);
                 let side = usize::from(idx > 5);
                 let pc = idx + 2 - 6 * side;
                 let sq = 8 * row + col;
@@ -94,12 +94,9 @@ impl Position {
             }
         }
         pos.c = vec[1] == "b";
-        for ch in vec[2].chars() {pos.state.cr |= match ch {'Q' => WQS, 'K' => WKS, 'q' => BQS, 'k' => BKS, _ => 0}}
-        pos.state.enp = if vec[3] == "-" {0} else {
-            let chs: Vec<char> = vec[3].chars().collect();
-            8 * chs[1].to_string().parse::<u8>().unwrap_or(0) + chs[0] as u8 - 105
-        };
-        pos.state.hfm = vec[4].parse::<u8>().unwrap();
+        pos.state.cr = vec[2].chars().fold(0, |cr, ch| cr | match ch {'Q' => WQS, 'K' => WKS, 'q' => BQS, 'k' => BKS, _ => 0});
+        pos.state.enp = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
+        pos.state.hfm = vec.get(4).unwrap_or(&"0").parse::<u8>().unwrap();
         pos
     }
 
@@ -124,7 +121,7 @@ impl Position {
     #[inline(always)]
     pub fn is_sq_att(&self, idx: usize, side: usize, occ: u64) -> bool {
         let s = self.bb[side ^ 1];
-        (NATT[idx] & self.bb[N] & s > 0)
+           (NATT[idx] & self.bb[N] & s > 0)
         || (KATT[idx] & self.bb[K] & s > 0)
         || (PATT[side][idx] & self.bb[P] & s > 0)
         || (ratt(idx, occ) & ((self.bb[R] | self.bb[Q]) & s) > 0)
@@ -214,34 +211,32 @@ impl Position {
         }
     }
 
-    pub fn do_null(&mut self) -> u8 {
-        let enp = self.state.enp;
+    pub fn r#do_null(&mut self) {
         self.nulls += 1;
         self.stack.push(MoveCtx(self.state, Move::default(), 0));
         self.state.enp = 0;
         self.c = !self.c;
-        enp
     }
 
-    pub fn undo_null(&mut self, enp: u8) {
+    pub fn undo_null(&mut self) {
         self.nulls -= 1;
-        self.stack.pop();
-        self.state.enp = enp;
+        let ctx = self.stack.pop().unwrap();
+        self.state.enp = ctx.0.enp;
         self.c = !self.c;
     }
 
-    pub fn repetition_draw(&self, num: u8) -> bool {
+    pub fn rep_draw(&self, ply: i16) -> bool {
+        let mut num = 1 + 2 * u8::from(ply == 0);
         let l = self.stack.len();
         if l < 6 || self.nulls > 0 { return false }
-        let mut reps: u8 = 1;
-        for i in (l.saturating_sub(self.state.hfm as usize)..(l - 1)).rev().step_by(2) {
-            reps += u8::from(self.stack[i].0.hash == self.state.hash);
-            if reps >= num { return true }
+        for ctx in self.stack.iter().rev().take(self.state.hfm as usize + 1).skip(1).step_by(2) {
+            num -= u8::from(ctx.0.hash == self.state.hash);
+            if num == 0 { return true }
         }
         false
     }
 
-    pub fn material_draw(&self) -> bool {
+    pub fn mat_draw(&self) -> bool {
         let (ph, b, p, wh, bl) = (self.phase, self.bb[B], self.bb[P], self.bb[0], self.bb[1]);
         ph <= 2 && p == 0 && ((ph != 2) || (b & wh != b && b & bl != b && (b & LSQ == b || b & DSQ == b)))
     }
@@ -252,7 +247,7 @@ impl Position {
     }
 }
 
-macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", char::from_u32(($idx & 7) as u32 + 97).unwrap(), ($idx >> 3) + 1)}}
+macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", (($idx & 7) + b'a') as char, ($idx / 8) + 1)}}
 fn sq_to_idx(sq: &str) -> u8 {
     let chs: Vec<char> = sq.chars().collect();
     8 * chs[1].to_string().parse::<u8>().unwrap() + chs[0] as u8 - 105
@@ -264,21 +259,18 @@ impl Move {
         Self { from, to: (m & 63) as u8, flag: ((m >> 12) & 63) as u8, mpc: pos.get_pc(1 << from) as u8 }
     }
 
-    pub fn to_uci(m: Self) -> String {
-        let promo = if m.flag & 0b1000 > 0 {["n","b","r","q"][(m.flag & 0b11) as usize]} else {""};
-        format!("{}{}{} ", idx_to_sq!(m.from), idx_to_sq!(m.to), promo)
+    pub fn to_uci(self) -> String {
+        let promo = if self.flag & 0b1000 > 0 {["n","b","r","q"][(self.flag & 0b11) as usize]} else {""};
+        format!("{}{}{} ", idx_to_sq!(self.from), idx_to_sq!(self.to), promo)
     }
 
     pub fn from_uci(pos: &Position, m_str: &str) -> Self {
         let mut m = Move { from: sq_to_idx(&m_str[0..2]), to: sq_to_idx(&m_str[2..4]), flag: 0, mpc: 0};
-        m.flag |= match m_str.chars().nth(4).unwrap_or('f') {'n' => 8, 'b' => 9, 'r' => 10, 'q' => 11, _ => 0};
+        m.flag = match m_str.chars().nth(4).unwrap_or('f') {'n' => 8, 'b' => 9, 'r' => 10, 'q' => 11, _ => 0};
         let possible_moves = pos.gen::<ALL>();
-        for um in &possible_moves.list[0..possible_moves.len] {
-            if m.from == um.from && m.to == um.to && (m_str.len() < 5 || m.flag == um.flag & 0b1011) {
-                return *um
-            }
-        }
-        panic!("")
+        *possible_moves.list.iter().take(possible_moves.len).find(|um|
+            m.from == um.from && m.to == um.to && (m_str.len() < 5 || m.flag == um.flag & 0b1011)
+        ).unwrap()
     }
 }
 
@@ -293,15 +285,11 @@ impl Default for ZobristVals {
     fn default() -> Self {
         let mut seed = 180_620_142;
         let mut vals = Self { pieces: [[[0; 64]; 8]; 2], cr: [0; 4], enp: [0; 8], c: random(&mut seed) };
-        for idx in 0..2 {
-            for piece in 2..8 {
-                for square in 0..64 {
-                    vals.pieces[idx][piece][square] = random(&mut seed);
-                }
-            }
-        }
-        for idx in 0..4 { vals.cr[idx] = random(&mut seed) }
-        for idx in 0..8 { vals.enp[idx] = random(&mut seed) }
+        vals.pieces.iter_mut().for_each(|side|
+            side.iter_mut().skip(2).for_each(|pc|
+                pc.iter_mut().for_each(|sq| *sq = random(&mut seed))));
+        vals.cr.iter_mut().for_each(|r| *r = random(&mut seed));
+        vals.enp.iter_mut().for_each(|f| *f = random(&mut seed));
         vals
     }
 }
