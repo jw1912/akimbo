@@ -108,7 +108,7 @@ fn qs(eng: &mut Engine, mut a: i16, b: i16) -> i16 {
     e
 }
 
-fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, null: bool, line: &mut Vec<Move>) -> i16 {
+fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, mut null: bool, line: &mut Vec<Move>) -> i16 {
     if eng.abort { return 0 }
     if eng.nodes & 1023 == 0 && eng.timing.0.elapsed().as_millis() >= eng.timing.1 {
         eng.abort = true;
@@ -136,6 +136,7 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, null
             EXACT => !pv, // want nice pv lines
             _ => false,
         } { return res.score }
+        if res.bound == LOWER && res.score < b { null = false }
     }
 
     if !pv && !in_check && b.abs() < MATE {
@@ -149,10 +150,13 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, null
         if null && d >= 3 && eng.pos.phase >= 6 && e >= b {
             eng.ply += 1;
             let enp = eng.pos.do_null();
-            let nw = -pvs(eng, -a - 1, -a, d - 3, false, false, &mut Vec::new());
+            let nw = -pvs(eng, -a - 1, -a, d - min(3, d - 1), false, false, &mut Vec::new());
             eng.pos.undo_null(enp);
             eng.ply -= 1;
-            if nw >= b {return nw}
+            if nw >= b {
+                if nw >= MATE { return b }
+                return nw
+            }
         }
     }
 
