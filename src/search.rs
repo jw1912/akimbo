@@ -98,8 +98,7 @@ fn qs(eng: &mut Engine, mut a: i16, b: i16) -> i16 {
     a = max(a, e);
     let mut caps = eng.pos.gen::<CAPTURES>();
     let mut scores = eng.score_caps(&caps);
-    while let Some((m, ms)) = caps.pick(&mut scores) {
-        if e + ms / 5 + 200 < a { break }
+    while let Some((m, _)) = caps.pick(&mut scores) {
         if eng.pos.r#do(m) { continue }
         e = max(e, -qs(eng, -b, -a));
         eng.pos.undo();
