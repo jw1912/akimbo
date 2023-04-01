@@ -31,7 +31,7 @@ impl HashTable {
         let mut desired_idx = usize::MAX;
         let mut smallest_depth = i8::MAX;
         for (entry_idx, entry) in self.table[idx].iter().enumerate() {
-            if (entry.key == key && entry.depth >= depth) || entry.depth == 0 {
+            if (entry.key == key && depth > entry.depth) || entry.depth == 0 {
                 desired_idx = entry_idx;
                 break;
             }
@@ -48,19 +48,14 @@ impl HashTable {
     pub fn probe(&self, zobrist: u64, ply: i16) -> Option<HashEntry> {
         let key = (zobrist >> 48) as u16;
         let idx = (zobrist as usize) & (self.num_buckets - 1);
-        let mut hit = None;
-        let mut best_depth = i8::MIN;
         for entry in &self.table[idx] {
             if entry.key == key {
                 let mut res = *entry;
                 res.score += if res.score > MATE {-ply} else if res.score < -MATE {ply} else {0};
-                if entry.depth > best_depth {
-                    best_depth = entry.depth;
-                    hit = Some(res)
-                }
+                return Some(res)
             }
         }
-        hit
+        None
     }
 }
 
