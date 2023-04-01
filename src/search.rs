@@ -1,5 +1,5 @@
 use std::{cmp::{max, min}, time::Instant};
-use super::{consts::*, position::{Move, Position}, movegen::{MoveList, ScoreList}, tables::{HashTable, KillerTable}};
+use super::{consts::*, position::{Move, Position}, movegen::{List, MoveList, ScoreList}, tables::{HashTable, HistoryTable,  KillerTable}};
 
 pub struct Timer(Instant, pub u128);
 impl Default for Timer {
@@ -13,17 +13,18 @@ pub struct Engine {
     pub pos: Position,
     pub hash_table: HashTable,
     pub timing: Timer,
-    killer_table: KillerTable,
+    pub history_table: Box<HistoryTable>,
+    killer_table: Box<KillerTable>,
     nodes: u64,
     qnodes: u64,
     ply: i16,
     abort: bool,
 }
 
-impl ScoreList {
+impl<T> List<T> {
     #[inline(always)]
-    fn push(&mut self, score: i16) {
-        self.list[self.len] = score;
+    fn add(&mut self, entry: T) {
+        self.list[self.len] = entry;
         self.len += 1;
     }
 }
@@ -40,13 +41,13 @@ impl Engine {
         let mut scores = ScoreList::uninit();
         let killers = self.killer_table.0[self.ply as usize];
         for i in 0..moves.len {
-            scores.push({
+            scores.add({
                 let m = moves.list[i];
-                if m == hash_move {30000}
+                if m == hash_move {HASH}
                 else if m.flag & 4 > 0 {self.mvv_lva(m)}
-                else if m.flag & 8 > 0 {950 + i16::from(m.flag & 7)}
-                else if killers.contains(&m) {900}
-                else {0}
+                else if m.flag & 8 > 0 {PROMOTION + i16::from(m.flag & 7)}
+                else if killers.contains(&m) {KILLER}
+                else {self.history_table.score(self.pos.c, m)}
             })
         }
         scores
@@ -54,12 +55,12 @@ impl Engine {
 
     fn score_caps(&self, caps: &MoveList) -> ScoreList {
         let mut scores = ScoreList::uninit();
-        for i in 0..caps.len {scores.push(self.mvv_lva(caps.list[i]))}
+        for i in 0..caps.len {scores.add(self.mvv_lva(caps.list[i]))}
         scores
     }
 
     fn mvv_lva(&self, m: Move) -> i16 {
-        1024 * self.pos.get_pc(1 << m.to) as i16 - self.pos.get_pc(1 << m.from) as i16
+        MVV_LVA * self.pos.get_pc(1 << m.to) as i16 - m.mpc as i16
     }
 
     fn lazy_eval(&self) -> i16 {
@@ -88,7 +89,8 @@ pub fn go(eng: &mut Engine) {
         println!("info depth {d} score {stype} {sval} time {} nodes {nodes} nps {nps} pv {pv_str}", t.as_millis());
     }
     println!("bestmove {}", Move::to_uci(best_move));
-    eng.killer_table = KillerTable::default();
+    *eng.killer_table = Default::default();
+    eng.history_table.age();
 }
 
 fn qs(eng: &mut Engine, mut a: i16, b: i16) -> i16 {
@@ -175,7 +177,8 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, mut 
         legal += 1;
 
         // late move reductions
-        let r = i8::from(lmr && !check && legal > 1 && ms == 0);
+        let r = i8::from(lmr && !check && legal > 1 && ms < KILLER)
+            * (0.77 + f64::from(d).ln() * f64::from(legal).ln() / 2.67) as i8;
 
         sline.clear();
         let score = if legal == 1 {
@@ -199,7 +202,10 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, mut 
                 line.append(&mut sline);
                 if score >= b {
                     bound = LOWER;
-                    if ms <= 1000 {eng.killer_table.push(m, eng.ply)}
+                    if ms < 2 * MVV_LVA {
+                        eng.killer_table.push(m, eng.ply);
+                        eng.history_table.change(eng.pos.c, m, d as i64);
+                    }
                     break
                 }
             }

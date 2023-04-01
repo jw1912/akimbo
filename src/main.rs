@@ -28,6 +28,7 @@ fn parse_commands(commands: Vec<&str>, eng: &mut Engine) {
         "ucinewgame" => {
             eng.pos = Position::from_fen(STARTPOS);
             eng.hash_table.clear();
+            *eng.history_table = Default::default();
         },
         "setoption" => if let ["setoption", "name", "Hash", "value", x] = commands[..] {eng.hash_table.resize(x.parse().unwrap())},
         "go" => parse_go(eng, commands),

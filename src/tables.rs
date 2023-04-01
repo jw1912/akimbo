@@ -14,6 +14,7 @@ pub struct HashTable {
     table: Vec<[HashEntry; 8]>,
     num_buckets: usize,
 }
+
 impl HashTable {
     pub fn resize(&mut self, mut size: usize) {
         size = 2usize.pow((size as f64).log2().floor() as u32);
@@ -60,16 +61,45 @@ impl HashTable {
 }
 
 pub struct KillerTable(pub [[Move; KILLERS]; MAX_PLY as usize + 1]);
+
 impl Default for KillerTable {
     fn default() -> Self {
         Self([Default::default(); MAX_PLY as usize + 1])
     }
 }
+
 impl KillerTable {
     pub fn push(&mut self, m: Move, p: i16) {
         let ply = p as usize - 1;
         let new = if self.0[ply].contains(&m) {self.0[ply][KILLERS - 1]} else {m};
         (0..{KILLERS - 1}).rev().for_each(|i: usize| self.0[ply][i + 1] = self.0[ply][i]);
         self.0[ply][0] = new;
+    }
+}
+
+pub struct HistoryTable([[[i64; 64]; 6]; 2], i64);
+
+impl Default for HistoryTable {
+    fn default() -> Self {
+        Self([[[0; 64]; 6]; 2], 1)
+    }
+}
+
+impl HistoryTable {
+    pub fn age(&mut self) {
+        self.0.iter_mut().for_each(|side|
+            side.iter_mut().for_each(|pc|
+                pc.iter_mut().for_each(|sq| *sq /= 2)))
+    }
+
+    pub fn change(&mut self, side: bool, m: Move, amount: i64) {
+        let entry = &mut self.0[usize::from(side)][usize::from(m.mpc - 2)][usize::from(m.to)];
+        *entry += amount;
+        if *entry > self.1 { self.1 = *entry }
+    }
+
+    pub fn score(&self, side: bool, m: Move) -> i16 {
+        let entry = self.0[usize::from(side)][usize::from(m.mpc - 2)][usize::from(m.to)];
+        ((HISTORY_MAX * entry + self.1 - 1) / self.1) as i16
     }
 }

@@ -16,7 +16,7 @@ impl<T> List<T> {
 }
 impl MoveList {
     #[inline(always)]
-    fn push(&mut self, from: u8, to: u8, flag: u8, mpc: u8) {
+    pub fn push(&mut self, from: u8, to: u8, flag: u8, mpc: u8) {
         self.list[self.len] = Move {from, to, flag, mpc};
         self.len += 1;
     }

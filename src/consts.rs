@@ -15,6 +15,13 @@ pub const LOWER: u8 = 0x40;
 pub const EXACT: u8 = 0xC0;
 pub const UPPER: u8 = 0x80;
 
+// Move Ordering
+pub const HASH: i16 = 30000;
+pub const MVV_LVA: i16 = 2048;
+pub const PROMOTION: i16 = 3000;
+pub const KILLER: i16 = 2500;
+pub const HISTORY_MAX: i64 = 2048;
+
 // Eval
 pub const SIDE: [i16; 2] = [1, -1];
 pub const PHASE_VALS: [i16; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
