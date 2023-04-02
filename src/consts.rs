@@ -17,27 +17,20 @@ impl Mul<S> for i16 {
     }
 }
 
+macro_rules! consts {
+    ($type:ty, $name:ident = $val:expr) => {pub const $name: $type = $val;};
+    ($type:ty, $name:ident = $val:expr, $($b:tt)*) => {pub const $name: $type = $val; consts!($type, $($b)*);};
+}
+
 // UCI
-pub const NAME: &str = env!("CARGO_PKG_NAME");
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
+consts!(&str, NAME = env!("CARGO_PKG_NAME"), VERSION = env!("CARGO_PKG_VERSION"), AUTHOR = env!("CARGO_PKG_AUTHORS"));
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 // Search
-pub const MAX_PLY: i16 = 96;
 pub const KILLERS: usize = 3;
-pub const MAX: i16 = 30000;
-pub const MATE: i16 = MAX - u8::MAX as i16;
-pub const LOWER: u8 = 0x40;
-pub const EXACT: u8 = 0xC0;
-pub const UPPER: u8 = 0x80;
-
-// Move Ordering
-pub const HASH: i16 = 30000;
-pub const MVV_LVA: i16 = 2048;
-pub const PROMOTION: i16 = 3000;
-pub const KILLER: i16 = 2500;
 pub const HISTORY_MAX: i64 = 2048;
+consts!(u8, LOWER = 0x40, EXACT = 0xC0, UPPER = 0x80);
+consts!(i16, MAX_PLY = 96, MAX = 30000, MATE = MAX - 256, HASH = MAX, MVV_LVA = 2048, PROMOTION = 3000, KILLER = 2500);
 
 // Eval
 pub const SIDE: [i16; 2] = [1, -1];
@@ -45,9 +38,7 @@ pub const PHASE_VALS: [i16; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
 pub const TPHASE: i32 = 24;
 
 // Evaluation
-pub static PST: [[S; 64]; 8] = [
-    [S(0, 0); 64],
-    [S(0, 0); 64],
+pub static PST: [[S; 64]; 8] = [[S(0, 0); 64], [S(0, 0); 64],
     [
         S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100),
         S(234, 248), S(247, 246), S(208, 224), S(212, 207), S(213, 211), S(217, 217), S(147, 256), S( 92, 273),
@@ -106,8 +97,6 @@ pub static PST: [[S; 64]; 8] = [
 ];
 
 // Move generation
-pub const ALL: bool = true;
-pub const CAPTURES: bool = false;
 macro_rules! init {
     ($idx:ident, $init:expr, $($rest:tt)+) => {{
         let mut res = [$init; 64];
@@ -119,32 +108,22 @@ macro_rules! init {
         res
     }};
 }
-macro_rules! c_enum {
-    ($type:ty, $val:expr, $name:ident) => {pub const $name: $type = $val;};
-    ($type:ty, $val:expr, $name:ident, $($b:tt),*) => {pub const $name: $type = $val; c_enum!($type, $val + 1, $($b),*);};
-}
-pub const E: usize = 0;
-c_enum!(usize, 0, WH, BL, P, N, B, R, Q, K);
-c_enum!(u8, 0, QUIET, DBL, KS, QS, CAP, ENP, _E1, _E2, NPR, _BPR, _RPR, QPR, NPC, _BPC, _RPC, QPC);
+
+// Pieces, sides, movegen type
+consts!(bool, ALL = true, CAPTURES = false);
+consts!(usize, E = 0, WH = 0, BL = 1, P = 2, N = 3, B = 4, R = 5, Q = 6, K = 7);
+consts!(u8, QUIET = 0, DBL = 1, KS = 2, QS = 3, CAP = 4, ENP = 5, NPR = 8, QPR = 11, NPC = 12, QPC = 15);
 
 // Castling
-pub const WQS: u8 = 8;
-pub const WKS: u8 = 4;
-pub const BQS: u8 = 2;
-pub const BKS: u8 = 1;
-pub const B1C1D1: u64 = 0x000000000000000E;
-pub const   F1G1: u64 = 0x0000000000000060;
-pub const B8C8D8: u64 = 0x0E00000000000000;
-pub const   F8G8: u64 = 0x6000000000000000;
+consts!(u8, WQS = 8, WKS = 4, BQS = 2, BKS = 1);
+consts!(u64, B1C1D1 = 0x000000000000000E, F1G1 = 0x0000000000000060, B8C8D8 = 0x0E00000000000000, F8G8 = 0x6000000000000000);
 pub const CS: [u8; 2] = [WKS | WQS, BKS | BQS];
 pub const CR: [u8; 64] = init!(idx, 0, match idx {0 => 7, 4 => 3, 7 => 11, 56 => 13, 60 => 12, 63 => 14, _ => 15});
 pub const CM: [[(u64, usize, usize); 2]; 2] = [[(9, 0, 3), (0x0900000000000000, 56, 59)], [(160, 7, 5), (0xA000000000000000, 63, 61)]];
 
 // Pawns
-pub const PENRANK: [u64; 2] = [0x00FF000000000000, 0x000000000000FF00];
-pub const DBLRANK: [u64; 2] = [0x00000000FF000000, 0x000000FF00000000];
-pub const FILE: u64 = 0x0101010101010101;
-pub const NOTH: u64 = !(FILE << 7);
+consts!([u64; 2], PENRANK = [0x00FF000000000000, 0x000000000000FF00], DBLRANK = [0x00000000FF000000, 0x000000FF00000000]);
+consts!(u64, FILE = 0x0101010101010101, NOTH = !(FILE << 7));
 pub const PATT: [[u64; 64]; 2] = [
     init!(idx, 0, (((1 << idx) & !FILE) << 7) | (((1 << idx) & NOTH) << 9)),
     init!(idx, 0, (((1 << idx) & !FILE) >> 9) | (((1 << idx) & NOTH) >> 7)),
@@ -189,5 +168,4 @@ pub const RMASKS: [Mask; 64] = init!(idx, Mask { bit: 0, right: 0, left: 0, file
 );
 
 // Draw detection
-pub const LSQ: u64 = 0x55AA_55AA_55AA_55AA;
-pub const DSQ: u64 = 0xAA55_AA55_AA55_AA55;
+consts!(u64, LSQ = 0x55AA_55AA_55AA_55AA, DSQ = 0xAA55_AA55_AA55_AA55);
