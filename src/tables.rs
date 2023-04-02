@@ -95,7 +95,7 @@ impl HistoryTable {
     pub fn change(&mut self, side: bool, m: Move, amount: i64) {
         let entry = &mut self.0[usize::from(side)][usize::from(m.mpc - 2)][usize::from(m.to)];
         *entry += amount;
-        if *entry > self.1 { self.1 = *entry }
+        self.1 = self.1.max(*entry);
     }
 
     pub fn score(&self, side: bool, m: Move) -> i16 {

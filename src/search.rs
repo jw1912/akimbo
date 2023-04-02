@@ -33,6 +33,7 @@ impl Engine {
     fn reset(&mut self) {
         self.timing.0 = Instant::now();
         self.nodes = 0;
+        self.qnodes = 0;
         self.ply = 0;
         self.abort = false;
     }
@@ -76,7 +77,7 @@ pub fn go(eng: &mut Engine) {
     let in_check: bool = eng.pos.in_check();
     for d in 1..=64 {
         let mut pv_line = Vec::with_capacity(d as usize);
-        let score: i16 = pvs(eng, -MAX, MAX, d, in_check, false, &mut pv_line);
+        let score: i16 = search(eng, -MAX, MAX, d, in_check, false, &mut pv_line);
         if eng.abort {break}
         best_move = pv_line[0];
         let (stype, sval): (&str, i16) = if score.abs() >= MATE {
@@ -93,118 +94,147 @@ pub fn go(eng: &mut Engine) {
     eng.history_table.age();
 }
 
-fn qs(eng: &mut Engine, mut a: i16, b: i16) -> i16 {
+fn qsearch(eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
     eng.qnodes += 1;
-    let mut e = eng.lazy_eval();
-    if e >= b { return e }
-    a = max(a, e);
+    let mut eval = eng.lazy_eval();
+    if eval >= beta { return eval }
+    alpha = max(alpha, eval);
     let mut caps = eng.pos.gen::<CAPTURES>();
     let mut scores = eng.score_caps(&caps);
-    while let Some((m, _)) = caps.pick(&mut scores) {
-        if eng.pos.r#do(m) { continue }
-        e = max(e, -qs(eng, -b, -a));
+    while let Some((r#move, _)) = caps.pick(&mut scores) {
+        if eng.pos.r#do(r#move) { continue }
+        eval = max(eval, -qsearch(eng, -beta, -alpha));
         eng.pos.undo();
-        if e >= b { break }
-        a = max(a, e);
+        if eval >= beta { break }
+        alpha = max(alpha, eval);
     }
-    e
+    eval
 }
 
-fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, mut null: bool, line: &mut Vec<Move>) -> i16 {
+fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, mut null: bool, line: &mut Vec<Move>) -> i16 {
+    // stopping search
     if eng.abort { return 0 }
     if eng.nodes & 1023 == 0 && eng.timing.0.elapsed().as_millis() >= eng.timing.1 {
         eng.abort = true;
         return 0
     }
 
+    line.clear();
+    let pv = beta > alpha + 1;
+
+    // draw detection
     if eng.pos.state.hfm >= 100 || eng.pos.rep_draw(2 + 2 * u8::from(eng.ply == 0)) || eng.pos.mat_draw() { return 0 }
-    let pv = b > a + 1;
-    a = max(a, -MAX + eng.ply);
-    b = min(b, MAX - eng.ply - 1);
-    if a >= b { return a }
-    d += i8::from(in_check);
-    if d <= 0 || eng.ply == MAX_PLY { return qs(eng, a, b) }
+
+    // mate distance pruning
+    alpha = max(alpha, -MAX + eng.ply);
+    beta = min(beta, MAX - eng.ply - 1);
+    if alpha >= beta { return alpha }
+
+    // check extensions
+    depth += i8::from(in_check);
+
+    // drop into qsearch if depth is 0
+    if depth <= 0 || eng.ply == MAX_PLY { return qsearch(eng, alpha, beta) }
     eng.nodes += 1;
 
     let hash = eng.pos.hash();
-    let mut bm = Move::default();
+    let mut best_move = Move::default();
     let mut write = true;
+
+    // probing hash table
     if let Some(res) = eng.hash_table.probe(hash, eng.ply) {
-        write = d > res.depth;
-        bm = Move::from_short(res.best_move, &eng.pos);
-        if eng.ply > 0 && res.depth >= d && match res.bound {
-            LOWER => res.score >= b,
-            UPPER => res.score <= a,
+        write = depth > res.depth;
+        best_move = Move::from_short(res.best_move, &eng.pos);
+
+        // hash score pruning
+        if eng.ply > 0 && res.depth >= depth && match res.bound {
+            LOWER => res.score >= beta,
+            UPPER => res.score <= alpha,
             EXACT => !pv, // want nice pv lines
             _ => false,
         } { return res.score }
-        if res.bound == LOWER && res.score < b { null = false }
+
+        // disallow null move pruning in some cases
+        if res.bound == LOWER && res.score < beta { null = false }
     }
 
-    if !pv && !in_check && b.abs() < MATE {
-        let e = eng.lazy_eval();
+    // pruning
+    if !pv && !in_check && beta.abs() < MATE {
+        let eval = eng.lazy_eval();
 
         // reverse futility pruning
-        let m = e - 120 * i16::from(d);
-        if d <= 8 && m >= b { return m }
+        let margin = eval - 120 * i16::from(depth);
+        if depth <= 8 && margin >= beta { return margin }
 
         // null move pruning
-        if null && d >= 3 && eng.pos.phase >= 6 && e >= b {
+        if null && depth >= 3 && eng.pos.phase >= 6 && eval >= beta {
+            // make and score null move
             eng.ply += 1;
             let enp = eng.pos.do_null();
-            let nw = -pvs(eng, -a - 1, -a, d - min(3, d - 1), false, false, &mut Vec::new());
+            let nw = -search(eng, -alpha - 1, -alpha, depth - min(3, depth - 1), false, false, &mut Vec::new());
             eng.pos.undo_null(enp);
             eng.ply -= 1;
-            if nw >= b {
-                if nw >= MATE { return b }
+
+            if nw >= beta {
+                // fail-hard on mate scores
+                if nw >= MATE { return beta }
                 return nw
             }
         }
     }
 
-    // threshold for late move reductions
-    let lmr = d >= 2 && eng.ply > 0 && !in_check;
-
+    // generate and score moves
     let mut moves = eng.pos.gen::<ALL>();
-    let mut scores = eng.score(&moves, bm);
+    let mut scores = eng.score(&moves, best_move);
+
+    // stuff needed for going through moves
+    let mut legal = 0;
+    let mut eval = -MAX;
+    let mut bound = UPPER;
+    let mut sline = Vec::new();
+
+    // threshold for late move reductions
+    let lmr = depth > 1 && eng.ply > 0 && !in_check;
 
     eng.ply += 1;
-    let (mut legal, mut eval, mut bound) = (0, -MAX, UPPER);
-    let mut sline = Vec::new();
-    while let Some((m, ms)) = moves.pick(&mut scores) {
-        if eng.pos.r#do(m) { continue }
+    while let Some((r#move, mscore)) = moves.pick(&mut scores) {
+        if eng.pos.r#do(r#move) { continue }
+
         let check = eng.pos.in_check();
         legal += 1;
 
         // late move reductions
-        let r = i8::from(lmr && !check && legal > 1 && ms < KILLER)
-            * (0.77 + f64::from(d).ln() * f64::from(legal).ln() / 2.67) as i8;
+        let r = i8::from(lmr && !check && mscore < KILLER)
+            * (0.77 + f64::from(depth).ln() * f64::from(legal).ln() / 2.67) as i8;
 
-        sline.clear();
+        // principle variation search
         let score = if legal == 1 {
-            -pvs(eng, -b, -a, d - 1, check, false, &mut sline)
+            -search(eng, -beta, -alpha, depth - 1, check, false, &mut sline)
         } else {
-            let zw = -pvs(eng, -a - 1, -a, d - 1 - r, check, true, &mut sline);
-            if (a != b - 1 || r > 0) && zw > a {
-                -pvs(eng, -b, -a, d - 1, check, false, &mut sline)
+            let zw = -search(eng, -alpha - 1, -alpha, depth - 1 - r, check, true, &mut sline);
+            if (pv || r > 0) && zw > alpha {
+                -search(eng, -beta, -alpha, depth - 1, check, false, &mut sline)
             } else { zw }
         };
         eng.pos.undo();
 
+        // alpha-beta pruning
         if score > eval {
             eval = score;
-            bm = m;
-            if score > a {
-                a = score;
+            best_move = r#move;
+            if score > alpha {
+                alpha = score;
                 bound = EXACT;
+                // update pv line
                 line.clear();
-                line.push(m);
+                line.push(r#move);
                 line.append(&mut sline);
-                if score >= b {
+                if score >= beta {
                     bound = LOWER;
-                    if ms < 2 * MVV_LVA {
-                        eng.killer_table.push(m, eng.ply);
-                        eng.history_table.change(eng.pos.c, m, d as i64);
+                    // push quiet moves that caused cutoff to tables
+                    if mscore < 2 * MVV_LVA {
+                        eng.killer_table.push(r#move, eng.ply);
+                        eng.history_table.change(eng.pos.c, r#move, depth as i64);
                     }
                     break
                 }
@@ -212,7 +242,12 @@ fn pvs(eng: &mut Engine, mut a: i16, mut b: i16, mut d: i8, in_check: bool, mut 
         }
     }
     eng.ply -= 1;
+
+    // checkmate
     if legal == 0 { return i16::from(in_check) * (-MAX + eng.ply) }
-    if write && !eng.abort { eng.hash_table.push(hash, bm, d, bound, eval, eng.ply) }
+
+    // writing to hash table
+    if write && !eng.abort { eng.hash_table.push(hash, best_move, depth, bound, eval, eng.ply) }
+
     eval
 }
