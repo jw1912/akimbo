@@ -90,7 +90,7 @@ fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
         }
     }
     let mytime = times[usize::from(eng.pos.c)];
-    if mytime != 0 { alloc = mytime / mtg.unwrap_or(2 * eng.pos.phase as u128 + 1) - 10 }
+    if mytime != 0 { alloc = mytime / mtg.unwrap_or(2 * (eng.pos.phase as u128 + 1)) - 10 }
     eng.timing.1 = alloc;
     go(eng);
 }
