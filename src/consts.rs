@@ -1,5 +1,22 @@
 use std::ops::{AddAssign, Mul};
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct S(pub i16, pub i16);
+
+impl AddAssign<S> for S {
+    fn add_assign(&mut self, rhs: S) {
+        self.0 += rhs.0;
+        self.1 += rhs.1;
+    }
+}
+
+impl Mul<S> for i16 {
+    type Output = S;
+    fn mul(self, rhs: S) -> Self::Output {
+        S(self * rhs.0, self * rhs.1)
+    }
+}
+
 // UCI
 pub const NAME: &str = env!("CARGO_PKG_NAME");
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -28,20 +45,6 @@ pub const PHASE_VALS: [i16; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
 pub const TPHASE: i32 = 24;
 
 // Evaluation
-#[derive(Clone, Copy, Debug, Default)]
-pub struct S(pub i16, pub i16);
-impl AddAssign<S> for S {
-    fn add_assign(&mut self, rhs: S) {
-        self.0 += rhs.0;
-        self.1 += rhs.1;
-    }
-}
-impl Mul<S> for i16 {
-    type Output = S;
-    fn mul(self, rhs: S) -> Self::Output {
-        S(self * rhs.0, self * rhs.1)
-    }
-}
 pub static PST: [[S; 64]; 8] = [
     [S(0, 0); 64],
     [S(0, 0); 64],

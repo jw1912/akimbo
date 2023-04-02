@@ -178,9 +178,9 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         if null && depth >= 3 && eng.pos.phase >= 6 && eval >= beta {
             // make and score null move
             eng.ply += 1;
-            let enp = eng.pos.do_null();
+            eng.pos.r#do_null();
             let nw = -search(eng, -alpha - 1, -alpha, depth - min(3, depth - 1), false, false, &mut Vec::new());
-            eng.pos.undo_null(enp);
+            eng.pos.undo_null();
             eng.ply -= 1;
 
             if nw >= beta {

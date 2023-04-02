@@ -211,19 +211,17 @@ impl Position {
         }
     }
 
-    pub fn do_null(&mut self) -> u8 {
-        let enp = self.state.enp;
+    pub fn r#do_null(&mut self) {
         self.nulls += 1;
         self.stack.push(MoveCtx(self.state, Move::default(), 0));
         self.state.enp = 0;
         self.c = !self.c;
-        enp
     }
 
-    pub fn undo_null(&mut self, enp: u8) {
+    pub fn undo_null(&mut self) {
         self.nulls -= 1;
-        self.stack.pop();
-        self.state.enp = enp;
+        let ctx = self.stack.pop().unwrap();
+        self.state.enp = ctx.0.enp;
         self.c = !self.c;
     }
 
@@ -248,7 +246,7 @@ impl Position {
     }
 }
 
-macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", char::from_u32(($idx & 7) as u32 + 97).unwrap(), ($idx >> 3) + 1)}}
+macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", (($idx & 7) + b'a') as char, ($idx / 8) + 1)}}
 fn sq_to_idx(sq: &str) -> u8 {
     let chs: Vec<char> = sq.chars().collect();
     8 * chs[1].to_string().parse::<u8>().unwrap() + chs[0] as u8 - 105
