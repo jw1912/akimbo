@@ -213,6 +213,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
 
         // late move reductions
         let reduction = if lmr && !check && mscore < KILLER {
+            // Viridithas values used
             let lmr = (0.77 + f64::from(depth).ln() * f64::from(legal).ln() / 2.67) as i8;
             if pv_node { max(1, lmr - 1) } else { lmr }
         } else {0};
