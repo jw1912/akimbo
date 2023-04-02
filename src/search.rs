@@ -131,7 +131,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     let pv = beta > alpha + 1;
 
     // draw detection
-    if eng.pos.state.hfm >= 100 || eng.pos.rep_draw(2 + u8::from(eng.ply == 0)) || eng.pos.mat_draw() { return 0 }
+    if eng.pos.state.hfm >= 100 || eng.pos.rep_draw(eng.ply) || eng.pos.mat_draw() { return 0 }
 
     // mate distance pruning
     alpha = max(alpha, -MAX + eng.ply);

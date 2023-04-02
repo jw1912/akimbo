@@ -225,12 +225,13 @@ impl Position {
         self.c = !self.c;
     }
 
-    pub fn rep_draw(&self, mut num: u8) -> bool {
+    pub fn rep_draw(&self, ply: i16) -> bool {
+        let mut num = 1 + 2 * u8::from(ply == 0);
         let l = self.stack.len();
         if l < 6 || self.nulls > 0 { return false }
         for ctx in self.stack.iter().rev().take(self.state.hfm as usize + 1).skip(1).step_by(2) {
             num -= u8::from(ctx.0.hash == self.state.hash);
-            if num < 2 { return true }
+            if num == 0 { return true }
         }
         false
     }
