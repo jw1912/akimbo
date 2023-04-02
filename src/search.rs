@@ -75,21 +75,25 @@ pub fn go(eng: &mut Engine) {
     eng.reset();
     let mut best_move = Move::default();
     let in_check: bool = eng.pos.in_check();
+
     for d in 1..=64 {
         let mut pv_line = Vec::with_capacity(d as usize);
-        let score: i16 = search(eng, -MAX, MAX, d, in_check, false, &mut pv_line);
-        if eng.abort {break}
+        let score = search(eng, -MAX, MAX, d, in_check, false, &mut pv_line);
+        if eng.abort { break }
         best_move = pv_line[0];
-        let (stype, sval): (&str, i16) = if score.abs() >= MATE {
+
+        // UCI output
+        let (stype, sval) = if score.abs() >= MATE {
             ("mate", if score < 0 {score.abs() - MAX} else {MAX - score + 1} / 2)
         } else {("cp", score)};
         let t = eng.timing.0.elapsed();
         let nodes = eng.nodes + eng.qnodes;
-        let nps: u32 = ((nodes as f64) / t.as_secs_f64()) as u32;
-        let pv_str: String = pv_line.iter().map(|&m| Move::to_uci(m)).collect::<String>();
+        let nps = ((nodes as f64) / t.as_secs_f64()) as u32;
+        let pv_str = pv_line.iter().map(|&m| m.to_uci()).collect::<String>();
         println!("info depth {d} score {stype} {sval} time {} nodes {nodes} nps {nps} pv {pv_str}", t.as_millis());
     }
-    println!("bestmove {}", Move::to_uci(best_move));
+
+    println!("bestmove {}", best_move.to_uci());
     *eng.killer_table = Default::default();
     eng.history_table.age();
 }
@@ -97,10 +101,13 @@ pub fn go(eng: &mut Engine) {
 fn qsearch(eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
     eng.qnodes += 1;
     let mut eval = eng.lazy_eval();
+
     if eval >= beta { return eval }
     alpha = max(alpha, eval);
+
     let mut caps = eng.pos.gen::<CAPTURES>();
     let mut scores = eng.score_caps(&caps);
+
     while let Some((r#move, _)) = caps.pick(&mut scores) {
         if eng.pos.r#do(r#move) { continue }
         eval = max(eval, -qsearch(eng, -beta, -alpha));
@@ -108,6 +115,7 @@ fn qsearch(eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
         if eval >= beta { break }
         alpha = max(alpha, eval);
     }
+
     eval
 }
 
@@ -123,7 +131,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     let pv = beta > alpha + 1;
 
     // draw detection
-    if eng.pos.state.hfm >= 100 || eng.pos.rep_draw(2 + 2 * u8::from(eng.ply == 0)) || eng.pos.mat_draw() { return 0 }
+    if eng.pos.state.hfm >= 100 || eng.pos.rep_draw(2 + u8::from(eng.ply == 0)) || eng.pos.mat_draw() { return 0 }
 
     // mate distance pruning
     alpha = max(alpha, -MAX + eng.ply);
