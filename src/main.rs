@@ -17,7 +17,7 @@ fn main() {
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
-        parse_commands(input.split(' ').map(str::trim).collect(), &mut eng)
+        parse_commands(input.split_whitespace().collect(), &mut eng)
     }
 }
 
@@ -68,29 +68,26 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
         }
     }
     *pos = Position::from_fen(if fen.is_empty() {STARTPOS} else {&fen});
-    for m in move_list {pos.r#do(Move::from_uci(pos, &m));}
+    for m in move_list { pos.r#do(Move::from_uci(pos, &m)); }
 }
 
 fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
     let (mut token, mut times, mut mtg, mut alloc) = (0, [0, 0], None, 1000);
+    const COMMANDS: [&str; 7] = ["go", "movetime", "wtime", "btime", "movestogo", "winc", "binc"];
     for command in commands {
-        match command {
-            "movetime" => token = 1,
-            "wtime" => token = 2,
-            "btime" => token = 3,
-            "movestogo" => token = 4,
-            "winc" | "binc" => token = 5,
-            _ => match token {
-                1 => alloc = command.parse::<i64>().unwrap() as u128 - 10,
-                2 => times[0] = max(command.parse::<i64>().unwrap(), 0) as u128,
-                3 => times[1] = max(command.parse::<i64>().unwrap(), 0) as u128,
-                4 => mtg = Some(command.parse::<u128>().unwrap()),
+        if let Some(x) = COMMANDS.iter().position(|&y| y == command) { token = x }
+        else {
+            match token {
+                1 => alloc = command.parse::<i64>().unwrap(),
+                2 => times[0] = max(command.parse::<i64>().unwrap(), 0),
+                3 => times[1] = max(command.parse::<i64>().unwrap(), 0),
+                4 => mtg = Some(command.parse::<i64>().unwrap()),
                 _ => {},
             }
         }
     }
     let mytime = times[usize::from(eng.pos.c)];
-    if mytime != 0 { alloc = mytime / mtg.unwrap_or(2 * (eng.pos.phase as u128 + 1)) - 10 }
-    eng.timing.1 = alloc;
+    if mytime != 0 { alloc = mytime / mtg.unwrap_or(2 * (eng.pos.phase as i64 + 1)) }
+    eng.timing.1 = max(10, alloc - 10) as u128;
     go(eng);
 }

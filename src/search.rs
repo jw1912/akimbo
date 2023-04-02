@@ -128,7 +128,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     }
 
     line.clear();
-    let pv = beta > alpha + 1;
+    let pv_node = beta > alpha + 1;
 
     // draw detection
     if eng.pos.state.hfm >= 100 || eng.pos.rep_draw(eng.ply) || eng.pos.mat_draw() { return 0 }
@@ -158,7 +158,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         if eng.ply > 0 && res.depth >= depth && match res.bound {
             LOWER => res.score >= beta,
             UPPER => res.score <= alpha,
-            EXACT => !pv, // want nice pv lines
+            EXACT => !pv_node, // want nice pv lines
             _ => false,
         } { return res.score }
 
@@ -167,7 +167,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     }
 
     // pruning
-    if !pv && !in_check && beta.abs() < MATE {
+    if !pv_node && !in_check && beta.abs() < MATE {
         let eval = eng.lazy_eval();
 
         // reverse futility pruning
@@ -212,15 +212,18 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         legal += 1;
 
         // late move reductions
-        let r = i8::from(lmr && !check && mscore < KILLER)
-            * (0.77 + f64::from(depth).ln() * f64::from(legal).ln() / 2.67) as i8;
+        let reduction = if lmr && !check && mscore < KILLER {
+            // Viridithas values used
+            let lmr = (0.77 + f64::from(depth).ln() * f64::from(legal).ln() / 2.67) as i8;
+            if pv_node { max(1, lmr - 1) } else { lmr }
+        } else {0};
 
         // principle variation search
         let score = if legal == 1 {
             -search(eng, -beta, -alpha, depth - 1, check, false, &mut sline)
         } else {
-            let zw = -search(eng, -alpha - 1, -alpha, depth - 1 - r, check, true, &mut sline);
-            if (pv || r > 0) && zw > alpha {
+            let zw = -search(eng, -alpha - 1, -alpha, depth - 1 - reduction, check, true, &mut sline);
+            if (pv_node || reduction > 0) && zw > alpha {
                 -search(eng, -beta, -alpha, depth - 1, check, false, &mut sline)
             } else { zw }
         };
