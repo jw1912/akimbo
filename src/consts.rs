@@ -30,9 +30,9 @@ macro_rules! consts {
     ($type:ty, $name:ident = $val:expr, $($b:tt)*) => {pub const $name: $type = $val; consts!($type, $($b)*);};
 }
 macro_rules! init {
-    ($idx:ident, $init:expr, $($rest:tt)+) => {{
-        let mut res = [$init; 64];
+    ($idx:ident, $($rest:tt)+) => {{
         let mut $idx = 0;
+        let mut res = [{$($rest)+}; 64];
         while $idx < 64 {
             res[$idx] = {$($rest)+};
             $idx += 1;
@@ -122,25 +122,25 @@ consts!(u8, QUIET = 0, DBL = 1, KS = 2, QS = 3, CAP = 4, ENP = 5, NPR = 8, QPR =
 consts!(u8, WQS = 8, WKS = 4, BQS = 2, BKS = 1);
 consts!(u64, B1C1D1 = 0xE, F1G1 = 0x60, B8C8D8 = 0xE00000000000000, F8G8 = 0x6000000000000000);
 pub const CS: [u8; 2] = [WKS | WQS, BKS | BQS];
-pub const CR: [u8; 64] = init!(idx, 0, match idx {0 => 7, 4 => 3, 7 => 11, 56 => 13, 60 => 12, 63 => 14, _ => 15});
+pub const CR: [u8; 64] = init!(idx, match idx {0 => 7, 4 => 3, 7 => 11, 56 => 13, 60 => 12, 63 => 14, _ => 15});
 pub const CM: [[(u64, usize, usize); 2]; 2] = [[(9, 0, 3), (0x900000000000000, 56, 59)], [(160, 7, 5), (0xA000000000000000, 63, 61)]];
 
 // Pawns
 consts!([u64; 2], PENRANK = [0xFF000000000000, 0xFF00], DBLRANK = [0xFF000000, 0xFF00000000]);
 consts!(u64, FILE = 0x101010101010101, NOTH = !(FILE << 7));
 pub static PATT: [[u64; 64]; 2] = [
-    init!(idx, 0, (((1 << idx) & !FILE) << 7) | (((1 << idx) & NOTH) << 9)),
-    init!(idx, 0, (((1 << idx) & !FILE) >> 9) | (((1 << idx) & NOTH) >> 7)),
+    init!(idx, (((1 << idx) & !FILE) << 7) | (((1 << idx) & NOTH) << 9)),
+    init!(idx, (((1 << idx) & !FILE) >> 9) | (((1 << idx) & NOTH) >> 7)),
 ];
 
 // King and knight attacks
-pub static NATT: [u64; 64] = init!(idx, 0, {
+pub static NATT: [u64; 64] = init!(idx, {
     let n = 1 << idx;
     let h1 = ((n >> 1) & 0x7f7f7f7f7f7f7f7f) | ((n << 1) & 0xfefefefefefefefe);
     let h2 = ((n >> 2) & 0x3f3f3f3f3f3f3f3f) | ((n << 2) & 0xfcfcfcfcfcfcfcfc);
     (h1 << 16) | (h1 >> 16) | (h2 << 8) | (h2 >> 8)
 });
-pub static KATT: [u64; 64] = init!(idx, 0, {
+pub static KATT: [u64; 64] = init!(idx, {
     let mut k = 1 << idx;
     k |= (k << 8) | (k >> 8);
     k |= ((k & !FILE) >> 1) | ((k & NOTH) << 1);
@@ -148,20 +148,20 @@ pub static KATT: [u64; 64] = init!(idx, 0, {
 });
 
 // Slider attacks
-pub static WEST: [u64; 64] = init!(idx, 0, ((1 << idx) - 1) & (0xFF << (idx & 56)));
+pub static WEST: [u64; 64] = init!(idx, ((1 << idx) - 1) & (0xFF << (idx & 56)));
 pub const DIAGS: [u64; 15] = [
     0x0100000000000000, 0x0201000000000000, 0x0402010000000000, 0x0804020100000000, 0x1008040201000000,
     0x2010080402010000, 0x4020100804020100, 0x8040201008040201, 0x0080402010080402, 0x0000804020100804,
     0x0000008040201008, 0x0000000080402010, 0x0000000000804020, 0x0000000000008040, 0x0000000000000080,
 ];
-pub static BMASKS: [Mask; 64] = init!(idx, Mask { bit: 0, right: 0, left: 0, file: 0 },
-    let bit = 1 << idx;
-    Mask { bit, right: bit ^ DIAGS[(7 + (idx & 7) - (idx >> 3))], left: bit ^ DIAGS[((idx & 7) + (idx >> 3))].swap_bytes(), file: bit.swap_bytes() }
+pub static BMASKS: [Mask; 64] = init!(i,
+    let bit = 1 << i;
+    Mask { bit, right: bit ^ DIAGS[(7 + (i & 7) - i / 8)], left: bit ^ DIAGS[((i & 7) + i / 8)].swap_bytes(), file: bit.swap_bytes() }
 );
-pub static RMASKS: [Mask; 64] = init!(idx, Mask { bit: 0, right: 0, left: 0, file: 0 },
-    let bit = 1 << idx;
-    let left = (bit - 1) & (0xFF << (idx & 56));
-    Mask { bit, right: bit ^ left ^ (0xFF << (idx & 56)), left, file: bit ^ FILE << (idx & 7) }
+pub static RMASKS: [Mask; 64] = init!(i,
+    let bit = 1 << i;
+    let left = (bit - 1) & (0xFF << (i & 56));
+    Mask { bit, right: bit ^ left ^ (0xFF << (i & 56)), left, file: bit ^ FILE << (i & 7) }
 );
 
 // Draw detection
