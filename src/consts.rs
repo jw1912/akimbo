@@ -1,5 +1,6 @@
 use std::ops::{AddAssign, Mul};
 
+// Structs
 #[derive(Clone, Copy)]
 pub struct Mask {
     pub bit: u64,
@@ -10,14 +11,12 @@ pub struct Mask {
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct S(pub i16, pub i16);
-
 impl AddAssign<S> for S {
     fn add_assign(&mut self, rhs: S) {
         self.0 += rhs.0;
         self.1 += rhs.1;
     }
 }
-
 impl Mul<S> for i16 {
     type Output = S;
     fn mul(self, rhs: S) -> Self::Output {
@@ -25,9 +24,21 @@ impl Mul<S> for i16 {
     }
 }
 
+// Macros
 macro_rules! consts {
     ($type:ty, $name:ident = $val:expr) => {pub const $name: $type = $val;};
     ($type:ty, $name:ident = $val:expr, $($b:tt)*) => {pub const $name: $type = $val; consts!($type, $($b)*);};
+}
+macro_rules! init {
+    ($idx:ident, $init:expr, $($rest:tt)+) => {{
+        let mut res = [$init; 64];
+        let mut $idx = 0;
+        while $idx < 64 {
+            res[$idx] = {$($rest)+};
+            $idx += 1;
+        }
+        res
+    }};
 }
 
 // UCI
@@ -101,19 +112,6 @@ pub static PST: [[S; 64]; 8] = [[S(0, 0); 64], [S(0, 0); 64],
         S(-44, -38), S( 19, -28), S(  2, -12), S(-72,  -5), S(  4, -33), S(-46,  -5), S( 33, -30), S( 25, -52),
     ],
 ];
-
-// Move generation
-macro_rules! init {
-    ($idx:ident, $init:expr, $($rest:tt)+) => {{
-        let mut res = [$init; 64];
-        let mut $idx = 0;
-        while $idx < 64 {
-            res[$idx] = {$($rest)+};
-            $idx += 1;
-        }
-        res
-    }};
-}
 
 // Pieces, sides, movegen type
 consts!(bool, ALL = true, CAPTURES = false);

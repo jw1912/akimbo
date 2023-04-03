@@ -57,7 +57,7 @@ impl Position {
         let opps = self.bb[side ^ 1];
         let pawns = self.bb[P] & friends;
         if QUIETS {
-            if self.state.cr & CS[side] > 0 && !self.is_sq_att(4 + 56 * (side == BL) as usize, side, occ) {self.castles(&mut moves, occ)}
+            if self.state.cr & CS[side] > 0 && !self.in_check() {self.castles(&mut moves, occ)}
             if side == WH {pawn_pushes::<WH>(&mut moves, occ, pawns)} else {pawn_pushes::<BL>(&mut moves, occ, pawns)}
         }
         if self.state.enp > 0 {en_passants(&mut moves, pawns, self.state.enp, side)}
@@ -95,10 +95,7 @@ fn pc_moves<const PC: usize, const QUIETS: bool>(moves: &mut MoveList, occ: u64,
 fn pawn_captures(moves: &mut MoveList, mut attackers: u64, opps: u64, c: usize) {
     let mut promo: u64 = attackers & PENRANK[c];
     attackers &= !PENRANK[c];
-    bitloop!(attackers, from, {
-        let attacks = PATT[c][from as usize] & opps;
-        encode::<P, CAP>(moves, attacks, from);
-    });
+    bitloop!(attackers, from, encode::<P, CAP>(moves, PATT[c][from as usize] & opps, from));
     bitloop!(promo, from, {
         let mut attacks = PATT[c][from as usize] & opps;
         bitloop!(attacks, to, for flag in NPC..=QPC { moves.push(from, to, flag, P as u8) })
@@ -125,9 +122,6 @@ fn pawn_pushes<const SIDE: usize>(moves: &mut MoveList, occ: u64, pawns: u64) {
     let mut promo = push & PENRANK[SIDE];
     push &= !PENRANK[SIDE];
     bitloop!(push, from, moves.push(from, idx_shift::<SIDE, 8>(from), QUIET, P as u8));
-    bitloop!(promo, from, {
-        let to = idx_shift::<SIDE, 8>(from);
-        for flag in NPR..=QPR {moves.push(from, to, flag, P as u8)}
-    });
+    bitloop!(promo, from, for flag in NPR..=QPR {moves.push(from, idx_shift::<SIDE, 8>(from), flag, P as u8)});
     bitloop!(dbl, from, moves.push(from, idx_shift::<SIDE, 16>(from), DBL, P as u8));
 }
