@@ -1,8 +1,15 @@
 use super::{consts::*, position::{Position, Move, ratt, batt}};
 use std::mem::MaybeUninit;
 
-macro_rules! pop_lsb {($idx:ident, $x:expr) => {let $idx = $x.trailing_zeros() as u8; $x &= $x - 1}}
-macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {while $bb > 0 {pop_lsb!($sq, $bb);$func;}};}
+macro_rules! bitloop {
+    ($bb:expr, $sq:ident, $func:expr) => {
+        while $bb > 0 {
+            let $sq = $bb.trailing_zeros() as u8;
+            $bb &= $bb - 1;
+            $func;
+        }
+    };
+}
 
 pub struct List<T> {
     pub list: [T; 252],
