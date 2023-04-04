@@ -71,9 +71,8 @@ impl Default for KillerTable {
 impl KillerTable {
     pub fn push(&mut self, m: Move, p: i16) {
         let ply = p as usize - 1;
-        let new = if self.0[ply].contains(&m) {self.0[ply][KILLERS - 1]} else {m};
         (0..{KILLERS - 1}).rev().for_each(|i: usize| self.0[ply][i + 1] = self.0[ply][i]);
-        self.0[ply][0] = new;
+        self.0[ply][0] = m;
     }
 }
 
