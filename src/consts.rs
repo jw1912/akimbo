@@ -46,7 +46,7 @@ consts!(&str, NAME = env!("CARGO_PKG_NAME"), VERSION = env!("CARGO_PKG_VERSION")
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 // Search
-pub const KILLERS: usize = 3;
+pub const KILLERS: usize = 2;
 pub const HISTORY_MAX: i64 = 2048;
 consts!(u8, LOWER = 0x40, EXACT = 0xC0, UPPER = 0x80);
 consts!(i16, MAX_PLY = 96, MAX = 30000, MATE = MAX - 256, HASH = MAX, MVV_LVA = 2048, PROMOTION = 3000, KILLER = 2500);
