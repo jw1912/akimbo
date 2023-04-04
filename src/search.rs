@@ -155,11 +155,10 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         best_move = Move::from_short(res.best_move, &eng.pos);
 
         // hash score pruning
-        if eng.ply > 0 && res.depth >= depth && match res.bound {
+        if !pv_node && eng.ply > 0 && res.depth >= depth && match res.bound {
             LOWER => res.score >= beta,
             UPPER => res.score <= alpha,
-            EXACT => !pv_node, // want nice pv lines
-            _ => false,
+            _ => true,
         } { return res.score }
 
         // disallow null move pruning in some cases
