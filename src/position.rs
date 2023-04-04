@@ -3,10 +3,10 @@ use super::consts::*;
 #[derive(Clone, Copy, Default)]
 pub struct State {
     hash: u64,
-    pub pst: S,
+    pst: S,
+    hfm: u8,
     pub enp: u8,
     pub cr: u8,
-    pub hfm: u8,
 }
 
 #[derive(Clone, Copy)]
@@ -32,7 +32,7 @@ pub struct Move {
 }
 
 pub struct ZobristVals {
-    pub pieces: [[[u64; 64]; 8]; 2],
+    pub pcs: [[[u64; 64]; 8]; 2],
     pub cr: [u64; 4],
     pub enp: [u64; 8],
     pub c: u64,
@@ -87,7 +87,7 @@ impl Position {
                 let pc = idx + 2 - 6 * side;
                 let sq = 8 * row + col;
                 pos.toggle(side, pc, 1 << sq);
-                pos.state.hash ^= pos.zvals.pieces[side][pc][sq as usize];
+                pos.state.hash ^= pos.zvals.pcs[side][pc][sq as usize];
                 pos.state.pst += SIDE[side] * PST[pc][sq as usize ^ (56 * (side^ 1))];
                 pos.phase += PHASE_VALS[pc];
                 col += 1;
@@ -166,14 +166,14 @@ impl Position {
         self.c = !self.c;
         self.toggle(side, mpc, f | t);
         if DO {
-            self.state.hash ^= self.zvals.pieces[side][mpc][usize::from(m.from)] ^ self.zvals.pieces[side][mpc][usize::from(m.to)];
+            self.state.hash ^= self.zvals.pcs[side][mpc][usize::from(m.from)] ^ self.zvals.pcs[side][mpc][usize::from(m.to)];
             self.state.pst += psign * PST[mpc][usize::from(m.to) ^ flip];
             self.state.pst += -psign * PST[mpc][usize::from(m.from) ^ flip];
         }
         if cpc != E {
             self.toggle(side ^ 1, cpc, t);
             if DO {
-                self.state.hash ^= self.zvals.pieces[side ^ 1][cpc][usize::from(m.to)];
+                self.state.hash ^= self.zvals.pcs[side ^ 1][cpc][usize::from(m.to)];
                 self.state.pst += psign * PST[cpc][usize::from(m.to) ^ noflip];
             }
             self.phase -= sign * PHASE_VALS[cpc];
@@ -183,7 +183,7 @@ impl Position {
                 let (bits, idx1, idx2) = CM[usize::from(m.flag == KS)][side];
                 self.toggle(side, R, bits);
                 if DO {
-                    self.state.hash ^= self.zvals.pieces[side][R][idx1] ^ self.zvals.pieces[side][R][idx2];
+                    self.state.hash ^= self.zvals.pcs[side][R][idx1] ^ self.zvals.pcs[side][R][idx2];
                     self.state.pst += -psign * PST[R][idx1 ^ flip];
                     self.state.pst += psign * PST[R][idx2 ^ flip];
                 }
@@ -192,7 +192,7 @@ impl Position {
                 let pwn = usize::from(m.to + [8u8.wrapping_neg(), 8][side]);
                 self.toggle(side ^ 1, P, 1 << pwn);
                 if DO {
-                    self.state.hash ^= self.zvals.pieces[side ^ 1][P][pwn];
+                    self.state.hash ^= self.zvals.pcs[side ^ 1][P][pwn];
                     self.state.pst += psign * PST[P][pwn ^ noflip];
                 }
             },
@@ -201,7 +201,7 @@ impl Position {
                 self.bb[P] ^= t;
                 self.bb[ppc] ^= t;
                 if DO {
-                    self.state.hash ^= self.zvals.pieces[side][P][usize::from(m.to)] ^ self.zvals.pieces[side][ppc][usize::from(m.to)];
+                    self.state.hash ^= self.zvals.pcs[side][P][usize::from(m.to)] ^ self.zvals.pcs[side][ppc][usize::from(m.to)];
                     self.state.pst += -psign * PST[P][usize::from(m.to) ^ flip];
                     self.state.pst += psign * PST[ppc][usize::from(m.to) ^ flip];
                 }
@@ -225,7 +225,7 @@ impl Position {
         self.c = !self.c;
     }
 
-    pub fn rep_draw(&self, ply: i16) -> bool {
+    fn rep_draw(&self, ply: i16) -> bool {
         let mut num = 1 + 2 * u8::from(ply == 0);
         let l = self.stack.len();
         if l < 6 || self.nulls > 0 { return false }
@@ -236,18 +236,27 @@ impl Position {
         false
     }
 
-    pub fn mat_draw(&self) -> bool {
+    fn mat_draw(&self) -> bool {
         let (ph, b, p, wh, bl) = (self.phase, self.bb[B], self.bb[P], self.bb[0], self.bb[1]);
         ph <= 2 && p == 0 && ((ph != 2) || (b & wh != b && b & bl != b && (b & LSQ == b || b & DSQ == b)))
+    }
+
+    pub fn is_draw(&self, ply: i16) -> bool {
+        self.state.hfm >= 100 || self.rep_draw(ply) || self.mat_draw()
     }
 
     pub fn in_check(&self) -> bool {
         let kidx = (self.bb[K] & self.bb[usize::from(self.c)]).trailing_zeros() as usize;
         self.is_sq_att(kidx, usize::from(self.c), self.bb[0] | self.bb[1])
     }
+
+    pub fn lazy_eval(&self) -> i16 {
+        let score = self.state.pst;
+        let p = std::cmp::min(self.phase as i32, TPHASE);
+        SIDE[usize::from(self.c)] * ((p * score.0 as i32 + (TPHASE - p) * score.1 as i32) / TPHASE) as i16
+    }
 }
 
-macro_rules! idx_to_sq {($idx:expr) => {format!("{}{}", (($idx & 7) + b'a') as char, ($idx / 8) + 1)}}
 fn sq_to_idx(sq: &str) -> u8 {
     let chs: Vec<char> = sq.chars().collect();
     8 * chs[1].to_string().parse::<u8>().unwrap() + chs[0] as u8 - 105
@@ -260,8 +269,9 @@ impl Move {
     }
 
     pub fn to_uci(self) -> String {
+        let idx_to_sq = |i| format!("{}{}", ((i & 7) + b'a') as char, (i / 8) + 1);
         let promo = if self.flag & 0b1000 > 0 {["n","b","r","q"][(self.flag & 0b11) as usize]} else {""};
-        format!("{}{}{} ", idx_to_sq!(self.from), idx_to_sq!(self.to), promo)
+        format!("{}{}{} ", idx_to_sq(self.from), idx_to_sq(self.to), promo)
     }
 
     pub fn from_uci(pos: &Position, m_str: &str) -> Self {
@@ -284,10 +294,8 @@ fn random(seed: &mut u64) -> u64 {
 impl Default for ZobristVals {
     fn default() -> Self {
         let mut seed = 180_620_142;
-        let mut vals = Self { pieces: [[[0; 64]; 8]; 2], cr: [0; 4], enp: [0; 8], c: random(&mut seed) };
-        vals.pieces.iter_mut().for_each(|side|
-            side.iter_mut().skip(2).for_each(|pc|
-                pc.iter_mut().for_each(|sq| *sq = random(&mut seed))));
+        let mut vals = Self { pcs: [[[0; 64]; 8]; 2], cr: [0; 4], enp: [0; 8], c: random(&mut seed) };
+        vals.pcs.iter_mut().for_each(|s| s.iter_mut().skip(2).for_each(|p| p.iter_mut().for_each(|sq| *sq = random(&mut seed))));
         vals.cr.iter_mut().for_each(|r| *r = random(&mut seed));
         vals.enp.iter_mut().for_each(|f| *f = random(&mut seed));
         vals

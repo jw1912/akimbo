@@ -63,12 +63,6 @@ impl Engine {
     fn mvv_lva(&self, m: Move) -> i16 {
         MVV_LVA * self.pos.get_pc(1 << m.to) as i16 - m.mpc as i16
     }
-
-    fn lazy_eval(&self) -> i16 {
-        let score = self.pos.state.pst;
-        let p = min(self.pos.phase as i32, TPHASE);
-        SIDE[usize::from(self.pos.c)] * ((p * score.0 as i32 + (TPHASE - p) * score.1 as i32) / TPHASE) as i16
-    }
 }
 
 pub fn go(eng: &mut Engine) {
@@ -100,7 +94,7 @@ pub fn go(eng: &mut Engine) {
 
 fn qsearch(eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
     eng.qnodes += 1;
-    let mut eval = eng.lazy_eval();
+    let mut eval = eng.pos.lazy_eval();
 
     if eval >= beta { return eval }
     alpha = max(alpha, eval);
@@ -131,7 +125,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     let pv_node = beta > alpha + 1;
 
     // draw detection
-    if eng.pos.state.hfm >= 100 || eng.pos.rep_draw(eng.ply) || eng.pos.mat_draw() { return 0 }
+    if eng.pos.is_draw(eng.ply) { return 0 }
 
     // mate distance pruning
     alpha = max(alpha, -MAX + eng.ply);
@@ -155,11 +149,10 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         best_move = Move::from_short(res.best_move, &eng.pos);
 
         // hash score pruning
-        if eng.ply > 0 && res.depth >= depth && match res.bound {
+        if !pv_node && res.depth >= depth && match res.bound {
             LOWER => res.score >= beta,
             UPPER => res.score <= alpha,
-            EXACT => !pv_node, // want nice pv lines
-            _ => false,
+            _ => true,
         } { return res.score }
 
         // disallow null move pruning in some cases
@@ -168,7 +161,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
 
     // pruning
     if !pv_node && !in_check && beta.abs() < MATE {
-        let eval = eng.lazy_eval();
+        let eval = eng.pos.lazy_eval();
 
         // reverse futility pruning
         let margin = eval - 120 * i16::from(depth);
@@ -245,7 +238,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
                     // push quiet moves that caused cutoff to tables
                     if mscore < 2 * MVV_LVA {
                         eng.killer_table.push(r#move, eng.ply);
-                        eng.history_table.change(eng.pos.c, r#move, depth as i64);
+                        eng.history_table.change(eng.pos.c, r#move, (depth as i64).pow(2));
                     }
                     break
                 }

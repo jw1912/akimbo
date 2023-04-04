@@ -88,7 +88,7 @@ impl HistoryTable {
     pub fn age(&mut self) {
         self.0.iter_mut().for_each(|side|
             side.iter_mut().for_each(|pc|
-                pc.iter_mut().for_each(|sq| *sq /= 2)))
+                pc.iter_mut().for_each(|sq| *sq /= 64)))
     }
 
     pub fn change(&mut self, side: bool, m: Move, amount: i64) {
