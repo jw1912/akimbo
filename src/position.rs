@@ -12,25 +12,12 @@ pub struct State {
 #[derive(Clone, Copy)]
 pub struct MoveCtx(State, Move, u8);
 
-pub struct Castle {
-    pub rf: [u8; 2],
-    pub cmask: [u8; 64],
-    pub c960: bool,
-}
-
-impl Default for Castle {
-    fn default() -> Self {
-        Self { rf: [0, 7], cmask: [15; 64], c960: false }
-    }
-}
-
 #[derive(Default)]
 pub struct Position {
     pub bb: [u64; 8],
     pub c: bool,
     pub state: State,
     pub phase: i16,
-    pub castle: Castle,
     stack: Vec<MoveCtx>,
     nulls: u16,
     zvals: Box<ZobristVals>,
@@ -107,7 +94,6 @@ impl Position {
             }
         }
         pos.c = vec[1] == "b";
-        pos.castle.cmask = CR;
         pos.state.cr = vec[2].chars().fold(0, |cr, ch| cr | match ch {'Q' => WQS, 'K' => WKS, 'q' => BQS, 'k' => BKS, _ => 0});
         pos.state.enp = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
         pos.state.hfm = vec.get(4).unwrap_or(&"0").parse::<u8>().unwrap();
@@ -153,7 +139,7 @@ impl Position {
         let cpc = if m.flag & CAP == 0 || m.flag == ENP {E} else {self.get_pc(1 << m.to)};
         let side = usize::from(self.c);
         self.stack.push(MoveCtx(self.state, m, cpc as u8));
-        self.state.cr &= self.castle.cmask[m.to as usize] & self.castle.cmask[m.from as usize];
+        self.state.cr &= CR[m.to as usize] & CR[m.from as usize];
         self.state.enp = if m.flag == DBL {if side == WH {m.to - 8} else {m.to + 8}} else {0};
         self.state.hfm = u8::from(m.mpc > P as u8 && m.flag != CAP) * (self.state.hfm + 1);
         self.r#move::<true>(m, side, cpc);
@@ -178,7 +164,7 @@ impl Position {
         let t = 1 << m.to;
         let mpc = usize::from(m.mpc);
         self.c = !self.c;
-        self.toggle(side, mpc, f ^ t);
+        self.toggle(side, mpc, f | t);
         if DO {
             self.state.hash ^= self.zvals.pieces[side][mpc][usize::from(m.from)] ^ self.zvals.pieces[side][mpc][usize::from(m.to)];
             self.state.pst += psign * PST[mpc][usize::from(m.to) ^ flip];
@@ -194,14 +180,12 @@ impl Position {
         }
         match m.flag {
             KS | QS => {
-                let i = usize::from(m.flag == KS);
-                let sq = noflip + usize::from(self.castle.rf[i]);
-                let idx = CD[side][i];
-                self.toggle(side, R, (1 << idx) ^ (1 << sq));
+                let (bits, idx1, idx2) = CM[usize::from(m.flag == KS)][side];
+                self.toggle(side, R, bits);
                 if DO {
-                    self.state.hash ^= self.zvals.pieces[side][R][sq] ^ self.zvals.pieces[side][R][idx];
-                    self.state.pst += -psign * PST[R][sq ^ flip];
-                    self.state.pst += psign * PST[R][idx ^ flip];
+                    self.state.hash ^= self.zvals.pieces[side][R][idx1] ^ self.zvals.pieces[side][R][idx2];
+                    self.state.pst += -psign * PST[R][idx1 ^ flip];
+                    self.state.pst += psign * PST[R][idx2 ^ flip];
                 }
             },
             ENP => {

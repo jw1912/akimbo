@@ -120,10 +120,10 @@ consts!(u8, QUIET = 0, DBL = 1, KS = 2, QS = 3, CAP = 4, ENP = 5, NPR = 8, QPR =
 
 // Castling
 consts!(u8, WQS = 8, WKS = 4, BQS = 2, BKS = 1);
+consts!(u64, B1C1D1 = 0xE, F1G1 = 0x60, B8C8D8 = 0xE00000000000000, F8G8 = 0x6000000000000000);
 pub const CS: [u8; 2] = [WKS | WQS, BKS | BQS];
 pub const CR: [u8; 64] = init!(idx, match idx {0 => 7, 4 => 3, 7 => 11, 56 => 13, 60 => 12, 63 => 14, _ => 15});
-pub const KRD: [[(u64, u64); 2]; 2] = [[(4, 8), (64, 32)], [(1 << 58, 1 << 59), (1 << 62, 1 << 61)]];
-pub const CD: [[usize; 2]; 2] = [[3, 5], [59, 61]];
+pub const CM: [[(u64, usize, usize); 2]; 2] = [[(9, 0, 3), (0x900000000000000, 56, 59)], [(160, 7, 5), (0xA000000000000000, 63, 61)]];
 
 // Pawns
 consts!([u64; 2], PENRANK = [0xFF000000000000, 0xFF00], DBLRANK = [0xFF000000, 0xFF00000000]);
