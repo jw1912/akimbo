@@ -1,5 +1,5 @@
 use super::{consts::*, position::{Position, Move, ratt, batt}};
-use std::mem::MaybeUninit;
+use std::{cmp, mem::MaybeUninit};
 
 macro_rules! bitloop {
     ($bb:expr, $sq:ident, $func:expr) => {
@@ -55,6 +55,11 @@ fn encode<const PC: usize, const FLAG: u8>(moves: &mut MoveList, mut attacks: u6
     bitloop!(attacks, to, moves.push(from, to, FLAG, PC as u8))
 }
 
+#[inline(always)]
+fn btwn(bit1: u64, bit2: u64) -> u64 {
+    (cmp::max(bit1, bit2) - cmp::min(bit1, bit2)) ^ cmp::min(bit1, bit2)
+}
+
 impl Position {
     pub fn gen<const QUIETS: bool>(&self) -> MoveList {
         let mut moves = MoveList::uninit();
@@ -77,14 +82,28 @@ impl Position {
         moves
     }
 
+    fn path(&self, mut path: u64, side: usize, occ: u64) -> bool {
+        bitloop!(path, idx, if self.is_sq_att(idx as usize, side, occ) { return false });
+        true
+    }
+
+    #[inline]
+    fn can_castle<const SIDE: usize, const KS: usize>(&self, occ: u64, kbb: u64) -> bool {
+        let (kto, rto) = KRD[SIDE][KS];
+        let bit = 1 << (56 * SIDE as u8 + self.castle.rf[KS]);
+        (occ ^ bit) & (btwn(kbb, kto) ^ kto) == 0 && (occ ^ kbb) & (btwn(bit, rto) ^ rto) == 0 && self.path(btwn(kbb, kto), SIDE, occ)
+    }
+
     fn castles(&self, moves: &mut MoveList, occ: u64) {
         let r = self.state.cr;
+        let kbb = self.bb[K] & self.bb[usize::from(self.c)];
+        let ksq = kbb.trailing_zeros() as u8;
         if self.c {
-            if r & BQS > 0 && occ & B8C8D8 == 0 && !self.is_sq_att(59, BL, occ) {moves.push(60, 58, QS, K as u8)}
-            if r & BKS > 0 && occ & F8G8 == 0 && !self.is_sq_att(61, BL, occ) {moves.push(60, 62, KS, K as u8)}
+            if r & BQS > 0 && self.can_castle::<BL, 0>(occ, kbb) { moves.push(ksq, 58, QS, K as u8) }
+            if r & BKS > 0 && self.can_castle::<BL, 1>(occ, kbb) { moves.push(ksq, 62, KS, K as u8) }
         } else {
-            if r & WQS > 0 && occ & B1C1D1 == 0 && !self.is_sq_att(3, WH, occ) {moves.push(4, 2, QS, K as u8)}
-            if r & WKS > 0 && occ & F1G1 == 0 && !self.is_sq_att(5, WH, occ) {moves.push(4, 6, KS, K as u8)}
+            if r & WQS > 0 && self.can_castle::<WH, 0>(occ, kbb) { moves.push(ksq, 2, QS, K as u8) }
+            if r & WKS > 0 && self.can_castle::<WH, 1>(occ, kbb) { moves.push(ksq, 6, KS, K as u8) }
         }
     }
 }
