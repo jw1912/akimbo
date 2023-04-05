@@ -244,7 +244,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
                     // push quiet moves that caused cutoff to tables
                     if mscore < 2 * MVV_LVA {
                         eng.killer_table.push(r#move, eng.ply);
-                        eng.history_table.change(eng.pos.c, r#move, depth as i64);
+                        eng.history_table.change(eng.pos.c, r#move, (depth as i64).pow(2));
                     }
                     break
                 }
