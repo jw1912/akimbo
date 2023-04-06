@@ -41,13 +41,13 @@ impl Engine {
     fn score(&self, moves: &MoveList, hash_move: Move) -> ScoreList {
         let mut scores = ScoreList::uninit();
         let killers = self.killer_table.0[self.ply as usize];
-        for i in 0..moves.len {
+        for &m in &moves.list[0..moves.len] {
             scores.add({
-                let m = moves.list[i];
-                if m == hash_move {HASH}
-                else if m.flag & 4 > 0 {self.mvv_lva(m)}
-                else if m.flag & 8 > 0 {PROMOTION + i16::from(m.flag & 7)}
-                else if killers.contains(&m) {KILLER}
+                if m == hash_move { HASH }
+                else if m.flag == ENP { 2 * MVV_LVA }
+                else if m.flag & 4 > 0 { self.mvv_lva(m) }
+                else if m.flag & 8 > 0 { PROMOTION + i16::from(m.flag & 7) }
+                else if killers.contains(&m) { KILLER }
                 else {self.history_table.score(self.pos.c, m)}
             })
         }
@@ -234,7 +234,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
                 if score >= beta {
                     bound = LOWER;
                     // push quiet moves that caused cutoff to tables
-                    if mscore < 2 * MVV_LVA {
+                    if r#move.flag < CAP {
                         eng.killer_table.push(r#move, eng.ply);
                         eng.history_table.change(eng.pos.c, r#move, (depth as i64).pow(2));
                     }
