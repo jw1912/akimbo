@@ -169,15 +169,13 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
 
         // null move pruning
         if null && depth >= 3 && eng.pos.phase >= 6 && eval >= beta {
-            // make and score null move
+            let r = 2 + depth / 3 + min((eval - beta) / 200, 3) as i8;
             eng.ply += 1;
             eng.pos.r#do_null();
-            let nw = -search(eng, -alpha - 1, -alpha, depth - min(3, depth - 1), false, false, &mut Vec::new());
+            let nw = -search(eng, -alpha - 1, -alpha, depth - r, false, false, &mut Vec::new());
             eng.pos.undo_null();
             eng.ply -= 1;
-
             if nw >= beta {
-                // fail-hard on mate scores
                 if nw >= MATE { return beta }
                 return nw
             }
