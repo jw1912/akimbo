@@ -95,13 +95,10 @@ pub fn go(eng: &mut Engine) {
 fn qsearch(eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
     eng.qnodes += 1;
     let mut eval = eng.pos.lazy_eval();
-
     if eval >= beta { return eval }
     alpha = max(alpha, eval);
-
     let mut caps = eng.pos.gen::<CAPTURES>();
     let mut scores = eng.score_caps(&caps);
-
     while let Some((r#move, _)) = caps.pick(&mut scores) {
         if eng.pos.r#do(r#move) { continue }
         eval = max(eval, -qsearch(eng, -beta, -alpha));
@@ -109,7 +106,6 @@ fn qsearch(eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
         if eval >= beta { break }
         alpha = max(alpha, eval);
     }
-
     eval
 }
 
@@ -135,10 +131,9 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     // check extensions
     depth += i8::from(in_check);
 
-    // drop into qsearch if depth is 0
     if depth <= 0 || eng.ply == MAX_PLY { return qsearch(eng, alpha, beta) }
-    eng.nodes += 1;
 
+    eng.nodes += 1;
     let hash = eng.pos.hash();
     let mut best_move = Move::default();
     let mut write = true;
@@ -191,8 +186,6 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     let mut eval = -MAX;
     let mut bound = UPPER;
     let mut sline = Vec::new();
-
-    // threshold for late move reductions
     let lmr = depth > 1 && eng.ply > 0 && !in_check;
 
     eng.ply += 1;
@@ -209,7 +202,6 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
             if pv_node { max(1, lmr - 1) } else { lmr }
         } else {0};
 
-        // principle variation search
         let score = if legal == 1 {
             -search(eng, -beta, -alpha, depth - 1, check, false, &mut sline)
         } else {
@@ -220,20 +212,17 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         };
         eng.pos.undo();
 
-        // alpha-beta pruning
         if score > eval {
             eval = score;
             best_move = r#move;
             if score > alpha {
                 alpha = score;
                 bound = EXACT;
-                // update pv line
                 line.clear();
                 line.push(r#move);
                 line.append(&mut sline);
                 if score >= beta {
                     bound = LOWER;
-                    // push quiet moves that caused cutoff to tables
                     if r#move.flag < CAP {
                         eng.killer_table.push(r#move, eng.ply);
                         eng.history_table.change(eng.pos.c, r#move, (depth as i64).pow(2));
@@ -245,11 +234,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     }
     eng.ply -= 1;
 
-    // checkmate
     if legal == 0 { return i16::from(in_check) * (-MAX + eng.ply) }
-
-    // writing to hash table
     if write && !eng.abort { eng.hash_table.push(hash, best_move, depth, bound, eval, eng.ply) }
-
     eval
 }

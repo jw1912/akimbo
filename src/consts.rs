@@ -11,6 +11,7 @@ pub struct Mask {
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct S(pub i16, pub i16);
+
 impl AddAssign<S> for S {
     fn add_assign(&mut self, rhs: S) {
         self.0 += rhs.0;
@@ -31,17 +32,15 @@ macro_rules! consts {
     ($type:ty, $name:ident = $val:expr, $($b:tt)*) => {pub const $name: $type = $val; consts!($type, $($b)*);};
 }
 
-macro_rules! init {
-    ($i:ident, $($r:tt)+) => {{
-        let mut $i = 0;
-        let mut res = [{$($r)+}; 64];
-        while $i < 64 {
-            res[$i] = {$($r)+};
-            $i += 1;
-        }
-        res
-    }};
-}
+macro_rules! init {($i:ident, $($r:tt)+) => {{
+    let mut $i = 0;
+    let mut res = [{$($r)+}; 64];
+    while $i < 64 {
+        res[$i] = {$($r)+};
+        $i += 1;
+    }
+    res
+}};}
 
 // UCI
 consts!(&str, NAME = env!("CARGO_PKG_NAME"), VERSION = env!("CARGO_PKG_VERSION"), AUTHOR = env!("CARGO_PKG_AUTHORS"));
