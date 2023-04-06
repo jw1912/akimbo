@@ -19,21 +19,22 @@ pub type ScoreList = List<i16>;
 
 impl<T> List<T> {
     pub fn uninit() -> Self {
-        Self { list: unsafe {#[allow(clippy::uninit_assumed_init, invalid_value)] MaybeUninit::uninit().assume_init()}, len: 0 }
+        #[allow(clippy::uninit_assumed_init, invalid_value)]
+        Self { list: unsafe { MaybeUninit::uninit().assume_init() }, len: 0 }
     }
 }
 
 impl MoveList {
     #[inline(always)]
     pub fn push(&mut self, from: u8, to: u8, flag: u8, mpc: u8) {
-        self.list[self.len] = Move {from, to, flag, mpc};
+        self.list[self.len] = Move { from, to, flag, mpc };
         self.len += 1;
     }
 
     pub fn pick(&mut self, scores: &mut ScoreList) -> Option<(Move, i16)> {
         if scores.len == 0 {return None}
         let mut idx = 0;
-        let mut best = 0;
+        let mut best = i16::MIN;
         for i in 0..scores.len {
             let score = scores.list[i];
             if score > best {
@@ -63,10 +64,10 @@ impl Position {
         let pawns = self.bb[P] & friends;
         if QUIETS {
             if self.state.cr & CS[side] > 0 && !self.in_check() {self.castles(&mut moves, occ)}
-            if side == WH {pawn_pushes::<WH>(&mut moves, occ, pawns)} else {pawn_pushes::<BL>(&mut moves, occ, pawns)}
+            if side == WH {pushes::<WH>(&mut moves, occ, pawns)} else {pushes::<BL>(&mut moves, occ, pawns)}
         }
         if self.state.enp > 0 {en_passants(&mut moves, pawns, self.state.enp, side)}
-        pawn_captures(&mut moves, pawns, opps, side);
+        pawn_caps(&mut moves, pawns, opps, side);
         pc_moves::<N, QUIETS>(&mut moves, occ, friends, opps, self.bb[N]);
         pc_moves::<B, QUIETS>(&mut moves, occ, friends, opps, self.bb[B]);
         pc_moves::<R, QUIETS>(&mut moves, occ, friends, opps, self.bb[R]);
@@ -91,13 +92,20 @@ fn pc_moves<const PC: usize, const QUIETS: bool>(moves: &mut MoveList, occ: u64,
     attackers &= friends;
     bitloop!(attackers, from, {
         let f = from as usize;
-        let attacks = match PC {N => NATT[f], R => ratt(f, occ), B => batt(f, occ), Q => ratt(f, occ) | batt(f, occ), K => KATT[f], _ => 0};
+        let attacks = match PC {
+            N => NATT[f],
+            R => ratt(f, occ),
+            B => batt(f, occ),
+            Q => ratt(f, occ) | batt(f, occ),
+            K => KATT[f],
+            _ => 0
+        };
         encode::<PC, CAP>(moves, attacks & opps, from);
         if QUIETS { encode::<PC, QUIET>(moves, attacks & !occ, from) }
     });
 }
 
-fn pawn_captures(moves: &mut MoveList, mut attackers: u64, opps: u64, c: usize) {
+fn pawn_caps(moves: &mut MoveList, mut attackers: u64, opps: u64, c: usize) {
     let mut promo: u64 = attackers & PENRANK[c];
     attackers &= !PENRANK[c];
     bitloop!(attackers, from, encode::<P, CAP>(moves, PATT[c][from as usize] & opps, from));
@@ -120,7 +128,7 @@ fn idx_shift<const SIDE: usize, const AMOUNT: u8>(idx: u8) -> u8 {
     if SIDE == WH {idx + AMOUNT} else {idx - AMOUNT}
 }
 
-fn pawn_pushes<const SIDE: usize>(moves: &mut MoveList, occ: u64, pawns: u64) {
+fn pushes<const SIDE: usize>(moves: &mut MoveList, occ: u64, pawns: u64) {
     let empty = !occ;
     let mut push = shift::<SIDE>(empty) & pawns;
     let mut dbl = shift::<SIDE>(shift::<SIDE>(empty & DBLRANK[SIDE]) & empty) & pawns;

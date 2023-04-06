@@ -10,10 +10,10 @@ The main aim is to stay under 1000 SLOC (excluding blank lines and comments) and
 As a result writing idiomatic Rust is not an aim of this project.
 
 ## Stats
-|          Version           |     Release Date     | SLOC | TLOC | CCRL Blitz | CCRL 40/15 |
-| :-------------------------:| :-------------------:|:----:|:----:|:----------:|:----------:|
-| [0.1.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.1.1) |   8th January 2022   | 1167 | 1381 |    n/a     |    2475    |
-|           dev              |          n/a         |  904 | 1059 |    n/a     |     n/a    |
+|                           Version                                |     Release Date     | SLOC | TLOC | CCRL Blitz | CCRL 40/15 |
+| :---------------------------------------------------------------:|:--------------------:|:----:|:----:|:----------:|:----------:|
+| [0.1.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.1.1) |   8th January 2022   | 1167 | 1381 |    n/a     |    2471    |
+|                             dev                                  |          n/a         |  913 | 1065 |    n/a     |     n/a    |
 
 ## Features
 
@@ -25,5 +25,3 @@ As a result writing idiomatic Rust is not an aim of this project.
 - Late Move Reductions
 - Reverse Futility Pruning
 - Null Move Pruning
-
-[tag_link]:https://github.com/JacquesRW/akimbo/releases/tag
