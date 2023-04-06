@@ -1,5 +1,5 @@
 use std::{cmp::{max, min}, time::Instant};
-use super::{consts::*, position::{Move, Position}, movegen::{List, MoveList, ScoreList}, tables::{HashTable, HistoryTable,  KillerTable}};
+use super::{consts::*, decl_mut, position::{Move, Position}, movegen::{MoveList, ScoreList}, tables::{HashTable, HistoryTable, KillerTable}};
 
 pub struct Timer(Instant, pub u128);
 impl Default for Timer {
@@ -11,22 +11,14 @@ impl Default for Timer {
 #[derive(Default)]
 pub struct Engine {
     pub pos: Position,
-    pub hash_table: HashTable,
     pub timing: Timer,
-    pub history_table: Box<HistoryTable>,
-    killer_table: Box<KillerTable>,
+    pub ttable: HashTable,
+    pub htable: Box<HistoryTable>,
+    ktable: Box<KillerTable>,
     nodes: u64,
     qnodes: u64,
     ply: i16,
     abort: bool,
-}
-
-impl<T> List<T> {
-    #[inline(always)]
-    fn add(&mut self, entry: T) {
-        self.list[self.len] = entry;
-        self.len += 1;
-    }
 }
 
 impl Engine {
@@ -40,15 +32,15 @@ impl Engine {
 
     fn score(&self, moves: &MoveList, hash_move: Move) -> ScoreList {
         let mut scores = ScoreList::uninit();
-        let killers = self.killer_table.0[self.ply as usize];
-        for i in 0..moves.len {
+        let killers = self.ktable.0[self.ply as usize];
+        for &m in &moves.list[0..moves.len] {
             scores.add({
-                let m = moves.list[i];
-                if m == hash_move {HASH}
-                else if m.flag & 4 > 0 {self.mvv_lva(m)}
-                else if m.flag & 8 > 0 {PROMOTION + i16::from(m.flag & 7)}
-                else if killers.contains(&m) {KILLER}
-                else {self.history_table.score(self.pos.c, m)}
+                if m == hash_move { HASH }
+                else if m.flag == ENP { 2 * MVV_LVA }
+                else if m.flag & 4 > 0 { self.mvv_lva(m) }
+                else if m.flag & 8 > 0 { PROMOTION + i16::from(m.flag & 7) }
+                else if killers.contains(&m) { KILLER }
+                else {self.htable.score(self.pos.c, m)}
             })
         }
         scores
@@ -88,20 +80,17 @@ pub fn go(eng: &mut Engine) {
     }
 
     println!("bestmove {}", best_move.to_uci());
-    *eng.killer_table = Default::default();
-    eng.history_table.age();
+    *eng.ktable = Default::default();
+    eng.htable.age();
 }
 
 fn qsearch(eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
     eng.qnodes += 1;
     let mut eval = eng.pos.lazy_eval();
-
     if eval >= beta { return eval }
     alpha = max(alpha, eval);
-
     let mut caps = eng.pos.gen::<CAPTURES>();
     let mut scores = eng.score_caps(&caps);
-
     while let Some((r#move, _)) = caps.pick(&mut scores) {
         if eng.pos.r#do(r#move) { continue }
         eval = max(eval, -qsearch(eng, -beta, -alpha));
@@ -109,11 +98,10 @@ fn qsearch(eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
         if eval >= beta { break }
         alpha = max(alpha, eval);
     }
-
     eval
 }
 
-fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, mut null: bool, line: &mut Vec<Move>) -> i16 {
+fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, null: bool, line: &mut Vec<Move>) -> i16 {
     // stopping search
     if eng.abort { return 0 }
     if eng.nodes & 1023 == 0 && eng.timing.0.elapsed().as_millis() >= eng.timing.1 {
@@ -122,7 +110,6 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     }
 
     line.clear();
-    let pv_node = beta > alpha + 1;
 
     // draw detection
     if eng.pos.is_draw(eng.ply) { return 0 }
@@ -135,16 +122,15 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     // check extensions
     depth += i8::from(in_check);
 
-    // drop into qsearch if depth is 0
     if depth <= 0 || eng.ply == MAX_PLY { return qsearch(eng, alpha, beta) }
-    eng.nodes += 1;
 
+    eng.nodes += 1;
+    let pv_node = beta > alpha + 1;
     let hash = eng.pos.hash();
-    let mut best_move = Move::default();
-    let mut write = true;
+    decl_mut!(best_move = Move::default(), write = true);
 
     // probing hash table
-    if let Some(res) = eng.hash_table.probe(hash, eng.ply) {
+    if let Some(res) = eng.ttable.probe(hash, eng.ply) {
         write = depth > res.depth;
         best_move = Move::from_short(res.best_move, &eng.pos);
 
@@ -154,9 +140,6 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
             UPPER => res.score <= alpha,
             _ => true,
         } { return res.score }
-
-        // disallow null move pruning in some cases
-        if res.bound == LOWER && res.score < beta { null = false }
     }
 
     // pruning
@@ -169,76 +152,60 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
 
         // null move pruning
         if null && depth >= 3 && eng.pos.phase >= 6 && eval >= beta {
-            // make and score null move
+            let r = 2 + depth / 3;
             eng.ply += 1;
             eng.pos.r#do_null();
-            let nw = -search(eng, -alpha - 1, -alpha, depth - min(3, depth - 1), false, false, &mut Vec::new());
+            let nw = -search(eng, -alpha - 1, -alpha, depth - r, false, false, &mut Vec::new());
             eng.pos.undo_null();
             eng.ply -= 1;
-
             if nw >= beta {
-                // fail-hard on mate scores
                 if nw >= MATE { return beta }
                 return nw
             }
         }
     }
 
-    // generate and score moves
+    // go through moves
     let mut moves = eng.pos.gen::<ALL>();
     let mut scores = eng.score(&moves, best_move);
-
-    // stuff needed for going through moves
-    let mut legal = 0;
-    let mut eval = -MAX;
-    let mut bound = UPPER;
-    let mut sline = Vec::new();
-
-    // threshold for late move reductions
+    decl_mut!(legal = 0, eval = -MAX, bound = UPPER, sline = Vec::new());
     let lmr = depth > 1 && eng.ply > 0 && !in_check;
-
     eng.ply += 1;
     while let Some((r#move, mscore)) = moves.pick(&mut scores) {
         if eng.pos.r#do(r#move) { continue }
-
         let check = eng.pos.in_check();
         legal += 1;
 
-        // late move reductions
-        let reduction = if lmr && !check && mscore < KILLER {
-            // Viridithas values used
+        // late move reductions - Viridithas values used
+        let reduce = if lmr && !check && mscore < KILLER {
             let lmr = (0.77 + f64::from(depth).ln() * f64::from(legal).ln() / 2.67) as i8;
             if pv_node { max(1, lmr - 1) } else { lmr }
         } else {0};
 
-        // principle variation search
         let score = if legal == 1 {
             -search(eng, -beta, -alpha, depth - 1, check, false, &mut sline)
         } else {
-            let zw = -search(eng, -alpha - 1, -alpha, depth - 1 - reduction, check, true, &mut sline);
-            if (pv_node || reduction > 0) && zw > alpha {
+            let zw = -search(eng, -alpha - 1, -alpha, depth - 1 - reduce, check, true, &mut sline);
+            if (pv_node || reduce > 0) && zw > alpha {
                 -search(eng, -beta, -alpha, depth - 1, check, false, &mut sline)
             } else { zw }
         };
         eng.pos.undo();
 
-        // alpha-beta pruning
         if score > eval {
             eval = score;
             best_move = r#move;
             if score > alpha {
                 alpha = score;
                 bound = EXACT;
-                // update pv line
                 line.clear();
                 line.push(r#move);
                 line.append(&mut sline);
                 if score >= beta {
                     bound = LOWER;
-                    // push quiet moves that caused cutoff to tables
-                    if mscore < 2 * MVV_LVA {
-                        eng.killer_table.push(r#move, eng.ply);
-                        eng.history_table.change(eng.pos.c, r#move, (depth as i64).pow(2));
+                    if r#move.flag < CAP {
+                        eng.ktable.push(r#move, eng.ply);
+                        eng.htable.push(r#move, eng.pos.c, depth);
                     }
                     break
                 }
@@ -247,11 +214,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     }
     eng.ply -= 1;
 
-    // checkmate
     if legal == 0 { return i16::from(in_check) * (-MAX + eng.ply) }
-
-    // writing to hash table
-    if write && !eng.abort { eng.hash_table.push(hash, best_move, depth, bound, eval, eng.ply) }
-
+    if write && !eng.abort { eng.ttable.push(hash, best_move, depth, bound, eval, eng.ply) }
     eval
 }

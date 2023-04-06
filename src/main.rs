@@ -9,11 +9,17 @@ use position::{Move, Position};
 use search::{Engine, go};
 use std::{cmp::max, io::stdin, process, time::Instant};
 
+#[macro_export]
+macro_rules! decl {{$($name:ident = $val:expr ),*} => {$(let $name = $val;)*};}
+
+#[macro_export]
+macro_rules! decl_mut {{$($name:ident = $val:expr ),*} => {$(let mut $name = $val;)*};}
+
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
     let mut eng = Engine::default();
     eng.pos = Position::from_fen(STARTPOS);
-    eng.hash_table.resize(1);
+    eng.ttable.resize(1);
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
@@ -27,10 +33,10 @@ fn parse_commands(commands: Vec<&str>, eng: &mut Engine) {
         "isready" => println!("readyok"),
         "ucinewgame" => {
             eng.pos = Position::from_fen(STARTPOS);
-            eng.hash_table.clear();
-            *eng.history_table = Default::default();
+            eng.ttable.clear();
+            *eng.htable = Default::default();
         },
-        "setoption" => if let ["setoption", "name", "Hash", "value", x] = commands[..] {eng.hash_table.resize(x.parse().unwrap())},
+        "setoption" => if let ["setoption", "name", "Hash", "value", x] = commands[..] {eng.ttable.resize(x.parse().unwrap())},
         "go" => parse_go(eng, commands),
         "position" => parse_position(&mut eng.pos, commands),
         "perft" => parse_perft(&mut eng.pos, &commands),
@@ -51,15 +57,12 @@ fn perft(pos: &mut Position, depth: u8) -> u64 {
 }
 
 fn parse_perft(pos: &mut Position, commands: &[&str]) {
-    let depth = commands[1].parse().unwrap();
-    let now = Instant::now();
-    let count = perft(pos, depth);
-    let time = now.elapsed();
+    decl!(depth = commands[1].parse().unwrap(), now = Instant::now(), count = perft(pos, depth), time = now.elapsed());
     println!("perft {depth} time {} nodes {count} ({:.2} Mnps)", time.as_millis(), count as f64 / time.as_micros() as f64);
 }
 
 fn parse_position(pos: &mut Position, commands: Vec<&str>) {
-    let (mut fen, mut move_list, mut moves) = (String::new(), Vec::new(), false);
+    decl_mut!(fen = String::new(), move_list = Vec::new(), moves = false);
     for cmd in commands {
         match cmd {
             "position" | "startpos" | "fen" => {}
@@ -72,7 +75,7 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
 }
 
 fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
-    let (mut token, mut times, mut mtg, mut alloc) = (0, [0, 0], None, 1000);
+    decl_mut!(token = 0, times = [0, 0], mtg = None, alloc = 1000);
     const COMMANDS: [&str; 7] = ["go", "movetime", "wtime", "btime", "movestogo", "winc", "binc"];
     for command in commands {
         if let Some(x) = COMMANDS.iter().position(|&y| y == command) { token = x }

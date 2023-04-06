@@ -11,6 +11,7 @@ pub struct Mask {
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct S(pub i16, pub i16);
+
 impl AddAssign<S> for S {
     fn add_assign(&mut self, rhs: S) {
         self.0 += rhs.0;
@@ -26,22 +27,16 @@ impl Mul<S> for i16 {
 }
 
 // Macros
-macro_rules! consts {
-    ($type:ty, $name:ident = $val:expr) => {pub const $name: $type = $val;};
-    ($type:ty, $name:ident = $val:expr, $($b:tt)*) => {pub const $name: $type = $val; consts!($type, $($b)*);};
-}
-
-macro_rules! init {
-    ($i:ident, $($r:tt)+) => {{
-        let mut $i = 0;
-        let mut res = [{$($r)+}; 64];
-        while $i < 64 {
-            res[$i] = {$($r)+};
-            $i += 1;
-        }
-        res
-    }};
-}
+macro_rules! consts {{$t:ty, $($n:ident = $v:expr),*} => {$(pub const $n: $t = $v;)*};}
+macro_rules! init {($i:ident, $($r:tt)+) => {{
+    let mut $i = 0;
+    let mut res = [{$($r)+}; 64];
+    while $i < 64 {
+        res[$i] = {$($r)+};
+        $i += 1;
+    }
+    res
+}};}
 
 // UCI
 consts!(&str, NAME = env!("CARGO_PKG_NAME"), VERSION = env!("CARGO_PKG_VERSION"), AUTHOR = env!("CARGO_PKG_AUTHORS"));
@@ -50,7 +45,7 @@ pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -
 // Search
 pub const KILLERS: usize = 2;
 pub const HISTORY_MAX: i64 = 2048;
-consts!(u8, LOWER = 0x40, EXACT = 0xC0, UPPER = 0x80);
+consts!(u8, LOWER = 1, EXACT = 2, UPPER = 3);
 consts!(i16, MAX_PLY = 96, MAX = 30000, MATE = MAX - 256, HASH = MAX, MVV_LVA = 2048, PROMOTION = 3000, KILLER = 2500);
 
 // Eval
@@ -107,7 +102,7 @@ pub static PST: [[S; 64]; 8] = [[S(0, 0); 64], [S(0, 0); 64],
         S(-12, -57), S( 78, -24), S(106, -29), S( 49,  -3), S(  8,  14), S( 14,  26), S( 45,  23), S( 15, -14),
         S( 77,  -9), S( 30,  34), S( 21,  32), S( 68,  23), S( 18,  31), S( 19,  49), S( 11,  56), S( -40, 28),
         S( 43,  10), S( 29,  34), S( 16,  38), S( 17,  32), S(  8,  37), S( 50,  48), S( 41,  57), S( -6,  32),
-        S( 11,   1), S(  9,  30), S( -2,  39), S( -15, 41), S(-18,  39), S(  9,  42), S( 13,  38), S(-51,  21),
+        S( 11,   1), S(  9,  30), S( -2,  39), S(-15,  41), S(-18,  39), S(  9,  42), S( 13,  38), S(-51,  21),
         S(-38,  -4), S( 22,   2), S(  1,  25), S(-36,  34), S(-26,  34), S(-18,  30), S(-27,  21), S(-53,   2),
         S( 17, -23), S( 13,  -2), S(-16,  14), S(-33,  24), S(-34,  26), S(-29,  19), S(  0,   5), S(-32,  -3),
         S( 26, -29), S( -6,  -4), S(-18,   8), S(-65,  17), S(-45,  17), S(-19,   7), S( 14, - 6), S( 26, -24),
