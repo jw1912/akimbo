@@ -19,7 +19,7 @@ fn main() {
     println!("{NAME}, created by {AUTHOR}");
     let mut eng = Engine::default();
     eng.pos = Position::from_fen(STARTPOS);
-    eng.hash_table.resize(1);
+    eng.ttable.resize(1);
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
@@ -33,10 +33,10 @@ fn parse_commands(commands: Vec<&str>, eng: &mut Engine) {
         "isready" => println!("readyok"),
         "ucinewgame" => {
             eng.pos = Position::from_fen(STARTPOS);
-            eng.hash_table.clear();
-            *eng.history_table = Default::default();
+            eng.ttable.clear();
+            *eng.htable = Default::default();
         },
-        "setoption" => if let ["setoption", "name", "Hash", "value", x] = commands[..] {eng.hash_table.resize(x.parse().unwrap())},
+        "setoption" => if let ["setoption", "name", "Hash", "value", x] = commands[..] {eng.ttable.resize(x.parse().unwrap())},
         "go" => parse_go(eng, commands),
         "position" => parse_position(&mut eng.pos, commands),
         "perft" => parse_perft(&mut eng.pos, &commands),

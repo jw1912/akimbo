@@ -11,10 +11,10 @@ impl Default for Timer {
 #[derive(Default)]
 pub struct Engine {
     pub pos: Position,
-    pub hash_table: HashTable,
     pub timing: Timer,
-    pub history_table: Box<HistoryTable>,
-    killer_table: Box<KillerTable>,
+    pub ttable: HashTable,
+    pub htable: Box<HistoryTable>,
+    ktable: Box<KillerTable>,
     nodes: u64,
     qnodes: u64,
     ply: i16,
@@ -32,7 +32,7 @@ impl Engine {
 
     fn score(&self, moves: &MoveList, hash_move: Move) -> ScoreList {
         let mut scores = ScoreList::uninit();
-        let killers = self.killer_table.0[self.ply as usize];
+        let killers = self.ktable.0[self.ply as usize];
         for &m in &moves.list[0..moves.len] {
             scores.add({
                 if m == hash_move { HASH }
@@ -40,7 +40,7 @@ impl Engine {
                 else if m.flag & 4 > 0 { self.mvv_lva(m) }
                 else if m.flag & 8 > 0 { PROMOTION + i16::from(m.flag & 7) }
                 else if killers.contains(&m) { KILLER }
-                else {self.history_table.score(self.pos.c, m)}
+                else {self.htable.score(self.pos.c, m)}
             })
         }
         scores
@@ -80,8 +80,8 @@ pub fn go(eng: &mut Engine) {
     }
 
     println!("bestmove {}", best_move.to_uci());
-    *eng.killer_table = Default::default();
-    eng.history_table.age();
+    *eng.ktable = Default::default();
+    eng.htable.age();
 }
 
 fn qsearch(eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
@@ -129,7 +129,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     decl_mut!(best_move = Move::default(), write = true);
 
     // probing hash table
-    if let Some(res) = eng.hash_table.probe(hash, eng.ply) {
+    if let Some(res) = eng.ttable.probe(hash, eng.ply) {
         write = depth > res.depth;
         best_move = Move::from_short(res.best_move, &eng.pos);
 
@@ -167,18 +167,14 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         }
     }
 
-    // generate and score moves
+    // go through moves
     let mut moves = eng.pos.gen::<ALL>();
     let mut scores = eng.score(&moves, best_move);
-
-    // stuff needed for going through moves
     decl_mut!(legal = 0, eval = -MAX, bound = UPPER, sline = Vec::new());
     let lmr = depth > 1 && eng.ply > 0 && !in_check;
-
     eng.ply += 1;
     while let Some((r#move, mscore)) = moves.pick(&mut scores) {
         if eng.pos.r#do(r#move) { continue }
-
         let check = eng.pos.in_check();
         legal += 1;
 
@@ -211,8 +207,8 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
                 if score >= beta {
                     bound = LOWER;
                     if r#move.flag < CAP {
-                        eng.killer_table.push(r#move, eng.ply);
-                        eng.history_table.change(eng.pos.c, r#move, (depth as i64).pow(2));
+                        eng.ktable.push(r#move, eng.ply);
+                        eng.htable.push(r#move, eng.pos.c, depth);
                     }
                     break
                 }
@@ -222,6 +218,6 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     eng.ply -= 1;
 
     if legal == 0 { return i16::from(in_check) * (-MAX + eng.ply) }
-    if write && !eng.abort { eng.hash_table.push(hash, best_move, depth, bound, eval, eng.ply) }
+    if write && !eng.abort { eng.ttable.push(hash, best_move, depth, bound, eval, eng.ply) }
     eval
 }
