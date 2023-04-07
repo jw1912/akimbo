@@ -1,5 +1,5 @@
 use std::{cmp::{max, min}, time::Instant};
-use super::{consts::*, position::{Move, Position}, movegen::{List, MoveList, ScoreList}, tables::{HashTable, HistoryTable,  KillerTable}};
+use super::{consts::*, decl_mut, position::{Move, Position}, movegen::{MoveList, ScoreList}, tables::{HashTable, HistoryTable, KillerTable}};
 
 pub struct Timer(Instant, pub u128);
 impl Default for Timer {
@@ -19,14 +19,6 @@ pub struct Engine {
     qnodes: u64,
     ply: i16,
     abort: bool,
-}
-
-impl<T> List<T> {
-    #[inline(always)]
-    fn add(&mut self, entry: T) {
-        self.list[self.len] = entry;
-        self.len += 1;
-    }
 }
 
 impl Engine {
@@ -117,9 +109,6 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         return 0
     }
 
-    line.clear();
-    let pv_node = beta > alpha + 1;
-
     // draw detection
     if eng.pos.is_draw(eng.ply) { return 0 }
 
@@ -134,9 +123,10 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     if depth <= 0 || eng.ply == MAX_PLY { return qsearch(eng, alpha, beta) }
 
     eng.nodes += 1;
+    line.clear();
+    let pv_node = beta > alpha + 1;
     let hash = eng.pos.hash();
-    let mut best_move = Move::default();
-    let mut write = true;
+    decl_mut!(best_move = Move::default(), write = true);
 
     // probing hash table
     if let Some(res) = eng.hash_table.probe(hash, eng.ply) {
@@ -182,10 +172,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     let mut scores = eng.score(&moves, best_move);
 
     // stuff needed for going through moves
-    let mut legal = 0;
-    let mut eval = -MAX;
-    let mut bound = UPPER;
-    let mut sline = Vec::new();
+    decl_mut!(legal = 0, eval = -MAX, bound = UPPER, sline = Vec::new());
     let lmr = depth > 1 && eng.ply > 0 && !in_check;
 
     eng.ply += 1;

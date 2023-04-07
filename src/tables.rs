@@ -1,4 +1,4 @@
-use crate::{consts::*, position::Move};
+use crate::{consts::*, position::Move, decl, decl_mut};
 
 #[derive(Clone, Copy, Default)]
 pub struct HashEntry {
@@ -10,46 +10,40 @@ pub struct HashEntry {
 }
 
 #[derive(Default)]
-pub struct HashTable {
-    table: Vec<[HashEntry; 8]>,
-    num_buckets: usize,
-}
+pub struct HashTable(Vec<[HashEntry; 8]>, usize);
 
 impl HashTable {
     pub fn resize(&mut self, mut size: usize) {
         size = 2usize.pow((size as f64).log2().floor() as u32);
-        self.num_buckets = size * 1024 * 1024 / std::mem::size_of::<[HashEntry; 8]>();
-        self.table = vec![Default::default(); self.num_buckets];
+        self.1 = size * 1024 * 1024 / std::mem::size_of::<[HashEntry; 8]>();
+        self.0 = vec![Default::default(); self.1];
     }
 
     pub fn clear(&mut self) {
-        self.table.iter_mut().for_each(|bucket: &mut [HashEntry; 8]| *bucket = [HashEntry::default(); 8]);
+        self.0.iter_mut().for_each(|bucket: &mut [HashEntry; 8]| *bucket = [HashEntry::default(); 8]);
     }
 
-    pub fn push(&mut self, zobrist: u64, m: Move, depth: i8, bound: u8, mut score: i16, ply: i16) {
-        let key = (zobrist >> 48) as u16;
-        let idx = (zobrist as usize) & (self.num_buckets- 1);
-        let mut desired_idx = usize::MAX;
-        let mut smallest_depth = i8::MAX;
-        for (entry_idx, entry) in self.table[idx].iter().enumerate() {
+    pub fn push(&mut self, hash: u64, m: Move, depth: i8, bound: u8, mut score: i16, ply: i16) {
+        decl!(key = (hash >> 48) as u16, idx = (hash as usize) & (self.1- 1));
+        decl_mut!(desired_idx = usize::MAX, smallest_depth = i8::MAX);
+        for (i, entry) in self.0[idx].iter().enumerate() {
             if (entry.key == key && depth > entry.depth) || entry.depth == 0 {
-                desired_idx = entry_idx;
+                desired_idx = i;
                 break;
             }
             if entry.depth < smallest_depth {
                 smallest_depth = entry.depth;
-                desired_idx = entry_idx;
+                desired_idx = i;
             }
         }
         score += if score > MATE {ply} else if score < -MATE {-ply} else {0};
         let best_move = (m.from as u16) << 6 | m.to as u16 | (m.flag as u16) << 12;
-        self.table[idx][desired_idx] = HashEntry { key, best_move, score, depth, bound };
+        self.0[idx][desired_idx] = HashEntry { key, best_move, score, depth, bound };
     }
 
-    pub fn probe(&self, zobrist: u64, ply: i16) -> Option<HashEntry> {
-        let key = (zobrist >> 48) as u16;
-        let idx = (zobrist as usize) & (self.num_buckets - 1);
-        for entry in &self.table[idx] {
+    pub fn probe(&self, hash: u64, ply: i16) -> Option<HashEntry> {
+        decl!(key = (hash >> 48) as u16, idx = (hash as usize) & (self.1- 1));
+        for entry in &self.0[idx] {
             if entry.key == key {
                 let mut res = *entry;
                 res.score += if res.score > MATE {-ply} else if res.score < -MATE {ply} else {0};

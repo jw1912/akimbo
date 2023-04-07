@@ -1,4 +1,4 @@
-use super::consts::*;
+use super::{consts::*, decl, decl_mut};
 
 #[derive(Clone, Copy, Default)]
 pub struct State {
@@ -41,8 +41,7 @@ pub struct ZobristVals {
 #[inline(always)]
 pub fn batt(idx: usize, occ: u64) -> u64 {
     let m = BMASKS[idx];
-    let mut f = occ & m.right;
-    let mut r = f.swap_bytes();
+    decl_mut!(f = occ & m.right, r = f.swap_bytes());
     f -= m.bit;
     r -= m.file;
     f ^= r.swap_bytes();
@@ -59,8 +58,7 @@ pub fn batt(idx: usize, occ: u64) -> u64 {
 #[inline(always)]
 pub fn ratt(idx: usize, occ: u64) -> u64 {
     let m = RMASKS[idx];
-    let mut f = occ & m.file;
-    let mut r = f.swap_bytes();
+    decl_mut!(f = occ & m.file, r = f.swap_bytes());
     f -= m.bit;
     r -= m.bit.swap_bytes();
     f ^= r.swap_bytes();
@@ -74,18 +72,14 @@ pub fn ratt(idx: usize, occ: u64) -> u64 {
 
 impl Position {
     pub fn from_fen(fen: &str) -> Self {
-        let mut pos = Self::default();
-        let vec: Vec<&str> = fen.split_whitespace().collect();
-        let p: Vec<char> = vec[0].chars().collect();
-        let (mut row, mut col) = (7, 0);
+        decl!(vec = fen.split_whitespace().collect::<Vec<&str>>(), p = vec[0].chars().collect::<Vec<char>>());
+        decl_mut!(pos = Self::default(), row = 7, col = 0);
         for ch in p {
             if ch == '/' { row -= 1; col = 0; }
             else if ('1'..='8').contains(&ch) { col += ch.to_string().parse::<i16>().unwrap_or(0) }
             else {
                 let idx = ['P','N','B','R','Q','K','p','n','b','r','q','k'].iter().position(|&el| el == ch).unwrap_or(6);
-                let side = usize::from(idx > 5);
-                let pc = idx + 2 - 6 * side;
-                let sq = 8 * row + col;
+                decl!(side = usize::from(idx > 5), pc = idx + 2 - 6 * side, sq = 8 * row + col);
                 pos.toggle(side, pc, 1 << sq);
                 pos.state.hash ^= pos.zvals.pcs[side][pc][sq as usize];
                 pos.state.pst += SIDE[side] * PST[pc][sq as usize ^ (56 * (side^ 1))];
@@ -101,10 +95,9 @@ impl Position {
     }
 
     pub fn hash(&self) -> u64 {
-        let mut hash = self.state.hash;
+        decl_mut!(hash = self.state.hash, r = self.state.cr);
         if self.c {hash ^= self.zvals.c}
         if self.state.enp > 0 {hash ^= self.zvals.enp[self.state.enp as usize & 7]}
-        let mut r = self.state.cr;
         while r > 0 {
             hash ^= self.zvals.cr[r.trailing_zeros() as usize];
             r &= r - 1;
@@ -157,12 +150,8 @@ impl Position {
 
     #[inline(always)]
     fn r#move<const DO: bool>(&mut self, m: Move, side: usize, cpc: usize) {
-        let sign = SIDE[usize::from(!DO)];
-        let psign = SIDE[side];
-        let (noflip, flip) = (56 * side, 56 * (side ^ 1));
-        let f = 1 << m.from;
-        let t = 1 << m.to;
-        let mpc = usize::from(m.mpc);
+        decl!(sign = SIDE[usize::from(!DO)], psign = SIDE[side], flip = 56 * (side ^ 1));
+        decl!(f = 1 << m.from, t = 1 << m.to, mpc = usize::from(m.mpc));
         self.c = !self.c;
         self.toggle(side, mpc, f | t);
         if DO {
@@ -174,7 +163,7 @@ impl Position {
             self.toggle(side ^ 1, cpc, t);
             if DO {
                 self.state.hash ^= self.zvals.pcs[side ^ 1][cpc][usize::from(m.to)];
-                self.state.pst += psign * PST[cpc][usize::from(m.to) ^ noflip];
+                self.state.pst += psign * PST[cpc][usize::from(m.to) ^ (56 * side)];
             }
             self.phase -= sign * PHASE_VALS[cpc];
         }
@@ -193,7 +182,7 @@ impl Position {
                 self.toggle(side ^ 1, P, 1 << pwn);
                 if DO {
                     self.state.hash ^= self.zvals.pcs[side ^ 1][P][pwn];
-                    self.state.pst += psign * PST[P][pwn ^ noflip];
+                    self.state.pst += psign * PST[P][pwn ^ (56 * side)];
                 }
             },
             NPR.. => {
@@ -237,7 +226,7 @@ impl Position {
     }
 
     fn mat_draw(&self) -> bool {
-        let (ph, b, p, wh, bl) = (self.phase, self.bb[B], self.bb[P], self.bb[0], self.bb[1]);
+        decl!(ph = self.phase, b = self.bb[B], p = self.bb[P], wh = self.bb[WH], bl = self.bb[BL]);
         ph <= 2 && p == 0 && ((ph != 2) || (b & wh != b && b & bl != b && (b & LSQ == b || b & DSQ == b)))
     }
 
@@ -251,8 +240,7 @@ impl Position {
     }
 
     pub fn lazy_eval(&self) -> i16 {
-        let score = self.state.pst;
-        let p = std::cmp::min(self.phase as i32, TPHASE);
+        decl!(score = self.state.pst, p = std::cmp::min(self.phase as i32, TPHASE));
         SIDE[usize::from(self.c)] * ((p * score.0 as i32 + (TPHASE - p) * score.1 as i32) / TPHASE) as i16
     }
 }

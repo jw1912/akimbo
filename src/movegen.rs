@@ -1,4 +1,4 @@
-use super::{consts::*, position::{Position, Move, ratt, batt}};
+use super::{consts::*, decl, decl_mut, position::{Position, Move, ratt, batt}};
 use std::mem::MaybeUninit;
 
 macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
@@ -22,6 +22,12 @@ impl<T> List<T> {
         #[allow(clippy::uninit_assumed_init, invalid_value)]
         Self { list: unsafe { MaybeUninit::uninit().assume_init() }, len: 0 }
     }
+
+    #[inline(always)]
+    pub fn add(&mut self, entry: T) {
+        self.list[self.len] = entry;
+        self.len += 1;
+    }
 }
 
 impl MoveList {
@@ -33,8 +39,7 @@ impl MoveList {
 
     pub fn pick(&mut self, scores: &mut ScoreList) -> Option<(Move, i16)> {
         if scores.len == 0 {return None}
-        let mut idx = 0;
-        let mut best = i16::MIN;
+        decl_mut!(idx = 0, best = i16::MIN);
         for i in 0..scores.len {
             let score = scores.list[i];
             if score > best {
@@ -57,11 +62,8 @@ fn encode<const PC: usize, const FLAG: u8>(moves: &mut MoveList, mut attacks: u6
 impl Position {
     pub fn gen<const QUIETS: bool>(&self) -> MoveList {
         let mut moves = MoveList::uninit();
-        let side = usize::from(self.c);
-        let occ = self.bb[0] | self.bb[1];
-        let friends = self.bb[side];
-        let opps = self.bb[side ^ 1];
-        let pawns = self.bb[P] & friends;
+        decl!(side = usize::from(self.c), occ = self.bb[0] | self.bb[1]);
+        decl!(friends = self.bb[side], opps = self.bb[side ^ 1], pawns = self.bb[P] & friends);
         if QUIETS {
             if self.state.cr & CS[side] > 0 && !self.in_check() {self.castles(&mut moves, occ)}
             if side == WH {pushes::<WH>(&mut moves, occ, pawns)} else {pushes::<BL>(&mut moves, occ, pawns)}
@@ -130,9 +132,8 @@ fn idx_shift<const SIDE: usize, const AMOUNT: u8>(idx: u8) -> u8 {
 
 fn pushes<const SIDE: usize>(moves: &mut MoveList, occ: u64, pawns: u64) {
     let empty = !occ;
-    let mut push = shift::<SIDE>(empty) & pawns;
     let mut dbl = shift::<SIDE>(shift::<SIDE>(empty & DBLRANK[SIDE]) & empty) & pawns;
-    let mut promo = push & PENRANK[SIDE];
+    decl_mut!(push = shift::<SIDE>(empty) & pawns, promo = push & PENRANK[SIDE]);
     push &= !PENRANK[SIDE];
     bitloop!(push, from, moves.push(from, idx_shift::<SIDE, 8>(from), QUIET, P as u8));
     bitloop!(promo, from, for flag in NPR..=QPR {moves.push(from, idx_shift::<SIDE, 8>(from), flag, P as u8)});

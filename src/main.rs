@@ -9,6 +9,12 @@ use position::{Move, Position};
 use search::{Engine, go};
 use std::{cmp::max, io::stdin, process, time::Instant};
 
+#[macro_export]
+macro_rules! decl {{$($name:ident = $val:expr ),*} => {$(let $name = $val;)*};}
+
+#[macro_export]
+macro_rules! decl_mut {{$($name:ident = $val:expr ),*} => {$(let mut $name = $val;)*};}
+
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
     let mut eng = Engine::default();
@@ -51,10 +57,7 @@ fn perft(pos: &mut Position, depth: u8) -> u64 {
 }
 
 fn parse_perft(pos: &mut Position, commands: &[&str]) {
-    let depth = commands[1].parse().unwrap();
-    let now = Instant::now();
-    let count = perft(pos, depth);
-    let time = now.elapsed();
+    decl!(depth = commands[1].parse().unwrap(), now = Instant::now(), count = perft(pos, depth), time = now.elapsed());
     println!("perft {depth} time {} nodes {count} ({:.2} Mnps)", time.as_millis(), count as f64 / time.as_micros() as f64);
 }
 
