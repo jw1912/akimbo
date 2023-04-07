@@ -80,6 +80,7 @@ impl Default for HistoryTable {
 
 impl HistoryTable {
     pub fn age(&mut self) {
+        self.1 = std::cmp::max(self.1 / 64, 1);
         self.0.iter_mut().for_each(|side|
             side.iter_mut().for_each(|pc|
                 pc.iter_mut().for_each(|sq| *sq /= 64)))
