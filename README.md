@@ -13,7 +13,7 @@ As a result writing idiomatic Rust is not an aim of this project.
 |                           Version                                |     Release Date     | SLOC | TLOC | CCRL Blitz | CCRL 40/15 |
 | :---------------------------------------------------------------:|:--------------------:|:----:|:----:|:----------:|:----------:|
 | [0.1.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.1.1) |   8th January 2022   | 1167 | 1381 |    n/a     |    2471    |
-|                             dev                                  |          n/a         |  880 | 1014 |    n/a     |     n/a    |
+|                             dev                                  |          n/a         |  880 | 1016 |    n/a     |     n/a    |
 
 ## Features
 

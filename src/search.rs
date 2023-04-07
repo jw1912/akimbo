@@ -109,6 +109,8 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         return 0
     }
 
+    line.clear();
+
     // draw detection
     if eng.pos.is_draw(eng.ply) { return 0 }
 
@@ -123,7 +125,6 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     if depth <= 0 || eng.ply == MAX_PLY { return qsearch(eng, alpha, beta) }
 
     eng.nodes += 1;
-    line.clear();
     let pv_node = beta > alpha + 1;
     let hash = eng.pos.hash();
     decl_mut!(best_move = Move::default(), write = true);
