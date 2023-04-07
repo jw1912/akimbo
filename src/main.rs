@@ -62,7 +62,7 @@ fn parse_perft(pos: &mut Position, commands: &[&str]) {
 }
 
 fn parse_position(pos: &mut Position, commands: Vec<&str>) {
-    let (mut fen, mut move_list, mut moves) = (String::new(), Vec::new(), false);
+    decl_mut!(fen = String::new(), move_list = Vec::new(), moves = false);
     for cmd in commands {
         match cmd {
             "position" | "startpos" | "fen" => {}
@@ -75,7 +75,7 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
 }
 
 fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
-    let (mut token, mut times, mut mtg, mut alloc) = (0, [0, 0], None, 1000);
+    decl_mut!(token = 0, times = [0, 0], mtg = None, alloc = 1000);
     const COMMANDS: [&str; 7] = ["go", "movetime", "wtime", "btime", "movestogo", "winc", "binc"];
     for command in commands {
         if let Some(x) = COMMANDS.iter().position(|&y| y == command) { token = x }
