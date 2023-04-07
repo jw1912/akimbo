@@ -152,7 +152,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
 
         // null move pruning
         if null && depth >= 3 && eng.pos.phase >= 6 && eval >= beta {
-            let r = 2 + depth / 3 + min((eval - beta) / 200, 3) as i8;
+            let r = 2 + depth / 3;
             eng.ply += 1;
             eng.pos.r#do_null();
             let nw = -search(eng, -alpha - 1, -alpha, depth - r, false, false, &mut Vec::new());
