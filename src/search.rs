@@ -101,7 +101,7 @@ fn qsearch(eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
     eval
 }
 
-fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, mut null: bool, line: &mut Vec<Move>) -> i16 {
+fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, null: bool, line: &mut Vec<Move>) -> i16 {
     // stopping search
     if eng.abort { return 0 }
     if eng.nodes & 1023 == 0 && eng.timing.0.elapsed().as_millis() >= eng.timing.1 {
@@ -140,9 +140,6 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
             UPPER => res.score <= alpha,
             _ => true,
         } { return res.score }
-
-        // disallow null move pruning in some cases
-        if res.bound == LOWER && res.score < beta { null = false }
     }
 
     // pruning
@@ -179,9 +176,8 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         let check = eng.pos.in_check();
         legal += 1;
 
-        // late move reductions
-        let reduction = if lmr && !check && mscore < KILLER {
-            // Viridithas values used
+        // late move reductions - Viridithas values used
+        let reduce = if lmr && !check && mscore < KILLER {
             let lmr = (0.77 + f64::from(depth).ln() * f64::from(legal).ln() / 2.67) as i8;
             if pv_node { max(1, lmr - 1) } else { lmr }
         } else {0};
@@ -189,8 +185,8 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         let score = if legal == 1 {
             -search(eng, -beta, -alpha, depth - 1, check, false, &mut sline)
         } else {
-            let zw = -search(eng, -alpha - 1, -alpha, depth - 1 - reduction, check, true, &mut sline);
-            if (pv_node || reduction > 0) && zw > alpha {
+            let zw = -search(eng, -alpha - 1, -alpha, depth - 1 - reduce, check, true, &mut sline);
+            if (pv_node || reduce > 0) && zw > alpha {
                 -search(eng, -beta, -alpha, depth - 1, check, false, &mut sline)
             } else { zw }
         };
