@@ -53,7 +53,7 @@ impl Default for KillerTable {
 impl KillerTable {
     pub fn push(&mut self, m: Move, p: i16) {
         let ply = p as usize - 1;
-        (0..{KILLERS - 1}).rev().for_each(|i: usize| self.0[ply][i + 1] = self.0[ply][i]);
+        (0..{KILLERS - 1}).rev().for_each(|i| self.0[ply][i + 1] = self.0[ply][i]);
         self.0[ply][0] = m;
     }
 }

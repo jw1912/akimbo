@@ -108,7 +108,7 @@ fn pc_moves<const PC: usize, const QUIETS: bool>(moves: &mut MoveList, occ: u64,
 }
 
 fn pawn_caps(moves: &mut MoveList, mut attackers: u64, opps: u64, c: usize) {
-    let mut promo: u64 = attackers & PENRANK[c];
+    let mut promo = attackers & PENRANK[c];
     attackers &= !PENRANK[c];
     bitloop!(attackers, from, encode::<P, CAP>(moves, PATT[c][from as usize] & opps, from));
     bitloop!(promo, from, {
