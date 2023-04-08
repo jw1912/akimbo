@@ -1,4 +1,4 @@
-use crate::{consts::*, position::Move, decl, decl_mut};
+use crate::{consts::*, position::Move, decl};
 
 #[derive(Clone, Copy, Default)]
 pub struct HashEntry {
@@ -10,7 +10,7 @@ pub struct HashEntry {
 }
 
 #[derive(Default)]
-pub struct HashTable(Vec<[HashEntry; 8]>, usize);
+pub struct HashTable(Vec<HashEntry>, usize);
 
 impl HashTable {
     pub fn resize(&mut self, mut size: usize) {
@@ -20,35 +20,23 @@ impl HashTable {
     }
 
     pub fn clear(&mut self) {
-        self.0.iter_mut().for_each(|bucket: &mut [HashEntry; 8]| *bucket = [HashEntry::default(); 8]);
+        self.0.iter_mut().for_each(|bucket| *bucket = Default::default());
     }
 
     pub fn push(&mut self, hash: u64, m: Move, depth: i8, bound: u8, mut score: i16, ply: i16) {
-        decl!(key = (hash >> 48) as u16, idx = (hash as usize) & (self.1- 1));
-        decl_mut!(desired_idx = usize::MAX, smallest_depth = i8::MAX);
-        for (i, entry) in self.0[idx].iter().enumerate() {
-            if (entry.key == key && depth > entry.depth) || entry.depth == 0 {
-                desired_idx = i;
-                break;
-            }
-            if entry.depth < smallest_depth {
-                smallest_depth = entry.depth;
-                desired_idx = i;
-            }
+        decl!(key = (hash >> 48) as u16, idx = (hash as usize) & (self.1- 1), old = self.0[idx]);
+        if key != old.key || depth >= old.depth {
+            score += if score > MATE {ply} else if score < -MATE {-ply} else {0};
+            let best_move = (m.from as u16) << 6 | m.to as u16 | (m.flag as u16) << 12;
+            self.0[idx] = HashEntry { key, best_move, score, depth, bound };
         }
-        score += if score > MATE {ply} else if score < -MATE {-ply} else {0};
-        let best_move = (m.from as u16) << 6 | m.to as u16 | (m.flag as u16) << 12;
-        self.0[idx][desired_idx] = HashEntry { key, best_move, score, depth, bound };
     }
 
     pub fn probe(&self, hash: u64, ply: i16) -> Option<HashEntry> {
-        decl!(key = (hash >> 48) as u16, idx = (hash as usize) & (self.1- 1));
-        for entry in &self.0[idx] {
-            if entry.key == key {
-                let mut res = *entry;
-                res.score += if res.score > MATE {-ply} else if res.score < -MATE {ply} else {0};
-                return Some(res)
-            }
+        let mut entry = self.0[(hash as usize) & (self.1- 1)];
+        if entry.key == (hash >> 48) as u16 {
+            entry.score += if entry.score > MATE {-ply} else if entry.score < -MATE {ply} else {0};
+            return Some(entry)
         }
         None
     }
