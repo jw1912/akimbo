@@ -32,10 +32,10 @@ pub struct Move {
 }
 
 pub struct ZobristVals {
-    pub pcs: [[[u64; 64]; 8]; 2],
-    pub cr: [u64; 4],
-    pub enp: [u64; 8],
-    pub c: u64,
+    pcs: [[[u64; 64]; 8]; 2],
+    cr: [u64; 4],
+    enp: [u64; 8],
+    c: u64,
 }
 
 #[inline(always)]
@@ -106,7 +106,7 @@ impl Position {
     }
 
     #[inline(always)]
-    pub fn toggle(&mut self, c: usize, pc: usize, bit: u64) {
+    fn toggle(&mut self, c: usize, pc: usize, bit: u64) {
         self.bb[pc] ^= bit;
         self.bb[c] ^= bit;
     }
