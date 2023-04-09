@@ -27,7 +27,7 @@ impl Mul<S> for i16 {
 }
 
 // Macros
-macro_rules! consts {{$t:ty, $($n:ident = $v:expr),*} => {$(pub const $n: $t = $v;)*};}
+macro_rules! consts {{$t:ty, $($n:ident = $v:expr),*} => {$(pub const $n: $t = $v;)*}}
 macro_rules! init {($i:ident, $($r:tt)+) => {{
     let mut $i = 0;
     let mut res = [{$($r)+}; 64];
@@ -36,7 +36,7 @@ macro_rules! init {($i:ident, $($r:tt)+) => {{
         $i += 1;
     }
     res
-}};}
+}}}
 
 // UCI
 consts!(&str, NAME = env!("CARGO_PKG_NAME"), VERSION = env!("CARGO_PKG_VERSION"), AUTHOR = env!("CARGO_PKG_AUTHORS"));

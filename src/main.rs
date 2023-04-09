@@ -10,10 +10,10 @@ use search::{Engine, go};
 use std::{cmp::max, io::stdin, process, time::Instant};
 
 #[macro_export]
-macro_rules! decl {{$($name:ident = $val:expr ),*} => {$(let $name = $val;)*};}
+macro_rules! decl {{$($name:ident = $val:expr ),*} => {$(let $name = $val;)*}}
 
 #[macro_export]
-macro_rules! decl_mut {{$($name:ident = $val:expr ),*} => {$(let mut $name = $val;)*};}
+macro_rules! decl_mut {{$($name:ident = $val:expr ),*} => {$(let mut $name = $val;)*}}
 
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
@@ -75,22 +75,25 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
 }
 
 fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
-    decl_mut!(token = 0, times = [0, 0], mtg = None, alloc = 1000);
+    decl_mut!(token = 0, times = [0, 0], mtg = None, alloc = 1000, incs = [0, 0]);
     const COMMANDS: [&str; 7] = ["go", "movetime", "wtime", "btime", "movestogo", "winc", "binc"];
-    for command in commands {
-        if let Some(x) = COMMANDS.iter().position(|&y| y == command) { token = x }
+    for cmd in commands {
+        if let Some(x) = COMMANDS.iter().position(|&y| y == cmd) { token = x }
         else {
             match token {
-                1 => alloc = command.parse::<i64>().unwrap(),
-                2 => times[0] = max(command.parse::<i64>().unwrap(), 0),
-                3 => times[1] = max(command.parse::<i64>().unwrap(), 0),
-                4 => mtg = Some(command.parse::<i64>().unwrap()),
+                1 => alloc = cmd.parse::<i64>().unwrap(),
+                2 => times[0] = max(cmd.parse::<i64>().unwrap(), 0),
+                3 => times[1] = max(cmd.parse::<i64>().unwrap(), 0),
+                4 => mtg = Some(cmd.parse::<i64>().unwrap()),
+                5 => incs[0] = max(cmd.parse::<i64>().unwrap(), 0),
+                6 => incs[1] = max(cmd.parse::<i64>().unwrap(), 0),
                 _ => {},
             }
         }
     }
-    let mytime = times[usize::from(eng.pos.c)];
-    if mytime != 0 { alloc = mytime / mtg.unwrap_or(2 * (eng.pos.phase as i64 + 1)) }
+    decl!(side = usize::from(eng.pos.c), mytime = times[side], myinc = incs[side]);
+    if mytime != 0 { alloc = mytime / mtg.unwrap_or(25) + 3 * myinc / 4 }
     eng.timing.1 = max(10, alloc - 10) as u128;
     go(eng);
 }
+

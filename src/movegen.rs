@@ -7,7 +7,7 @@ macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
         $bb &= $bb - 1;
         $func;
     }
-};}
+}}
 
 pub struct List<T> {
     pub list: [T; 252],
