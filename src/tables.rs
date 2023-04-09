@@ -15,7 +15,7 @@ pub struct HashTable(Vec<HashEntry>, usize);
 impl HashTable {
     pub fn resize(&mut self, mut size: usize) {
         size = 2usize.pow((size as f64).log2().floor() as u32);
-        self.1 = size * 1024 * 1024 / std::mem::size_of::<[HashEntry; 8]>();
+        self.1 = size * 1024 * 1024 / std::mem::size_of::<HashEntry>();
         self.0 = vec![Default::default(); self.1];
     }
 
