@@ -41,29 +41,25 @@ pub struct ZobristVals {
 #[inline(always)]
 pub fn batt(idx: usize, occ: u64) -> u64 {
     let m = BMASKS[idx];
-    decl_mut!(f = occ & m.right, r = f.swap_bytes());
+    decl_mut!(f = occ & m.right, r = f.swap_bytes(), f2 = occ & m.left);
     f -= m.bit;
     r -= m.file;
     f ^= r.swap_bytes();
-    f &= m.right;
-    let mut f2 = occ & m.left;
     r = f2.swap_bytes();
     f2 -= m.bit;
     r -= m.file;
     f2 ^= r.swap_bytes();
-    f2 &= m.left;
-    f | f2
+    (f & m.right) | (f2 & m.left)
 }
 
 #[inline(always)]
 pub fn ratt(idx: usize, occ: u64) -> u64 {
     let m = RMASKS[idx];
-    decl_mut!(f = occ & m.file, r = f.swap_bytes());
+    decl_mut!(f = occ & m.file, r = f.swap_bytes(), e = occ & m.right);
     f -= m.bit;
     r -= m.bit.swap_bytes();
     f ^= r.swap_bytes();
     f &= m.file;
-    let mut e = m.right & occ;
     r = e & e.wrapping_neg();
     e = (r ^ (r - m.bit)) & m.right;
     let w = m.left ^ WEST[(((m.left & occ)| 1).leading_zeros() ^ 63) as usize];

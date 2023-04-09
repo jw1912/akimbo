@@ -1,2 +1,2 @@
 [build]
-rustflags = ["-C", "target-feature=+popcnt,+avx2,+bmi2"]
+rustflags = ["-C", "target-feature=+avx2"]

@@ -165,11 +165,11 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         }
     }
 
-    // go through moves
     let mut moves = eng.pos.gen::<ALL>();
     let mut scores = eng.score(&moves, best_move);
-    decl_mut!(legal = 0, eval = -MAX, bound = UPPER, sline = Vec::new());
     let lmr = depth > 1 && eng.ply > 0 && !in_check;
+    decl_mut!(legal = 0, eval = -MAX, bound = UPPER, sline = Vec::new());
+
     eng.ply += 1;
     while let Some((r#move, mscore)) = moves.pick(&mut scores) {
         if eng.pos.r#do(r#move) { continue }
@@ -182,6 +182,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
             if pv_node { max(1, lmr - 1) } else { lmr }
         } else {0};
 
+        // pvs framework
         let score = if legal == 1 {
             -search(eng, -beta, -alpha, depth - 1, check, false, &mut sline)
         } else {
