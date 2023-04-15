@@ -153,7 +153,7 @@ pub const DIAGS: [u64; 15] = [
 ];
 pub static BMASKS: [Mask; 64] = init!(i,
     let bit = 1 << i;
-    Mask { bit, right: bit ^ DIAGS[(7 + (i & 7) - i / 8)], left: bit ^ DIAGS[((i & 7) + i / 8)].swap_bytes(), file: bit.swap_bytes() }
+    Mask { bit, right: bit ^ DIAGS[7 + (i & 7) - i / 8], left: bit ^ DIAGS[(i & 7) + i / 8].swap_bytes(), file: bit.swap_bytes() }
 );
 pub static RMASKS: [Mask; 64] = init!(i,
     let bit = 1 << i;
