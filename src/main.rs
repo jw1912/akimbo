@@ -1,4 +1,5 @@
 mod consts;
+mod eval;
 mod position;
 mod movegen;
 mod tables;
@@ -7,13 +8,7 @@ mod search;
 use consts::*;
 use position::{Move, Position};
 use search::{Engine, go};
-use std::{cmp::max, io::stdin, process, time::Instant};
-
-#[macro_export]
-macro_rules! decl {{$($name:ident = $val:expr ),*} => {$(let $name = $val;)*}}
-
-#[macro_export]
-macro_rules! decl_mut {{$($name:ident = $val:expr ),*} => {$(let mut $name = $val;)*}}
+use std::{cmp::{max, min}, io::stdin, process, time::Instant};
 
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
@@ -50,50 +45,50 @@ fn perft(pos: &mut Position, depth: u8) -> u64 {
     let mut positions = 0;
     for &m in &moves.list[0..moves.len] {
         if pos.r#do(m) { continue }
-        positions += if depth > 1 {perft(pos, depth - 1)} else {1};
+        positions += if depth > 1 { perft(pos, depth - 1) } else { 1 };
         pos.undo();
     }
     positions
 }
 
 fn parse_perft(pos: &mut Position, commands: &[&str]) {
-    decl!(depth = commands[1].parse().unwrap(), now = Instant::now(), count = perft(pos, depth), time = now.elapsed());
+    let (depth, now) = (commands[1].parse().unwrap(), Instant::now());
+    let count = perft(pos, depth);
+    let time = now.elapsed();
     println!("perft {depth} time {} nodes {count} ({:.2} Mnps)", time.as_millis(), count as f64 / time.as_micros() as f64);
 }
 
 fn parse_position(pos: &mut Position, commands: Vec<&str>) {
-    decl_mut!(fen = String::new(), move_list = Vec::new(), moves = false);
+    let (mut fen, mut move_list, mut moves) = (String::new(), Vec::new(), false);
     for cmd in commands {
         match cmd {
             "position" | "startpos" | "fen" => {}
             "moves" => moves = true,
-            _ => if moves { move_list.push(cmd.to_string()) } else { fen.push_str(format!("{cmd} ").as_str()) }
+            _ => if moves { move_list.push(cmd) } else { fen.push_str(format!("{cmd} ").as_str()) }
         }
     }
-    *pos = Position::from_fen(if fen.is_empty() {STARTPOS} else {&fen});
-    for m in move_list { pos.r#do(Move::from_uci(pos, &m)); }
+    *pos = Position::from_fen(if fen.is_empty() { STARTPOS } else { &fen });
+    for m in move_list { pos.r#do(Move::from_uci(pos, m)); }
 }
 
 fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
-    decl_mut!(token = 0, times = [0, 0], mtg = None, alloc = 1000, incs = [0, 0]);
-    const COMMANDS: [&str; 7] = ["go", "movetime", "wtime", "btime", "movestogo", "winc", "binc"];
+    let (mut token, mut times, mut mtg, mut alloc, mut incs) = (0, [0, 0], None, 1000, [0, 0]);
+    let tokens = ["go", "movetime", "wtime", "btime", "movestogo", "winc", "binc"];
     for cmd in commands {
-        if let Some(x) = COMMANDS.iter().position(|&y| y == cmd) { token = x }
-        else {
+        if let Some(x) = tokens.iter().position(|&y| y == cmd) { token = x }
+        else if let Ok(val) = cmd.parse::<i64>() {
             match token {
-                1 => alloc = cmd.parse::<i64>().unwrap(),
-                2 => times[0] = max(cmd.parse::<i64>().unwrap(), 0),
-                3 => times[1] = max(cmd.parse::<i64>().unwrap(), 0),
-                4 => mtg = Some(cmd.parse::<i64>().unwrap()),
-                5 => incs[0] = max(cmd.parse::<i64>().unwrap(), 0),
-                6 => incs[1] = max(cmd.parse::<i64>().unwrap(), 0),
+                1 => alloc = val,
+                2 | 3 => times[token - 2] = max(val, 0),
+                4 => mtg = Some(val),
+                5 | 6 => incs[token - 5] = max(val, 0),
                 _ => {},
             }
         }
     }
-    decl!(side = usize::from(eng.pos.c), mytime = times[side], myinc = incs[side]);
-    if mytime != 0 { alloc = mytime / mtg.unwrap_or(25) + 3 * myinc / 4 }
+    let side = usize::from(eng.pos.c);
+    let (mytime, myinc) = (times[side], incs[side]);
+    if mytime != 0 { alloc = min(mytime, mytime / mtg.unwrap_or(25) + 3 * myinc / 4) }
     eng.timing.1 = max(10, alloc - 10) as u128;
     go(eng);
 }
-

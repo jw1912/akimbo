@@ -1,5 +1,5 @@
 use std::{cmp::{max, min}, time::Instant};
-use super::{consts::*, decl_mut, position::{Move, Position}, movegen::{MoveList, ScoreList}, tables::{HashTable, HistoryTable, KillerTable}};
+use super::{consts::*, position::*, movegen::*, tables::*};
 
 pub struct Timer(Instant, pub u128);
 impl Default for Timer {
@@ -34,24 +34,25 @@ impl Engine {
         let mut scores = ScoreList::uninit();
         let killers = self.ktable.0[self.ply as usize];
         for &m in &moves.list[0..moves.len] {
-            scores.add({
+            scores.add(
                 if m == hash_move { HASH }
                 else if m.flag == ENP { 2 * MVV_LVA }
                 else if m.flag & 4 > 0 { self.mvv_lva(m) }
                 else if m.flag & 8 > 0 { PROMOTION + i16::from(m.flag & 7) }
                 else if killers.contains(&m) { KILLER }
                 else {self.htable.score(self.pos.c, m)}
-            })
+            );
         }
         scores
     }
 
     fn score_caps(&self, caps: &MoveList) -> ScoreList {
         let mut scores = ScoreList::uninit();
-        for i in 0..caps.len {scores.add(self.mvv_lva(caps.list[i]))}
+        for i in 0..caps.len { scores.add(self.mvv_lva(caps.list[i])) }
         scores
     }
 
+    #[inline]
     fn mvv_lva(&self, m: Move) -> i16 {
         MVV_LVA * self.pos.get_pc(1 << m.to) as i16 - m.mpc as i16
     }
@@ -119,22 +120,22 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     beta = min(beta, MAX - eng.ply - 1);
     if alpha >= beta { return alpha }
 
-    // check extensions
-    depth += i8::from(in_check);
+    // check extensions - not on root
+    depth += i8::from(in_check && eng.ply > 0);
 
+    // drop into quiescence search?
     if depth <= 0 || eng.ply == MAX_PLY { return qsearch(eng, alpha, beta) }
 
     eng.nodes += 1;
-    let pv_node = beta > alpha + 1;
-    let hash = eng.pos.hash();
-    decl_mut!(best_move = Move::default(), write = true);
+    let (pv_node, hash) = (beta > alpha + 1, eng.pos.hash());
+    let (mut best_move, mut write) = (Move::default(), true);
 
     // probing hash table
     if let Some(res) = eng.ttable.probe(hash, eng.ply) {
         write = depth > res.depth;
         best_move = Move::from_short(res.best_move, &eng.pos);
 
-        // hash score pruning
+        // hash score pruning?
         if !pv_node && res.depth >= depth && match res.bound {
             LOWER => res.score >= beta,
             UPPER => res.score <= alpha,
@@ -146,11 +147,11 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     if !pv_node && !in_check && beta.abs() < MATE {
         let eval = eng.pos.lazy_eval();
 
-        // reverse futility pruning
+        // reverse futility pruning?
         let margin = eval - 120 * i16::from(depth);
         if depth <= 8 && margin >= beta { return margin }
 
-        // null move pruning
+        // null move pruning?
         if null && depth >= 3 && eng.pos.phase >= 6 && eval >= beta {
             let r = 2 + depth / 3;
             eng.ply += 1;
@@ -158,17 +159,15 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
             let nw = -search(eng, -alpha - 1, -alpha, depth - r, false, false, &mut Vec::new());
             eng.pos.undo_null();
             eng.ply -= 1;
-            if nw >= beta {
-                if nw >= MATE { return beta }
-                return nw
-            }
+            if nw >= MATE { return beta }
+            if nw >= beta { return nw }
         }
     }
 
     let mut moves = eng.pos.gen::<ALL>();
     let mut scores = eng.score(&moves, best_move);
-    let lmr = depth > 1 && eng.ply > 0 && !in_check;
-    decl_mut!(legal = 0, eval = -MAX, bound = UPPER, sline = Vec::new());
+    let can_lmr = depth > 1 && eng.ply > 0 && !in_check;
+    let (mut legal, mut eval, mut bound, mut sline) = (0, -MAX, UPPER, Vec::new());
 
     eng.ply += 1;
     while let Some((r#move, mscore)) = moves.pick(&mut scores) {
@@ -177,7 +176,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         legal += 1;
 
         // late move reductions - Viridithas values used
-        let reduce = if lmr && !check && mscore < KILLER {
+        let reduce = if can_lmr && !check && mscore < KILLER {
             let lmr = (0.77 + f64::from(depth).ln() * f64::from(legal).ln() / 2.67) as i8;
             if pv_node { max(1, lmr - 1) } else { lmr }
         } else {0};
@@ -187,31 +186,37 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
             -search(eng, -beta, -alpha, depth - 1, check, false, &mut sline)
         } else {
             let zw = -search(eng, -alpha - 1, -alpha, depth - 1 - reduce, check, true, &mut sline);
-            if (pv_node || reduce > 0) && zw > alpha {
+            if zw > alpha && (pv_node || reduce > 0) {
                 -search(eng, -beta, -alpha, depth - 1, check, false, &mut sline)
             } else { zw }
         };
         eng.pos.undo();
 
-        if score > eval {
-            eval = score;
-            best_move = r#move;
-            if score > alpha {
-                alpha = score;
-                bound = EXACT;
-                line.clear();
-                line.push(r#move);
-                line.append(&mut sline);
-                if score >= beta {
-                    bound = LOWER;
-                    if r#move.flag < CAP {
-                        eng.ktable.push(r#move, eng.ply);
-                        eng.htable.push(r#move, eng.pos.c, depth);
-                    }
-                    break
-                }
-            }
-        }
+        // best move so far?
+        if score <= eval { continue }
+        eval = score;
+        best_move = r#move;
+
+        // update pv line
+        line.clear();
+        line.push(r#move);
+        line.append(&mut sline);
+
+        // improve alpha?
+        if score <= alpha { continue }
+        alpha = score;
+        bound = EXACT;
+
+        // beta cutoff?
+        if score < beta { continue }
+        bound = LOWER;
+
+        // quiet cutoffs pushed to tables
+        if r#move.flag >= CAP { break }
+        eng.ktable.push(r#move, eng.ply);
+        eng.htable.push(r#move, eng.pos.c, depth);
+
+        break
     }
     eng.ply -= 1;
 
