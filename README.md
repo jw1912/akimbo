@@ -14,7 +14,7 @@ As a result writing idiomatic Rust is not an aim of this project.
 | :---------------------------------------------------------------:|:--------------------:|:----:|:----:|:----------:|:----------:|
 | [0.1.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.1.1) |    8th January 2023  | 1167 | 1381 |    n/a     |    2471    |
 | [0.2.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.2.0) |   10th   April 2023  |  866 | 1000 |    n/a     |     n/a    |
-|                             dev                                  |          n/a         |  855 |  988 |    n/a     |     n/a    |
+|                             dev                                  |          n/a         |  851 |  991 |    n/a     |     n/a    |
 
 ## Features
 

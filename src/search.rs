@@ -193,25 +193,29 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         };
         eng.pos.undo();
 
-        if score > eval {
-            eval = score;
-            best_move = r#move;
-            if score > alpha {
-                alpha = score;
-                bound = EXACT;
-                line.clear();
-                line.push(r#move);
-                line.append(&mut sline);
-                if score >= beta {
-                    bound = LOWER;
-                    if r#move.flag < CAP {
-                        eng.ktable.push(r#move, eng.ply);
-                        eng.htable.push(r#move, eng.pos.c, depth);
-                    }
-                    break
-                }
-            }
+        // best move so far?
+        if score <= eval { continue }
+        eval = score;
+        best_move = r#move;
+
+        // update pv line
+        line.clear();
+        line.push(r#move);
+        line.append(&mut sline);
+
+        // improve alpha?
+        if score <= alpha { continue }
+        alpha = score;
+        bound = EXACT;
+
+        // beta cutoff?
+        if score < beta { continue }
+        bound = LOWER;
+        if r#move.flag < CAP {
+            eng.ktable.push(r#move, eng.ply);
+            eng.htable.push(r#move, eng.pos.c, depth);
         }
+        break
     }
     eng.ply -= 1;
 
