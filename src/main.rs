@@ -7,7 +7,7 @@ mod search;
 use consts::*;
 use position::{Move, Position};
 use search::{Engine, go};
-use std::{cmp::max, io::stdin, process, time::Instant};
+use std::{cmp::{max, min}, io::stdin, process, time::Instant};
 
 #[macro_export]
 macro_rules! decl {{$($name:ident = $val:expr ),*} => {$(let $name = $val;)*}}
@@ -76,24 +76,21 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
 
 fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
     decl_mut!(token = 0, times = [0, 0], mtg = None, alloc = 1000, incs = [0, 0]);
-    const COMMANDS: [&str; 7] = ["go", "movetime", "wtime", "btime", "movestogo", "winc", "binc"];
+    let tokens = ["go", "movetime", "wtime", "btime", "movestogo", "winc", "binc"];
     for cmd in commands {
-        if let Some(x) = COMMANDS.iter().position(|&y| y == cmd) { token = x }
-        else {
+        if let Some(x) = tokens.iter().position(|&y| y == cmd) { token = x }
+        else if let Ok(val) = cmd.parse::<i64>() {
             match token {
-                1 => alloc = cmd.parse::<i64>().unwrap(),
-                2 => times[0] = max(cmd.parse::<i64>().unwrap(), 0),
-                3 => times[1] = max(cmd.parse::<i64>().unwrap(), 0),
-                4 => mtg = Some(cmd.parse::<i64>().unwrap()),
-                5 => incs[0] = max(cmd.parse::<i64>().unwrap(), 0),
-                6 => incs[1] = max(cmd.parse::<i64>().unwrap(), 0),
+                1 => alloc = val,
+                2 | 3 => times[token - 2] = max(val, 0),
+                4 => mtg = Some(val),
+                5 | 6 => incs[token - 5] = max(val, 0),
                 _ => {},
             }
         }
     }
     decl!(side = usize::from(eng.pos.c), mytime = times[side], myinc = incs[side]);
-    if mytime != 0 { alloc = mytime / mtg.unwrap_or(25) + 3 * myinc / 4 }
+    if mytime != 0 { alloc = min(mytime, mytime / mtg.unwrap_or(25) + 3 * myinc / 4) }
     eng.timing.1 = max(10, alloc - 10) as u128;
     go(eng);
 }
-
