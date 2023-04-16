@@ -92,13 +92,13 @@ impl Position {
         hash
     }
 
-    #[inline(always)]
+    #[inline]
     fn toggle(&mut self, c: usize, pc: usize, bit: u64) {
         self.bb[pc] ^= bit;
         self.bb[c] ^= bit;
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn is_sq_att(&self, idx: usize, side: usize, occ: u64) -> bool {
         let s = self.bb[side ^ 1];
            (NATT[idx] & self.bb[N] & s > 0)
@@ -108,7 +108,7 @@ impl Position {
         || (batt(idx, occ) & ((self.bb[B] | self.bb[Q]) & s) > 0)
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn get_pc(&self, bit: u64) -> usize {
         usize::from((self.bb[N] | self.bb[R] | self.bb[K]) & bit > 0)
         | (2 * usize::from((self.bb[N] | self.bb[P] | self.bb[Q] | self.bb[K]) & bit > 0))
@@ -135,7 +135,6 @@ impl Position {
         self.r#move::<false>(ctx.1, usize::from(!self.c), ctx.2 as usize);
     }
 
-    #[inline(always)]
     fn r#move<const DO: bool>(&mut self, m: Move, side: usize, cpc: usize) {
         decl!(sign = SIDE[usize::from(!DO)], psign = SIDE[side], flip = 56 * (side ^ 1));
         decl!(f = 1 << m.from, t = 1 << m.to, mpc = usize::from(m.mpc));
