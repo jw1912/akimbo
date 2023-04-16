@@ -60,9 +60,8 @@ pub fn ratt(idx: usize, occ: u64) -> u64 {
     r -= m.bit.swap_bytes();
     f ^= r.swap_bytes();
     f &= m.file;
-    let file = idx & 7;
-    let shift = idx - file;
-    r = RANKS[file][((occ >> (shift + 1)) & 0x3F) as usize] << shift;
+    decl!(i = idx & 7, s = idx - i);
+    r = RANKS[i][((occ >> (s + 1)) & 0x3F) as usize] << s;
     f | r
 }
 
