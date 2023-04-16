@@ -40,29 +40,21 @@ pub struct ZobristVals {
 
 #[inline(always)]
 pub fn batt(idx: usize, occ: u64) -> u64 {
-    let m = MASKS[idx];
-    decl_mut!(f = occ & m.diag, r = f.swap_bytes(), f2 = occ & m.anti);
-    f -= m.bit;
-    r -= m.bit.swap_bytes();
-    f ^= r.swap_bytes();
-    r = f2.swap_bytes();
+    decl!(m = MASKS[idx], rb = m.bit.swap_bytes());
+    decl_mut!(f1 = occ & m.diag, f2 = occ & m.anti);
+    decl!(r1 = f1.swap_bytes() - rb, r2 = f2.swap_bytes() - rb);
+    f1 -= m.bit;
     f2 -= m.bit;
-    r -= m.bit.swap_bytes();
-    f2 ^= r.swap_bytes();
-    (f & m.diag) | (f2 & m.anti)
+    ((f1 ^ r1.swap_bytes()) & m.diag) | ((f2 ^ r2.swap_bytes()) & m.anti)
 }
 
 #[inline(always)]
 pub fn ratt(idx: usize, occ: u64) -> u64 {
     let m = MASKS[idx];
-    decl_mut!(f = occ & m.file, r = f.swap_bytes());
+    let mut f = occ & m.file;
+    decl!(i = idx & 7, s = idx - i, r = f.swap_bytes() - m.bit.swap_bytes());
     f -= m.bit;
-    r -= m.bit.swap_bytes();
-    f ^= r.swap_bytes();
-    f &= m.file;
-    decl!(i = idx & 7, s = idx - i);
-    r = RANKS[i][((occ >> (s + 1)) & 0x3F) as usize] << s;
-    f | r
+    ((f ^ r.swap_bytes()) & m.file) | (RANKS[i][((occ >> (s + 1)) & 0x3F) as usize] << s)
 }
 
 impl Position {
