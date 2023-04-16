@@ -145,8 +145,8 @@ pub static KATT: [u64; 64] = init!(i, 64, {
 });
 
 // Slider attacks
-const EAST: [u64; 64] = init!(i, 64, (1 << i) ^ WEST[i] ^ (0xFF << (i & 56)));
-const WEST: [u64; 64] = init!(i, 64, ((1 << i) - 1) & (0xFF << (i & 56)));
+const EA: [u64; 64] = init!(i, 64, (1 << i) ^ WE[i] ^ (0xFF << (i & 56)));
+const WE: [u64; 64] = init!(i, 64, ((1 << i) - 1) & (0xFF << (i & 56)));
 pub const DIAGS: [u64; 15] = [
     0x0100000000000000, 0x0201000000000000, 0x0402010000000000, 0x0804020100000000, 0x1008040201000000,
     0x2010080402010000, 0x4020100804020100, 0x8040201008040201, 0x0080402010080402, 0x0000804020100804,
@@ -156,22 +156,10 @@ pub static MASKS: [Mask; 64] = init!(i, 64,
     let bit = 1 << i;
     Mask { bit, diag: bit ^ DIAGS[7 + (i & 7) - i / 8], anti: bit ^ DIAGS[(i & 7) + i / 8].swap_bytes(), file: bit ^ FILE << (i & 7) }
 );
-pub const RANKS: [[u64; 64]; 8] = {
-    let mut ret = [[0; 64]; 8];
-    let mut f = 0;
-    while f < 8 {
-        let mut i = 0;
-        while i < 64 {
-            let occ = (i << 1) as u64;
-            let e = EAST[f] ^ EAST[((EAST[f] & occ) | (1 << 63)).trailing_zeros() as usize];
-            let w = WEST[f] ^ WEST[(((WEST[f] & occ) | 1).leading_zeros() ^ 63) as usize];
-            ret[f][i] = e | w;
-            i += 1;
-        }
-        f += 1;
-    }
-    ret
-};
+pub const RANKS: [[u64; 64]; 8] = init!(f, 8, init!(i, 64, {
+    let occ = (i << 1) as u64;
+    EA[f] ^ EA[((EA[f] & occ) | (1 << 63)).trailing_zeros() as usize] | WE[f] ^ WE[(((WE[f] & occ) | 1).leading_zeros() ^ 63) as usize]
+}));
 
 // Draw detection
 consts!(u64, LSQ = 0x55AA55AA55AA55AA, DSQ = 0xAA55AA55AA55AA55);
