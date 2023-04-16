@@ -50,7 +50,7 @@ fn perft(pos: &mut Position, depth: u8) -> u64 {
     let mut positions = 0;
     for &m in &moves.list[0..moves.len] {
         if pos.r#do(m) { continue }
-        positions += if depth > 1 {perft(pos, depth - 1)} else {1};
+        positions += if depth > 1 { perft(pos, depth - 1) } else { 1 };
         pos.undo();
     }
     positions
@@ -67,11 +67,11 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
         match cmd {
             "position" | "startpos" | "fen" => {}
             "moves" => moves = true,
-            _ => if moves { move_list.push(cmd.to_string()) } else { fen.push_str(format!("{cmd} ").as_str()) }
+            _ => if moves { move_list.push(cmd) } else { fen.push_str(format!("{cmd} ").as_str()) }
         }
     }
-    *pos = Position::from_fen(if fen.is_empty() {STARTPOS} else {&fen});
-    for m in move_list { pos.r#do(Move::from_uci(pos, &m)); }
+    *pos = Position::from_fen(if fen.is_empty() { STARTPOS } else { &fen });
+    for m in move_list { pos.r#do(Move::from_uci(pos, m)); }
 }
 
 fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
