@@ -34,24 +34,25 @@ impl Engine {
         let mut scores = ScoreList::uninit();
         let killers = self.ktable.0[self.ply as usize];
         for &m in &moves.list[0..moves.len] {
-            scores.add({
+            scores.add(
                 if m == hash_move { HASH }
                 else if m.flag == ENP { 2 * MVV_LVA }
                 else if m.flag & 4 > 0 { self.mvv_lva(m) }
                 else if m.flag & 8 > 0 { PROMOTION + i16::from(m.flag & 7) }
                 else if killers.contains(&m) { KILLER }
                 else {self.htable.score(self.pos.c, m)}
-            })
+            );
         }
         scores
     }
 
     fn score_caps(&self, caps: &MoveList) -> ScoreList {
         let mut scores = ScoreList::uninit();
-        for i in 0..caps.len {scores.add(self.mvv_lva(caps.list[i]))}
+        for i in 0..caps.len { scores.add(self.mvv_lva(caps.list[i])) }
         scores
     }
 
+    #[inline]
     fn mvv_lva(&self, m: Move) -> i16 {
         MVV_LVA * self.pos.get_pc(1 << m.to) as i16 - m.mpc as i16
     }
@@ -122,6 +123,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     // check extensions
     depth += i8::from(in_check);
 
+    // drop into quiescence search?
     if depth <= 0 || eng.ply == MAX_PLY { return qsearch(eng, alpha, beta) }
 
     eng.nodes += 1;
@@ -134,7 +136,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         write = depth > res.depth;
         best_move = Move::from_short(res.best_move, &eng.pos);
 
-        // hash score pruning
+        // hash score pruning?
         if !pv_node && res.depth >= depth && match res.bound {
             LOWER => res.score >= beta,
             UPPER => res.score <= alpha,
@@ -146,11 +148,11 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     if !pv_node && !in_check && beta.abs() < MATE {
         let eval = eng.pos.lazy_eval();
 
-        // reverse futility pruning
+        // reverse futility pruning?
         let margin = eval - 120 * i16::from(depth);
         if depth <= 8 && margin >= beta { return margin }
 
-        // null move pruning
+        // null move pruning?
         if null && depth >= 3 && eng.pos.phase >= 6 && eval >= beta {
             let r = 2 + depth / 3;
             eng.ply += 1;
@@ -158,10 +160,8 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
             let nw = -search(eng, -alpha - 1, -alpha, depth - r, false, false, &mut Vec::new());
             eng.pos.undo_null();
             eng.ply -= 1;
-            if nw >= beta {
-                if nw >= MATE { return beta }
-                return nw
-            }
+            if nw >= MATE { return beta }
+            if nw >= beta { return nw }
         }
     }
 
@@ -211,10 +211,12 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         // beta cutoff?
         if score < beta { continue }
         bound = LOWER;
-        if r#move.flag < CAP {
-            eng.ktable.push(r#move, eng.ply);
-            eng.htable.push(r#move, eng.pos.c, depth);
-        }
+
+        // quiet cutoffs pushed to tables
+        if r#move.flag >= CAP { break }
+        eng.ktable.push(r#move, eng.ply);
+        eng.htable.push(r#move, eng.pos.c, depth);
+
         break
     }
     eng.ply -= 1;

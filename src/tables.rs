@@ -24,21 +24,17 @@ impl HashTable {
     }
 
     pub fn push(&mut self, hash: u64, m: Move, depth: i8, bound: u8, mut score: i16, ply: i16) {
-        decl!(key = (hash >> 48) as u16, idx = (hash as usize) & (self.1- 1), old = self.0[idx]);
-        if key != old.key || depth >= old.depth {
-            score += if score > MATE {ply} else if score < -MATE {-ply} else {0};
-            let best_move = (m.from as u16) << 6 | m.to as u16 | (m.flag as u16) << 12;
-            self.0[idx] = HashEntry { key, best_move, score, depth, bound };
-        }
+        decl!(key = (hash >> 48) as u16, idx = (hash as usize) & (self.1- 1));
+        score += if score.abs() > MATE {score.signum() * ply} else {0};
+        let best_move = (m.from as u16) << 6 | m.to as u16 | (m.flag as u16) << 12;
+        self.0[idx] = HashEntry { key, best_move, score, depth, bound };
     }
 
     pub fn probe(&self, hash: u64, ply: i16) -> Option<HashEntry> {
         let mut entry = self.0[(hash as usize) & (self.1- 1)];
-        if entry.key == (hash >> 48) as u16 {
-            entry.score += if entry.score > MATE {-ply} else if entry.score < -MATE {ply} else {0};
-            return Some(entry)
-        }
-        None
+        if entry.key != (hash >> 48) as u16 { return None }
+        entry.score -= if entry.score.abs() > MATE {entry.score.signum() * ply} else {0};
+        Some(entry)
     }
 }
 
