@@ -1,5 +1,4 @@
 use super::{consts::*, decl, decl_mut, position::{Position, Move, ratt, batt}};
-use std::mem::MaybeUninit;
 
 macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
     while $bb > 0 {
@@ -20,7 +19,7 @@ pub type ScoreList = List<i16>;
 impl<T> List<T> {
     pub fn uninit() -> Self {
         #[allow(clippy::uninit_assumed_init, invalid_value)]
-        Self { list: unsafe { MaybeUninit::uninit().assume_init() }, len: 0 }
+        Self { list: unsafe { std::mem::MaybeUninit::uninit().assume_init() }, len: 0 }
     }
 
     #[inline]

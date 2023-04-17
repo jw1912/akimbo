@@ -1,5 +1,5 @@
 use std::{cmp::{max, min}, time::Instant};
-use super::{consts::*, decl_mut, position::{Move, Position}, movegen::{MoveList, ScoreList}, tables::{HashTable, HistoryTable, KillerTable}};
+use super::{consts::*, decl_mut, position::*, movegen::*, tables::*};
 
 pub struct Timer(Instant, pub u128);
 impl Default for Timer {
