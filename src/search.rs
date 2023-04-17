@@ -120,8 +120,8 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     beta = min(beta, MAX - eng.ply - 1);
     if alpha >= beta { return alpha }
 
-    // check extensions
-    depth += i8::from(in_check);
+    // check extensions - not on root
+    depth += i8::from(in_check && eng.ply > 0);
 
     // drop into quiescence search?
     if depth <= 0 || eng.ply == MAX_PLY { return qsearch(eng, alpha, beta) }

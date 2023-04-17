@@ -1,4 +1,4 @@
-use super::{consts::*, decl, decl_mut};
+use super::{consts::*, decl, decl_mut, eval::*};
 
 #[derive(Clone, Copy, Default)]
 pub struct State {
@@ -9,7 +9,6 @@ pub struct State {
     pub cr: u8,
 }
 
-#[derive(Clone, Copy)]
 pub struct MoveCtx(State, Move, u8);
 
 #[derive(Default)]

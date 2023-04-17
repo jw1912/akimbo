@@ -1,4 +1,5 @@
 mod consts;
+mod eval;
 mod position;
 mod movegen;
 mod tables;
