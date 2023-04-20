@@ -1,5 +1,5 @@
 use std::{cmp::{max, min}, time::Instant};
-use super::{consts::*, decl_mut, position::*, movegen::*, tables::*};
+use super::{consts::*, position::*, movegen::*, tables::*};
 
 pub struct Timer(Instant, pub u128);
 impl Default for Timer {
@@ -127,9 +127,8 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     if depth <= 0 || eng.ply == MAX_PLY { return qsearch(eng, alpha, beta) }
 
     eng.nodes += 1;
-    let pv_node = beta > alpha + 1;
-    let hash = eng.pos.hash();
-    decl_mut!(best_move = Move::default(), write = true);
+    let (pv_node, hash) = (beta > alpha + 1, eng.pos.hash());
+    let (mut best_move, mut write) = (Move::default(), true);
 
     // probing hash table
     if let Some(res) = eng.ttable.probe(hash, eng.ply) {
@@ -168,7 +167,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
     let mut moves = eng.pos.gen::<ALL>();
     let mut scores = eng.score(&moves, best_move);
     let lmr = depth > 1 && eng.ply > 0 && !in_check;
-    decl_mut!(legal = 0, eval = -MAX, bound = UPPER, sline = Vec::new());
+    let (mut legal, mut eval, mut bound, mut sline) = (0, -MAX, UPPER, Vec::new());
 
     eng.ply += 1;
     while let Some((r#move, mscore)) = moves.pick(&mut scores) {

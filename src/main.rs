@@ -10,12 +10,6 @@ use position::{Move, Position};
 use search::{Engine, go};
 use std::{cmp::{max, min}, io::stdin, process, time::Instant};
 
-#[macro_export]
-macro_rules! decl {{$($name:ident = $val:expr ),*} => {$(let $name = $val;)*}}
-
-#[macro_export]
-macro_rules! decl_mut {{$($name:ident = $val:expr ),*} => {$(let mut $name = $val;)*}}
-
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
     let mut eng = Engine::default();
@@ -58,12 +52,14 @@ fn perft(pos: &mut Position, depth: u8) -> u64 {
 }
 
 fn parse_perft(pos: &mut Position, commands: &[&str]) {
-    decl!(depth = commands[1].parse().unwrap(), now = Instant::now(), count = perft(pos, depth), time = now.elapsed());
+    let (depth, now) = (commands[1].parse().unwrap(), Instant::now());
+    let count = perft(pos, depth);
+    let time = now.elapsed();
     println!("perft {depth} time {} nodes {count} ({:.2} Mnps)", time.as_millis(), count as f64 / time.as_micros() as f64);
 }
 
 fn parse_position(pos: &mut Position, commands: Vec<&str>) {
-    decl_mut!(fen = String::new(), move_list = Vec::new(), moves = false);
+    let (mut fen, mut move_list, mut moves) = (String::new(), Vec::new(), false);
     for cmd in commands {
         match cmd {
             "position" | "startpos" | "fen" => {}
@@ -76,7 +72,7 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
 }
 
 fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
-    decl_mut!(token = 0, times = [0, 0], mtg = None, alloc = 1000, incs = [0, 0]);
+    let (mut token, mut times, mut mtg, mut alloc, mut incs) = (0, [0, 0], None, 1000, [0, 0]);
     let tokens = ["go", "movetime", "wtime", "btime", "movestogo", "winc", "binc"];
     for cmd in commands {
         if let Some(x) = tokens.iter().position(|&y| y == cmd) { token = x }
@@ -90,7 +86,8 @@ fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
             }
         }
     }
-    decl!(side = usize::from(eng.pos.c), mytime = times[side], myinc = incs[side]);
+    let side = usize::from(eng.pos.c);
+    let (mytime, myinc) = (times[side], incs[side]);
     if mytime != 0 { alloc = min(mytime, mytime / mtg.unwrap_or(25) + 3 * myinc / 4) }
     eng.timing.1 = max(10, alloc - 10) as u128;
     go(eng);

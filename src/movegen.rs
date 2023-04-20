@@ -1,4 +1,4 @@
-use super::{consts::*, decl, decl_mut, position::{Position, Move, ratt, batt}};
+use super::{consts::*, position::{Position, Move, ratt, batt}};
 
 macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
     while $bb > 0 {
@@ -36,7 +36,7 @@ impl MoveList {
 
     pub fn pick(&mut self, scores: &mut ScoreList) -> Option<(Move, i16)> {
         if scores.len == 0 { return None }
-        decl_mut!(idx = 0, best = i16::MIN);
+        let (mut idx, mut best) = (0, i16::MIN);
         for i in 0..scores.len {
             let score = scores.list[i];
             if score > best {
@@ -59,8 +59,9 @@ fn encode<const PC: usize, const FLAG: u8>(moves: &mut MoveList, mut attacks: u6
 impl Position {
     pub fn gen<const QUIETS: bool>(&self) -> MoveList {
         let mut moves = MoveList::uninit();
-        decl!(side = usize::from(self.c), occ = self.bb[0] | self.bb[1]);
-        decl!(boys = self.bb[side], opps = self.bb[side ^ 1], pawns = self.bb[P] & boys);
+        let (side, occ) = (usize::from(self.c), self.bb[0] | self.bb[1]);
+        let (boys, opps) = (self.bb[side], self.bb[side ^ 1]);
+        let pawns = self.bb[P] & boys;
         if QUIETS {
             if self.state.cr & CS[side] > 0 && !self.in_check() {self.castles(&mut moves, occ)}
             if side == WH {pushes::<WH>(&mut moves, !occ, pawns)} else {pushes::<BL>(&mut moves, !occ, pawns)}
@@ -102,7 +103,7 @@ fn pc_moves<const PC: usize, const QUIETS: bool>(moves: &mut MoveList, occ: u64,
 }
 
 fn pawn_caps(moves: &mut MoveList, pawns: u64, opps: u64, c: usize) {
-    decl_mut!(attackers = pawns & !PENRANK[c], promo = pawns & PENRANK[c]);
+    let (mut attackers, mut promo) = (pawns & !PENRANK[c], pawns & PENRANK[c]);
     bitloop!(attackers, from, encode::<P, CAP>(moves, PATT[c][from as usize] & opps, from));
     bitloop!(promo, from, {
         let mut attacks = PATT[c][from as usize] & opps;
@@ -125,7 +126,8 @@ fn idx_shift<const SIDE: usize, const AMOUNT: u8>(idx: u8) -> u8 {
 
 fn pushes<const SIDE: usize>(moves: &mut MoveList, empty: u64, pawns: u64) {
     let mut dbl = shift::<SIDE>(shift::<SIDE>(empty & DBLRANK[SIDE]) & empty) & pawns;
-    decl_mut!(push = shift::<SIDE>(empty) & pawns, promo = push & PENRANK[SIDE]);
+    let mut push = shift::<SIDE>(empty) & pawns;
+    let mut promo = push & PENRANK[SIDE];
     push &= !PENRANK[SIDE];
     bitloop!(push, from, moves.push(from, idx_shift::<SIDE, 8>(from), QUIET, P));
     bitloop!(promo, from, for flag in NPR..=QPR {moves.push(from, idx_shift::<SIDE, 8>(from), flag, P)});

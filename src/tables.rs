@@ -1,4 +1,4 @@
-use crate::{consts::*, position::Move, decl};
+use crate::{consts::*, position::Move};
 
 #[derive(Clone, Copy, Default)]
 pub struct HashEntry {
@@ -24,7 +24,7 @@ impl HashTable {
     }
 
     pub fn push(&mut self, hash: u64, m: Move, depth: i8, bound: u8, mut score: i16, ply: i16) {
-        decl!(key = (hash >> 48) as u16, idx = (hash as usize) & (self.1- 1));
+        let (key, idx) = ((hash >> 48) as u16, (hash as usize) & (self.1- 1));
         score += if score.abs() > MATE {score.signum() * ply} else {0};
         let best_move = (m.from as u16) << 6 | m.to as u16 | (m.flag as u16) << 12;
         self.0[idx] = HashEntry { key, best_move, score, depth, bound };
