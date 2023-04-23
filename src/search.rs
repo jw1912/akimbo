@@ -1,4 +1,4 @@
-use std::{cmp::{max, min}, time::Instant};
+use std::time::Instant;
 use super::{consts::*, position::*, movegen::*, tables::*};
 
 pub struct Timer(Instant, pub u128);
@@ -100,15 +100,15 @@ fn qsearch(pos: &Position, eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
     eng.qnodes += 1;
     let mut eval = pos.lazy_eval();
     if eval >= beta { return eval }
-    alpha = max(alpha, eval);
+    alpha = alpha.max(eval);
     let mut caps = pos.gen::<CAPTURES>();
     let mut scores = eng.score_caps(&caps, pos);
     while let Some((r#move, _)) = caps.pick(&mut scores) {
         let mut new_pos = *pos;
         if new_pos.make(r#move, &eng.zvals) { continue }
-        eval = max(eval, -qsearch(&new_pos, eng, -beta, -alpha));
+        eval = eval.max(-qsearch(&new_pos, eng, -beta, -alpha));
         if eval >= beta { break }
-        alpha = max(alpha, eval);
+        alpha = alpha.max(eval);
     }
     eval
 }
@@ -125,8 +125,8 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     if pos.hfm >= 100 || pos.mat_draw() || eng.rep_draw(pos) { return 0 }
 
     // mate distance pruning
-    alpha = max(alpha, -MAX + eng.ply);
-    beta = min(beta, MAX - eng.ply - 1);
+    alpha = alpha.max(-MAX + eng.ply);
+    beta = beta.min(MAX - eng.ply - 1);
     if alpha >= beta { return alpha }
 
     // check extensions - not on root
@@ -192,7 +192,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
         // late move reductions - Viridithas values used
         let reduce = if can_lmr && !check && mscore < KILLER {
             let lmr = (0.77 + f64::from(depth).ln() * f64::from(legal).ln() / 2.67) as i8;
-            if pv_node { max(1, lmr - 1) } else { lmr }
+            if pv_node { 1.max(lmr - 1) } else { lmr }
         } else {0};
 
         // pvs framework

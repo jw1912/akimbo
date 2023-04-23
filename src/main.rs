@@ -8,7 +8,7 @@ mod search;
 use consts::*;
 use position::{Move, Position, ZobristVals};
 use search::{Engine, go};
-use std::{cmp::{max, min}, io::stdin, process, time::Instant};
+use std::{io::stdin, process, time::Instant};
 
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
@@ -79,16 +79,16 @@ fn parse_go(pos: &Position, eng: &mut Engine, commands: Vec<&str>) {
         else if let Ok(val) = cmd.parse::<i64>() {
             match token {
                 1 => alloc = val,
-                2 | 3 => times[token - 2] = max(val, 0),
+                2 | 3 => times[token - 2] = val.max(0),
                 4 => mtg = Some(val),
-                5 | 6 => incs[token - 5] = max(val, 0),
+                5 | 6 => incs[token - 5] = val.max(0),
                 _ => {},
             }
         }
     }
     let side = usize::from(pos.c);
     let (mytime, myinc) = (times[side], incs[side]);
-    if mytime != 0 { alloc = min(mytime, mytime / mtg.unwrap_or(25) + 3 * myinc / 4) }
-    eng.timing.1 = max(10, alloc - 10) as u128;
+    if mytime != 0 { alloc = mytime.min(mytime / mtg.unwrap_or(25) + 3 * myinc / 4) }
+    eng.timing.1 = 10.max(alloc - 10) as u128;
     go(pos, eng);
 }

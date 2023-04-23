@@ -112,6 +112,7 @@ impl Position {
 
     pub fn make(&mut self, m: Move, zvals: &ZobristVals) -> bool {
         let (f, t, mpc) = (1 << m.from, 1 << m.to, usize::from(m.mpc));
+        let (to, from) = (usize::from(m.to), usize::from(m.from));
         let cpc = if m.flag & CAP == 0 || m.flag == ENP {E} else {self.get_pc(t)};
         let side = usize::from(self.c);
         let (sign, flip) = (SIDE[side], 56 * (side ^ 1));
@@ -122,15 +123,15 @@ impl Position {
         self.hfm = u8::from(m.mpc > P as u8 && m.flag != CAP) * (self.hfm + 1);
         self.c = !self.c;
         self.toggle(side, mpc, f | t);
-        self.hash ^= zvals.pcs[side][mpc][usize::from(m.from)] ^ zvals.pcs[side][mpc][usize::from(m.to)];
-        self.pst += sign * PST[mpc][usize::from(m.to) ^ flip];
-        self.pst += -sign * PST[mpc][usize::from(m.from) ^ flip];
+        self.hash ^= zvals.pcs[side][mpc][from] ^ zvals.pcs[side][mpc][to];
+        self.pst += sign * PST[mpc][to ^ flip];
+        self.pst += -sign * PST[mpc][from ^ flip];
 
         // captures
         if cpc != E {
             self.toggle(side ^ 1, cpc, t);
-            self.hash ^= zvals.pcs[side ^ 1][cpc][usize::from(m.to)];
-            self.pst += sign * PST[cpc][usize::from(m.to) ^ (56 * side)];
+            self.hash ^= zvals.pcs[side ^ 1][cpc][to];
+            self.pst += sign * PST[cpc][to ^ (56 * side)];
             self.phase -= PHASE_VALS[cpc];
         }
 
@@ -153,9 +154,9 @@ impl Position {
                 let ppc = usize::from((m.flag & 3) + 3);
                 self.bb[P] ^= t;
                 self.bb[ppc] ^= t;
-                self.hash ^= zvals.pcs[side][P][usize::from(m.to)] ^ zvals.pcs[side][ppc][usize::from(m.to)];
-                self.pst += -sign * PST[P][usize::from(m.to) ^ flip];
-                self.pst += sign * PST[ppc][usize::from(m.to) ^ flip];
+                self.hash ^= zvals.pcs[side][P][to] ^ zvals.pcs[side][ppc][to];
+                self.pst += -sign * PST[P][to ^ flip];
+                self.pst += sign * PST[ppc][to ^ flip];
                 self.phase += PHASE_VALS[ppc];
             }
             _ => {}
