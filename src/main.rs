@@ -45,7 +45,7 @@ fn perft(pos: &Position, depth: u8, zvals: &ZobristVals) -> u64 {
     let mut positions = 0;
     for &m in &moves.list[0..moves.len] {
         let mut tmp = *pos;
-        if tmp.r#do(m, zvals) { continue }
+        if tmp.make(m, zvals) { continue }
         positions += if depth > 1 { perft(&tmp, depth - 1, zvals) } else { 1 };
     }
     positions
@@ -68,7 +68,7 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>, zvals: &ZobristVals) 
         }
     }
     *pos = Position::from_fen(if fen.is_empty() { STARTPOS } else { &fen }, zvals);
-    for m in move_list { pos.r#do(Move::from_uci(pos, m), zvals); }
+    for m in move_list { pos.make(Move::from_uci(pos, m), zvals); }
 }
 
 fn parse_go(pos: &Position, eng: &mut Engine, commands: Vec<&str>) {

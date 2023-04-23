@@ -110,7 +110,7 @@ impl Position {
         | (4 * usize::from((self.bb[B] | self.bb[R] | self.bb[Q] | self.bb[K]) & bit > 0))
     }
 
-    pub fn r#do(&mut self, m: Move, zvals: &ZobristVals) -> bool {
+    pub fn make(&mut self, m: Move, zvals: &ZobristVals) -> bool {
         let (f, t, mpc) = (1 << m.from, 1 << m.to, usize::from(m.mpc));
         let cpc = if m.flag & CAP == 0 || m.flag == ENP {E} else {self.get_pc(t)};
         let side = usize::from(self.c);

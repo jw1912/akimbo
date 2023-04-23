@@ -107,7 +107,7 @@ fn qsearch(pos: &Position, eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
     let mut scores = eng.score_caps(&caps, pos);
     while let Some((r#move, _)) = caps.pick(&mut scores) {
         let mut new_pos = *pos;
-        if new_pos.r#do(r#move, &eng.zvals) { continue }
+        if new_pos.make(r#move, &eng.zvals) { continue }
         eval = max(eval, -qsearch(&new_pos, eng, -beta, -alpha));
         if eval >= beta { break }
         alpha = max(alpha, eval);
@@ -188,7 +188,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     eng.stack.push(pos.hash);
     while let Some((r#move, mscore)) = moves.pick(&mut scores) {
         let mut new_pos = *pos;
-        if new_pos.r#do(r#move, &eng.zvals) { continue }
+        if new_pos.make(r#move, &eng.zvals) { continue }
         let check = new_pos.in_check();
         legal += 1;
 
