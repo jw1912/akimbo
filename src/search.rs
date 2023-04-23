@@ -10,7 +10,6 @@ impl Default for Timer {
 
 #[derive(Default)]
 pub struct Engine {
-    pub pos: Position,
     pub timing: Timer,
     pub ttable: HashTable,
     pub htable: Box<HistoryTable>,
@@ -75,11 +74,11 @@ impl Engine {
     }
 }
 
-pub fn go(eng: &mut Engine) {
+pub fn go(pos: &Position, eng: &mut Engine) {
     eng.reset();
     let mut best_move = Move::default();
-    let in_check: bool = eng.pos.in_check();
-    let pos = eng.pos;
+    let in_check: bool = pos.in_check();
+    let pos = pos;
 
     for d in 1..=64 {
         let mut pv_line = Vec::with_capacity(d as usize);
@@ -111,9 +110,9 @@ fn qsearch(pos: &Position, eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
     let mut caps = pos.gen::<CAPTURES>();
     let mut scores = eng.score_caps(&caps, pos);
     while let Some((r#move, _)) = caps.pick(&mut scores) {
-        let mut tmp = *pos;
-        if tmp.r#do(r#move, &eng.zvals) { continue }
-        eval = max(eval, -qsearch(&tmp, eng, -beta, -alpha));
+        let mut new_pos = *pos;
+        if new_pos.r#do(r#move, &eng.zvals) { continue }
+        eval = max(eval, -qsearch(&new_pos, eng, -beta, -alpha));
         if eval >= beta { break }
         alpha = max(alpha, eval);
     }
@@ -171,12 +170,12 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
 
         // null move pruning?
         if null && depth >= 3 && pos.phase >= 6 && eval >= beta {
-            let mut tmp = *pos;
+            let mut new_pos = *pos;
             let r = 2 + depth / 3;
             eng.ply += 1;
             eng.stack.push(pos.hash);
-            tmp.r#do_null();
-            let nw = -search(&tmp, eng, -alpha - 1, -alpha, depth - r, false, false, &mut Vec::new());
+            new_pos.r#do_null();
+            let nw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - r, false, false, &mut Vec::new());
             eng.stack.pop();
             eng.ply -= 1;
             if nw >= MATE { return beta }
@@ -192,9 +191,9 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     eng.ply += 1;
     eng.stack.push(pos.hash);
     while let Some((r#move, mscore)) = moves.pick(&mut scores) {
-        let mut tmp = *pos;
-        if tmp.r#do(r#move, &eng.zvals) { continue }
-        let check = tmp.in_check();
+        let mut new_pos = *pos;
+        if new_pos.r#do(r#move, &eng.zvals) { continue }
+        let check = new_pos.in_check();
         legal += 1;
 
         // late move reductions - Viridithas values used
@@ -205,11 +204,11 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
 
         // pvs framework
         let score = if legal == 1 {
-            -search(&tmp, eng, -beta, -alpha, depth - 1, check, false, &mut sline)
+            -search(&new_pos, eng, -beta, -alpha, depth - 1, check, false, &mut sline)
         } else {
-            let zw = -search(&tmp, eng, -alpha - 1, -alpha, depth - 1 - reduce, check, true, &mut sline);
+            let zw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - 1 - reduce, check, true, &mut sline);
             if zw > alpha && (pv_node || reduce > 0) {
-                -search(&tmp, eng, -beta, -alpha, depth - 1, check, false, &mut sline)
+                -search(&new_pos, eng, -beta, -alpha, depth - 1, check, false, &mut sline)
             } else { zw }
         };
 

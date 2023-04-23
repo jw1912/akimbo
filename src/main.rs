@@ -13,28 +13,28 @@ use std::{cmp::{max, min}, io::stdin, process, time::Instant};
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
     let mut eng = Engine::default();
-    eng.pos = Position::from_fen(STARTPOS, &eng.zvals);
+    let mut pos = Position::from_fen(STARTPOS, &eng.zvals);
     eng.ttable.resize(1);
     loop {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
-        parse_commands(input.split_whitespace().collect(), &mut eng)
+        parse_commands(input.split_whitespace().collect(), &mut pos, &mut eng);
     }
 }
 
-fn parse_commands(commands: Vec<&str>, eng: &mut Engine) {
+fn parse_commands(commands: Vec<&str>, pos: &mut Position, eng: &mut Engine) {
     match *commands.first().unwrap_or(&"oops") {
         "uci" => println!("id name {NAME} {VERSION}\nid author {AUTHOR}\noption name Hash type spin default 128 min 1 max 512\nuciok"),
         "isready" => println!("readyok"),
         "ucinewgame" => {
-            eng.pos = Position::from_fen(STARTPOS, &eng.zvals);
+            *pos = Position::from_fen(STARTPOS, &eng.zvals);
             eng.ttable.clear();
             *eng.htable = Default::default();
         },
         "setoption" => if let ["setoption", "name", "Hash", "value", x] = commands[..] {eng.ttable.resize(x.parse().unwrap())},
-        "go" => parse_go(eng, commands),
-        "position" => parse_position(&mut eng.pos, commands, &eng.zvals),
-        "perft" => parse_perft(&mut eng.pos, &commands, &eng.zvals),
+        "go" => parse_go(pos, eng, commands),
+        "position" => parse_position(pos, commands, &eng.zvals),
+        "perft" => parse_perft(pos, &commands, &eng.zvals),
         "quit" => process::exit(0),
         _ => {},
     }
@@ -71,7 +71,7 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>, zvals: &ZobristVals) 
     for m in move_list { pos.r#do(Move::from_uci(pos, m), zvals); }
 }
 
-fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
+fn parse_go(pos: &Position, eng: &mut Engine, commands: Vec<&str>) {
     let (mut token, mut times, mut mtg, mut alloc, mut incs) = (0, [0, 0], None, 1000, [0, 0]);
     let tokens = ["go", "movetime", "wtime", "btime", "movestogo", "winc", "binc"];
     for cmd in commands {
@@ -86,9 +86,9 @@ fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
             }
         }
     }
-    let side = usize::from(eng.pos.c);
+    let side = usize::from(pos.c);
     let (mytime, myinc) = (times[side], incs[side]);
     if mytime != 0 { alloc = min(mytime, mytime / mtg.unwrap_or(25) + 3 * myinc / 4) }
     eng.timing.1 = max(10, alloc - 10) as u128;
-    go(eng);
+    go(pos, eng);
 }
