@@ -68,10 +68,6 @@ impl Engine {
         }
         false
     }
-
-    fn is_draw(&self, pos: &Position) -> bool {
-        pos.hfm >= 100 || self.rep_draw(pos) || pos.mat_draw()
-    }
 }
 
 pub fn go(pos: &Position, eng: &mut Engine) {
@@ -130,7 +126,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     line.clear();
 
     // draw detection
-    if eng.is_draw(pos) { return 0 }
+    if pos.hfm >= 100 || pos.mat_draw() || eng.rep_draw(pos) { return 0 }
 
     // mate distance pruning
     alpha = max(alpha, -MAX + eng.ply);
@@ -170,10 +166,10 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
 
         // null move pruning?
         if null && depth >= 3 && pos.phase >= 6 && eval >= beta {
-            let mut new_pos = *pos;
             let r = 2 + depth / 3;
             eng.ply += 1;
             eng.stack.push(pos.hash);
+            let mut new_pos = *pos;
             new_pos.r#do_null();
             let nw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - r, false, false, &mut Vec::new());
             eng.stack.pop();
