@@ -6,14 +6,14 @@ mod tables;
 mod search;
 
 use consts::*;
-use position::{Move, Position};
+use position::{Move, Position, ZobristVals};
 use search::{Engine, go};
 use std::{cmp::{max, min}, io::stdin, process, time::Instant};
 
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
     let mut eng = Engine::default();
-    eng.pos = Position::from_fen(STARTPOS);
+    eng.pos = Position::from_fen(STARTPOS, &eng.zvals);
     eng.ttable.resize(1);
     loop {
         let mut input = String::new();
@@ -27,38 +27,38 @@ fn parse_commands(commands: Vec<&str>, eng: &mut Engine) {
         "uci" => println!("id name {NAME} {VERSION}\nid author {AUTHOR}\noption name Hash type spin default 128 min 1 max 512\nuciok"),
         "isready" => println!("readyok"),
         "ucinewgame" => {
-            eng.pos = Position::from_fen(STARTPOS);
+            eng.pos = Position::from_fen(STARTPOS, &eng.zvals);
             eng.ttable.clear();
             *eng.htable = Default::default();
         },
         "setoption" => if let ["setoption", "name", "Hash", "value", x] = commands[..] {eng.ttable.resize(x.parse().unwrap())},
         "go" => parse_go(eng, commands),
-        "position" => parse_position(&mut eng.pos, commands),
-        "perft" => parse_perft(&mut eng.pos, &commands),
+        "position" => parse_position(&mut eng.pos, commands, &eng.zvals),
+        "perft" => parse_perft(&mut eng.pos, &commands, &eng.zvals),
         "quit" => process::exit(0),
         _ => {},
     }
 }
 
-fn perft(pos: &mut Position, depth: u8) -> u64 {
+fn perft(pos: &Position, depth: u8, zvals: &ZobristVals) -> u64 {
     let moves = pos.gen::<ALL>();
     let mut positions = 0;
     for &m in &moves.list[0..moves.len] {
-        if pos.r#do(m) { continue }
-        positions += if depth > 1 { perft(pos, depth - 1) } else { 1 };
-        pos.undo();
+        let mut tmp = *pos;
+        if tmp.r#do(m, zvals) { continue }
+        positions += if depth > 1 { perft(&tmp, depth - 1, zvals) } else { 1 };
     }
     positions
 }
 
-fn parse_perft(pos: &mut Position, commands: &[&str]) {
+fn parse_perft(pos: &mut Position, commands: &[&str], zvals: &ZobristVals) {
     let (depth, now) = (commands[1].parse().unwrap(), Instant::now());
-    let count = perft(pos, depth);
+    let count = perft(pos, depth, zvals);
     let time = now.elapsed();
     println!("perft {depth} time {} nodes {count} ({:.2} Mnps)", time.as_millis(), count as f64 / time.as_micros() as f64);
 }
 
-fn parse_position(pos: &mut Position, commands: Vec<&str>) {
+fn parse_position(pos: &mut Position, commands: Vec<&str>, zvals: &ZobristVals) {
     let (mut fen, mut move_list, mut moves) = (String::new(), Vec::new(), false);
     for cmd in commands {
         match cmd {
@@ -67,8 +67,8 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
             _ => if moves { move_list.push(cmd) } else { fen.push_str(format!("{cmd} ").as_str()) }
         }
     }
-    *pos = Position::from_fen(if fen.is_empty() { STARTPOS } else { &fen });
-    for m in move_list { pos.r#do(Move::from_uci(pos, m)); }
+    *pos = Position::from_fen(if fen.is_empty() { STARTPOS } else { &fen }, zvals);
+    for m in move_list { pos.r#do(Move::from_uci(pos, m), zvals); }
 }
 
 fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
