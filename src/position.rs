@@ -1,21 +1,16 @@
 use super::{consts::*, eval::*};
 
 #[derive(Clone, Copy, Default)]
-pub struct State {
-    pub hash: u64,
-    pst: S,
-    pub hfm: u8,
-    pub enp: u8,
-    pub cr: u8,
-}
-
-#[derive(Clone, Copy, Default)]
 pub struct Position {
     pub bb: [u64; 8],
     pub c: bool,
-    pub state: State,
+    pub hfm: u8,
+    pub enp: u8,
+    pub cr: u8,
     pub phase: i16,
     pub nulls: u16,
+    pub hash: u64,
+    pst: S,
 }
 
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
@@ -68,23 +63,23 @@ impl Position {
                 let side = usize::from(idx > 5);
                 let (pc, sq) = (idx + 2 - 6 * side, 8 * row + col);
                 pos.toggle(side, pc, 1 << sq);
-                pos.state.hash ^= zvals.pcs[side][pc][sq as usize];
-                pos.state.pst += SIDE[side] * PST[pc][sq as usize ^ (56 * (side^ 1))];
+                pos.hash ^= zvals.pcs[side][pc][sq as usize];
+                pos.pst += SIDE[side] * PST[pc][sq as usize ^ (56 * (side^ 1))];
                 pos.phase += PHASE_VALS[pc];
                 col += 1;
             }
         }
         pos.c = vec[1] == "b";
-        pos.state.cr = vec[2].chars().fold(0, |cr, ch| cr | match ch {'Q' => WQS, 'K' => WKS, 'q' => BQS, 'k' => BKS, _ => 0});
-        pos.state.enp = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
-        pos.state.hfm = vec.get(4).unwrap_or(&"0").parse::<u8>().unwrap();
+        pos.cr = vec[2].chars().fold(0, |cr, ch| cr | match ch {'Q' => WQS, 'K' => WKS, 'q' => BQS, 'k' => BKS, _ => 0});
+        pos.enp = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
+        pos.hfm = vec.get(4).unwrap_or(&"0").parse::<u8>().unwrap();
         pos
     }
 
     pub fn hash(&self, zvals: &ZobristVals) -> u64 {
-        let (mut hash, mut r) = (self.state.hash, self.state.cr);
+        let (mut hash, mut r) = (self.hash, self.cr);
         if self.c {hash ^= zvals.c}
-        if self.state.enp > 0 {hash ^= zvals.enp[self.state.enp as usize & 7]}
+        if self.enp > 0 {hash ^= zvals.enp[self.enp as usize & 7]}
         while r > 0 {
             hash ^= zvals.cr[r.trailing_zeros() as usize];
             r &= r - 1;
@@ -118,9 +113,9 @@ impl Position {
     pub fn r#do(&mut self, m: Move, zvals: &ZobristVals) -> bool {
         let cpc = if m.flag & CAP == 0 || m.flag == ENP {E} else {self.get_pc(1 << m.to)};
         let side = usize::from(self.c);
-        self.state.cr &= CR[m.to as usize] & CR[m.from as usize];
-        self.state.enp = if m.flag == DBL {if side == WH {m.to - 8} else {m.to + 8}} else {0};
-        self.state.hfm = u8::from(m.mpc > P as u8 && m.flag != CAP) * (self.state.hfm + 1);
+        self.cr &= CR[m.to as usize] & CR[m.from as usize];
+        self.enp = if m.flag == DBL {if side == WH {m.to - 8} else {m.to + 8}} else {0};
+        self.hfm = u8::from(m.mpc > P as u8 && m.flag != CAP) * (self.hfm + 1);
         self.r#move::<true>(m, side, cpc, zvals);
         let kidx = (self.bb[K] & self.bb[side]).trailing_zeros() as usize;
         self.is_sq_att(kidx, side, self.bb[0] | self.bb[1])
@@ -132,15 +127,15 @@ impl Position {
         self.c = !self.c;
         self.toggle(side, mpc, f | t);
         if DO {
-            self.state.hash ^= zvals.pcs[side][mpc][usize::from(m.from)] ^ zvals.pcs[side][mpc][usize::from(m.to)];
-            self.state.pst += psign * PST[mpc][usize::from(m.to) ^ flip];
-            self.state.pst += -psign * PST[mpc][usize::from(m.from) ^ flip];
+            self.hash ^= zvals.pcs[side][mpc][usize::from(m.from)] ^ zvals.pcs[side][mpc][usize::from(m.to)];
+            self.pst += psign * PST[mpc][usize::from(m.to) ^ flip];
+            self.pst += -psign * PST[mpc][usize::from(m.from) ^ flip];
         }
         if cpc != E {
             self.toggle(side ^ 1, cpc, t);
             if DO {
-                self.state.hash ^= zvals.pcs[side ^ 1][cpc][usize::from(m.to)];
-                self.state.pst += psign * PST[cpc][usize::from(m.to) ^ (56 * side)];
+                self.hash ^= zvals.pcs[side ^ 1][cpc][usize::from(m.to)];
+                self.pst += psign * PST[cpc][usize::from(m.to) ^ (56 * side)];
             }
             self.phase -= sign * PHASE_VALS[cpc];
         }
@@ -149,17 +144,17 @@ impl Position {
                 let (bits, idx1, idx2) = CM[usize::from(m.flag == KS)][side];
                 self.toggle(side, R, bits);
                 if DO {
-                    self.state.hash ^= zvals.pcs[side][R][idx1] ^ zvals.pcs[side][R][idx2];
-                    self.state.pst += -psign * PST[R][idx1 ^ flip];
-                    self.state.pst += psign * PST[R][idx2 ^ flip];
+                    self.hash ^= zvals.pcs[side][R][idx1] ^ zvals.pcs[side][R][idx2];
+                    self.pst += -psign * PST[R][idx1 ^ flip];
+                    self.pst += psign * PST[R][idx2 ^ flip];
                 }
             },
             ENP => {
                 let pwn = usize::from(m.to + [8u8.wrapping_neg(), 8][side]);
                 self.toggle(side ^ 1, P, 1 << pwn);
                 if DO {
-                    self.state.hash ^= zvals.pcs[side ^ 1][P][pwn];
-                    self.state.pst += psign * PST[P][pwn ^ (56 * side)];
+                    self.hash ^= zvals.pcs[side ^ 1][P][pwn];
+                    self.pst += psign * PST[P][pwn ^ (56 * side)];
                 }
             },
             NPR.. => {
@@ -167,9 +162,9 @@ impl Position {
                 self.bb[P] ^= t;
                 self.bb[ppc] ^= t;
                 if DO {
-                    self.state.hash ^= zvals.pcs[side][P][usize::from(m.to)] ^ zvals.pcs[side][ppc][usize::from(m.to)];
-                    self.state.pst += -psign * PST[P][usize::from(m.to) ^ flip];
-                    self.state.pst += psign * PST[ppc][usize::from(m.to) ^ flip];
+                    self.hash ^= zvals.pcs[side][P][usize::from(m.to)] ^ zvals.pcs[side][ppc][usize::from(m.to)];
+                    self.pst += -psign * PST[P][usize::from(m.to) ^ flip];
+                    self.pst += psign * PST[ppc][usize::from(m.to) ^ flip];
                 }
                 self.phase += sign * PHASE_VALS[ppc];
             }
@@ -179,7 +174,7 @@ impl Position {
 
     pub fn r#do_null(&mut self) {
         self.nulls += 1;
-        self.state.enp = 0;
+        self.enp = 0;
         self.c = !self.c;
     }
 
@@ -194,7 +189,7 @@ impl Position {
     }
 
     pub fn lazy_eval(&self) -> i16 {
-        let (score, phase) = (self.state.pst, std::cmp::min(self.phase as i32, TPHASE));
+        let (score, phase) = (self.pst, std::cmp::min(self.phase as i32, TPHASE));
         SIDE[usize::from(self.c)] * ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16
     }
 }

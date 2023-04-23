@@ -63,15 +63,15 @@ impl Engine {
         let mut num = 1 + 2 * u8::from(self.ply == 0);
         let l = self.stack.len();
         if l < 6 || pos.nulls > 0 { return false }
-        for &hash in self.stack.iter().rev().take(pos.state.hfm as usize + 1).skip(1).step_by(2) {
-            num -= u8::from(hash == pos.state.hash);
+        for &hash in self.stack.iter().rev().take(pos.hfm as usize + 1).skip(1).step_by(2) {
+            num -= u8::from(hash == pos.hash);
             if num == 0 { return true }
         }
         false
     }
 
     fn is_draw(&self, pos: &Position) -> bool {
-        pos.state.hfm >= 100 || self.rep_draw(pos) || pos.mat_draw()
+        pos.hfm >= 100 || self.rep_draw(pos) || pos.mat_draw()
     }
 }
 
@@ -174,7 +174,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
             let mut tmp = *pos;
             let r = 2 + depth / 3;
             eng.ply += 1;
-            eng.stack.push(pos.state.hash);
+            eng.stack.push(pos.hash);
             tmp.r#do_null();
             let nw = -search(&tmp, eng, -alpha - 1, -alpha, depth - r, false, false, &mut Vec::new());
             eng.stack.pop();
@@ -190,7 +190,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     let (mut legal, mut eval, mut bound, mut sline) = (0, -MAX, UPPER, Vec::new());
 
     eng.ply += 1;
-    eng.stack.push(pos.state.hash);
+    eng.stack.push(pos.hash);
     while let Some((r#move, mscore)) = moves.pick(&mut scores) {
         let mut tmp = *pos;
         if tmp.r#do(r#move, &eng.zvals) { continue }
