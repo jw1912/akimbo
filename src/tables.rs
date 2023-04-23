@@ -24,14 +24,14 @@ impl HashTable {
     }
 
     pub fn push(&mut self, hash: u64, m: Move, depth: i8, bound: u8, mut score: i16, ply: i16) {
-        let (key, idx) = ((hash >> 48) as u16, (hash as usize) & (self.1- 1));
+        let (key, idx) = ((hash >> 48) as u16, (hash as usize) & (self.1 - 1));
         score += if score.abs() > MATE {score.signum() * ply} else {0};
         let best_move = (m.from as u16) << 6 | m.to as u16 | (m.flag as u16) << 12;
         self.0[idx] = HashEntry { key, best_move, score, depth, bound };
     }
 
     pub fn probe(&self, hash: u64, ply: i16) -> Option<HashEntry> {
-        let mut entry = self.0[(hash as usize) & (self.1- 1)];
+        let mut entry = self.0[(hash as usize) & (self.1 - 1)];
         if entry.key != (hash >> 48) as u16 { return None }
         entry.score -= if entry.score.abs() > MATE {entry.score.signum() * ply} else {0};
         Some(entry)
@@ -49,7 +49,7 @@ impl Default for KillerTable {
 impl KillerTable {
     pub fn push(&mut self, m: Move, p: i16) {
         let ply = p as usize - 1;
-        (0..{KILLERS - 1}).rev().for_each(|i| self.0[ply][i + 1] = self.0[ply][i]);
+        self.0[ply][1] = self.0[ply][0];
         self.0[ply][0] = m;
     }
 }
@@ -64,10 +64,12 @@ impl Default for HistoryTable {
 
 impl HistoryTable {
     pub fn age(&mut self) {
-        self.1 = std::cmp::max(self.1 / 64, 1);
-        self.0.iter_mut().for_each(|side|
-            side.iter_mut().for_each(|pc|
-                pc.iter_mut().for_each(|sq| *sq /= 64)))
+        self.1 = 1.max(self.1 / 64);
+        for side in self.0.iter_mut() {
+            for pc in side.iter_mut() {
+                pc.iter_mut().for_each(|sq| *sq /= 64);
+            }
+        }
     }
 
     pub fn push(&mut self, m: Move, side: bool, depth: i8) {

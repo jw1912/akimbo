@@ -21,33 +21,29 @@ impl<T> List<T> {
         #[allow(clippy::uninit_assumed_init, invalid_value)]
         Self { list: unsafe { std::mem::MaybeUninit::uninit().assume_init() }, len: 0 }
     }
-
-    #[inline]
-    pub fn add(&mut self, entry: T) {
-        self.list[self.len] = entry;
-        self.len += 1;
-    }
 }
 
 impl MoveList {
+    #[inline]
     pub fn push(&mut self, from: u8, to: u8, flag: u8, mpc: usize) {
-        self.add(Move { from, to, flag, mpc: mpc as u8 });
+        self.list[self.len] = Move { from, to, flag, mpc: mpc as u8 };
+        self.len += 1;
     }
 
     pub fn pick(&mut self, scores: &mut ScoreList) -> Option<(Move, i16)> {
-        if scores.len == 0 { return None }
+        if self.len == 0 { return None }
         let (mut idx, mut best) = (0, i16::MIN);
-        for i in 0..scores.len {
+        for i in 0..self.len {
             let score = scores.list[i];
             if score > best {
                 best = score;
                 idx = i;
             }
         }
-        scores.len -= 1;
-        scores.list.swap(idx, scores.len);
-        self.list.swap(idx, scores.len);
-        Some((self.list[scores.len], best))
+        self.len -= 1;
+        scores.list.swap(idx, self.len);
+        self.list.swap(idx, self.len);
+        Some((self.list[self.len], best))
     }
 }
 
@@ -63,10 +59,10 @@ impl Position {
         let (boys, opps) = (self.bb[side], self.bb[side ^ 1]);
         let pawns = self.bb[P] & boys;
         if QUIETS {
-            if self.state.cr & CS[side] > 0 && !self.in_check() {self.castles(&mut moves, occ)}
+            if self.cr & CS[side] > 0 && !self.in_check() {self.castles(&mut moves, occ)}
             if side == WH {pushes::<WH>(&mut moves, !occ, pawns)} else {pushes::<BL>(&mut moves, !occ, pawns)}
         }
-        if self.state.enp > 0 {en_passants(&mut moves, pawns, self.state.enp, side)}
+        if self.enp > 0 {en_passants(&mut moves, pawns, self.enp, side)}
         pawn_caps(&mut moves, pawns, opps, side);
         pc_moves::<N, QUIETS>(&mut moves, occ, opps, boys & self.bb[N]);
         pc_moves::<B, QUIETS>(&mut moves, occ, opps, boys & self.bb[B]);
@@ -78,11 +74,11 @@ impl Position {
 
     fn castles(&self, moves: &mut MoveList, occ: u64) {
         if self.c {
-            if self.state.cr & BQS > 0 && occ & BD8 == 0 && !self.is_sq_att(59, BL, occ) {moves.push(60, 58, QS, K)}
-            if self.state.cr & BKS > 0 && occ & FG8 == 0 && !self.is_sq_att(61, BL, occ) {moves.push(60, 62, KS, K)}
+            if self.cr & BQS > 0 && occ & BD8 == 0 && !self.is_sq_att(59, BL, occ) {moves.push(60, 58, QS, K)}
+            if self.cr & BKS > 0 && occ & FG8 == 0 && !self.is_sq_att(61, BL, occ) {moves.push(60, 62, KS, K)}
         } else {
-            if self.state.cr & WQS > 0 && occ & BD1 == 0 && !self.is_sq_att(3, WH, occ) {moves.push(4, 2, QS, K)}
-            if self.state.cr & WKS > 0 && occ & FG1 == 0 && !self.is_sq_att(5, WH, occ) {moves.push(4, 6, KS, K)}
+            if self.cr & WQS > 0 && occ & BD1 == 0 && !self.is_sq_att(3, WH, occ) {moves.push(4, 2, QS, K)}
+            if self.cr & WKS > 0 && occ & FG1 == 0 && !self.is_sq_att(5, WH, occ) {moves.push(4, 6, KS, K)}
         }
     }
 }

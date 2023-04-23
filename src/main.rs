@@ -1,5 +1,4 @@
 mod consts;
-mod eval;
 mod position;
 mod movegen;
 mod tables;
@@ -8,45 +7,55 @@ mod search;
 use consts::*;
 use position::{Move, Position};
 use search::{Engine, go};
-use std::{cmp::{max, min}, io::stdin, process, time::Instant};
+use std::{io, process, time::Instant};
 
 fn main() {
-    println!("{NAME}, created by {AUTHOR}");
+    println!("akimbo, created by Jamie Whiting");
     let mut eng = Engine::default();
-    eng.pos = Position::from_fen(STARTPOS);
-    eng.ttable.resize(1);
+    let mut pos = Position::from_fen(STARTPOS);
+    eng.ttable.resize(128);
     loop {
         let mut input = String::new();
-        stdin().read_line(&mut input).unwrap();
-        parse_commands(input.split_whitespace().collect(), &mut eng)
+        io::stdin().read_line(&mut input).unwrap();
+        parse_commands(input.split_whitespace().collect(), &mut pos, &mut eng);
     }
 }
 
-fn parse_commands(commands: Vec<&str>, eng: &mut Engine) {
+fn parse_commands(commands: Vec<&str>, pos: &mut Position, eng: &mut Engine) {
     match *commands.first().unwrap_or(&"oops") {
-        "uci" => println!("id name {NAME} {VERSION}\nid author {AUTHOR}\noption name Hash type spin default 128 min 1 max 512\nuciok"),
+        "uci" => {
+            println!("id name akimbo {VERSION}");
+            println!("id author Jamie Whiting");
+            println!("option name Hash type spin default 128 min 1 max 1024");
+            println!("option name Clear Hash type button");
+            println!("uciok");
+        },
         "isready" => println!("readyok"),
         "ucinewgame" => {
-            eng.pos = Position::from_fen(STARTPOS);
+            *pos = Position::from_fen(STARTPOS);
             eng.ttable.clear();
             *eng.htable = Default::default();
         },
-        "setoption" => if let ["setoption", "name", "Hash", "value", x] = commands[..] {eng.ttable.resize(x.parse().unwrap())},
-        "go" => parse_go(eng, commands),
-        "position" => parse_position(&mut eng.pos, commands),
-        "perft" => parse_perft(&mut eng.pos, &commands),
+        "setoption" => match commands[..] {
+            ["setoption", "name", "Hash", "value", x] => eng.ttable.resize(x.parse().unwrap()),
+            ["setoption", "name", "Clear", "Hash"] => eng.ttable.clear(),
+            _ => {}
+        },
+        "go" => parse_go(pos, eng, commands),
+        "position" => parse_position(pos, commands),
+        "perft" => parse_perft(pos, &commands),
         "quit" => process::exit(0),
         _ => {},
     }
 }
 
-fn perft(pos: &mut Position, depth: u8) -> u64 {
+fn perft(pos: &Position, depth: u8) -> u64 {
     let moves = pos.gen::<ALL>();
     let mut positions = 0;
     for &m in &moves.list[0..moves.len] {
-        if pos.r#do(m) { continue }
-        positions += if depth > 1 { perft(pos, depth - 1) } else { 1 };
-        pos.undo();
+        let mut tmp = *pos;
+        if tmp.make(m) { continue }
+        positions += if depth > 1 { perft(&tmp, depth - 1) } else { 1 };
     }
     positions
 }
@@ -68,10 +77,10 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
         }
     }
     *pos = Position::from_fen(if fen.is_empty() { STARTPOS } else { &fen });
-    for m in move_list { pos.r#do(Move::from_uci(pos, m)); }
+    for m in move_list { pos.make(Move::from_uci(pos, m)); }
 }
 
-fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
+fn parse_go(pos: &Position, eng: &mut Engine, commands: Vec<&str>) {
     let (mut token, mut times, mut mtg, mut alloc, mut incs) = (0, [0, 0], None, 1000, [0, 0]);
     let tokens = ["go", "movetime", "wtime", "btime", "movestogo", "winc", "binc"];
     for cmd in commands {
@@ -79,16 +88,16 @@ fn parse_go(eng: &mut Engine, commands: Vec<&str>) {
         else if let Ok(val) = cmd.parse::<i64>() {
             match token {
                 1 => alloc = val,
-                2 | 3 => times[token - 2] = max(val, 0),
+                2 | 3 => times[token - 2] = val.max(0),
                 4 => mtg = Some(val),
-                5 | 6 => incs[token - 5] = max(val, 0),
+                5 | 6 => incs[token - 5] = val.max(0),
                 _ => {},
             }
         }
     }
-    let side = usize::from(eng.pos.c);
+    let side = usize::from(pos.c);
     let (mytime, myinc) = (times[side], incs[side]);
-    if mytime != 0 { alloc = min(mytime, mytime / mtg.unwrap_or(25) + 3 * myinc / 4) }
-    eng.timing.1 = max(10, alloc - 10) as u128;
-    go(eng);
+    if mytime != 0 { alloc = mytime.min(mytime / mtg.unwrap_or(25) + 3 * myinc / 4) }
+    eng.max_time = 10.max(alloc - 10) as u128;
+    go(pos, eng);
 }
