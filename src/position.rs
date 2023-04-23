@@ -111,65 +111,59 @@ impl Position {
     }
 
     pub fn r#do(&mut self, m: Move, zvals: &ZobristVals) -> bool {
-        let cpc = if m.flag & CAP == 0 || m.flag == ENP {E} else {self.get_pc(1 << m.to)};
+        let (f, t, mpc) = (1 << m.from, 1 << m.to, usize::from(m.mpc));
+        let cpc = if m.flag & CAP == 0 || m.flag == ENP {E} else {self.get_pc(t)};
         let side = usize::from(self.c);
+        let (sign, flip) = (SIDE[side], 56 * (side ^ 1));
+
+        // update state
         self.cr &= CR[m.to as usize] & CR[m.from as usize];
         self.enp = if m.flag == DBL {if side == WH {m.to - 8} else {m.to + 8}} else {0};
         self.hfm = u8::from(m.mpc > P as u8 && m.flag != CAP) * (self.hfm + 1);
-        self.r#move::<true>(m, side, cpc, zvals);
-        let kidx = (self.bb[K] & self.bb[side]).trailing_zeros() as usize;
-        self.is_sq_att(kidx, side, self.bb[0] | self.bb[1])
-    }
-
-    fn r#move<const DO: bool>(&mut self, m: Move, side: usize, cpc: usize, zvals: &ZobristVals) {
-        let (sign, psign, flip) = (SIDE[usize::from(!DO)], SIDE[side], 56 * (side ^ 1));
-        let (f, t, mpc) = (1 << m.from, 1 << m.to, usize::from(m.mpc));
         self.c = !self.c;
         self.toggle(side, mpc, f | t);
-        if DO {
-            self.hash ^= zvals.pcs[side][mpc][usize::from(m.from)] ^ zvals.pcs[side][mpc][usize::from(m.to)];
-            self.pst += psign * PST[mpc][usize::from(m.to) ^ flip];
-            self.pst += -psign * PST[mpc][usize::from(m.from) ^ flip];
-        }
+        self.hash ^= zvals.pcs[side][mpc][usize::from(m.from)] ^ zvals.pcs[side][mpc][usize::from(m.to)];
+        self.pst += sign * PST[mpc][usize::from(m.to) ^ flip];
+        self.pst += -sign * PST[mpc][usize::from(m.from) ^ flip];
+
+        // captures
         if cpc != E {
             self.toggle(side ^ 1, cpc, t);
-            if DO {
-                self.hash ^= zvals.pcs[side ^ 1][cpc][usize::from(m.to)];
-                self.pst += psign * PST[cpc][usize::from(m.to) ^ (56 * side)];
-            }
-            self.phase -= sign * PHASE_VALS[cpc];
+            self.hash ^= zvals.pcs[side ^ 1][cpc][usize::from(m.to)];
+            self.pst += sign * PST[cpc][usize::from(m.to) ^ (56 * side)];
+            self.phase -= PHASE_VALS[cpc];
         }
+
+        // more complex moves
         match m.flag {
             KS | QS => {
                 let (bits, idx1, idx2) = CM[usize::from(m.flag == KS)][side];
                 self.toggle(side, R, bits);
-                if DO {
-                    self.hash ^= zvals.pcs[side][R][idx1] ^ zvals.pcs[side][R][idx2];
-                    self.pst += -psign * PST[R][idx1 ^ flip];
-                    self.pst += psign * PST[R][idx2 ^ flip];
-                }
+                self.hash ^= zvals.pcs[side][R][idx1] ^ zvals.pcs[side][R][idx2];
+                self.pst += -sign * PST[R][idx1 ^ flip];
+                self.pst += sign * PST[R][idx2 ^ flip];
             },
             ENP => {
                 let pwn = usize::from(m.to + [8u8.wrapping_neg(), 8][side]);
                 self.toggle(side ^ 1, P, 1 << pwn);
-                if DO {
-                    self.hash ^= zvals.pcs[side ^ 1][P][pwn];
-                    self.pst += psign * PST[P][pwn ^ (56 * side)];
-                }
+                self.hash ^= zvals.pcs[side ^ 1][P][pwn];
+                self.pst += sign * PST[P][pwn ^ (56 * side)];
             },
             NPR.. => {
                 let ppc = usize::from((m.flag & 3) + 3);
                 self.bb[P] ^= t;
                 self.bb[ppc] ^= t;
-                if DO {
-                    self.hash ^= zvals.pcs[side][P][usize::from(m.to)] ^ zvals.pcs[side][ppc][usize::from(m.to)];
-                    self.pst += -psign * PST[P][usize::from(m.to) ^ flip];
-                    self.pst += psign * PST[ppc][usize::from(m.to) ^ flip];
-                }
-                self.phase += sign * PHASE_VALS[ppc];
+                self.hash ^= zvals.pcs[side][P][usize::from(m.to)] ^ zvals.pcs[side][ppc][usize::from(m.to)];
+                self.pst += -sign * PST[P][usize::from(m.to) ^ flip];
+                self.pst += sign * PST[ppc][usize::from(m.to) ^ flip];
+                self.phase += PHASE_VALS[ppc];
             }
             _ => {}
         }
+
+        // validating move
+        let kidx = (self.bb[K] & self.bb[side]).trailing_zeros() as usize;
+        self.is_sq_att(kidx, side, self.bb[0] | self.bb[1])
     }
 
     pub fn r#do_null(&mut self) {
