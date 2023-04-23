@@ -74,11 +74,10 @@ pub fn go(pos: &Position, eng: &mut Engine) {
     eng.reset();
     let mut best_move = Move::default();
     let in_check: bool = pos.in_check();
-    let pos = pos;
 
     for d in 1..=64 {
         let mut pv_line = Vec::with_capacity(d as usize);
-        let score = search(&pos, eng, -MAX, MAX, d, in_check, false, &mut pv_line);
+        let score = search(pos, eng, -MAX, MAX, d, in_check, false, &mut pv_line);
         if eng.abort { break }
         best_move = pv_line[0];
 
