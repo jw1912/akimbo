@@ -166,7 +166,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
 
     let mut moves = eng.pos.gen::<ALL>();
     let mut scores = eng.score(&moves, best_move);
-    let lmr = depth > 1 && eng.ply > 0 && !in_check;
+    let can_lmr = depth > 1 && eng.ply > 0 && !in_check;
     let (mut legal, mut eval, mut bound, mut sline) = (0, -MAX, UPPER, Vec::new());
 
     eng.ply += 1;
@@ -176,7 +176,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
         legal += 1;
 
         // late move reductions - Viridithas values used
-        let reduce = if lmr && !check && mscore < KILLER {
+        let reduce = if can_lmr && !check && mscore < KILLER {
             let lmr = (0.77 + f64::from(depth).ln() * f64::from(legal).ln() / 2.67) as i8;
             if pv_node { max(1, lmr - 1) } else { lmr }
         } else {0};
