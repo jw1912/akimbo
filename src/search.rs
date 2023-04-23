@@ -186,7 +186,7 @@ fn search(eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_che
             -search(eng, -beta, -alpha, depth - 1, check, false, &mut sline)
         } else {
             let zw = -search(eng, -alpha - 1, -alpha, depth - 1 - reduce, check, true, &mut sline);
-            if (pv_node || reduce > 0) && zw > alpha {
+            if zw > alpha && (pv_node || reduce > 0) {
                 -search(eng, -beta, -alpha, depth - 1, check, false, &mut sline)
             } else { zw }
         };
