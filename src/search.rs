@@ -20,6 +20,7 @@ pub struct Engine {
     qnodes: u64,
     ply: i16,
     abort: bool,
+    best_move: Move,
 }
 
 impl Engine {
@@ -72,14 +73,13 @@ impl Engine {
 
 pub fn go(pos: &Position, eng: &mut Engine) {
     eng.reset();
-    let mut best_move = Move::default();
+    let mut best_move = String::new();
     let in_check: bool = pos.in_check();
 
     for d in 1..=64 {
-        let mut pv_line = Vec::with_capacity(d as usize);
-        let score = search(pos, eng, -MAX, MAX, d, in_check, false, &mut pv_line);
+        let score = search(pos, eng, -MAX, MAX, d, in_check, false);
         if eng.abort { break }
-        best_move = pv_line[0];
+        best_move = eng.best_move.to_uci();
 
         // UCI output
         let (stype, sval) = if score.abs() >= MATE {
@@ -88,11 +88,10 @@ pub fn go(pos: &Position, eng: &mut Engine) {
         let t = eng.timing.0.elapsed();
         let nodes = eng.nodes + eng.qnodes;
         let nps = ((nodes as f64) / t.as_secs_f64()) as u32;
-        let pv_str = pv_line.iter().map(|&m| m.to_uci()).collect::<String>();
-        println!("info depth {d} score {stype} {sval} time {} nodes {nodes} nps {nps} pv {pv_str}", t.as_millis());
+        println!("info depth {d} score {stype} {sval} time {} nodes {nodes} nps {nps} pv {best_move}", t.as_millis());
     }
 
-    println!("bestmove {}", best_move.to_uci());
+    println!("bestmove {best_move}");
     *eng.ktable = Default::default();
     eng.htable.age();
 }
@@ -114,15 +113,13 @@ fn qsearch(pos: &Position, eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
     eval
 }
 
-fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, null: bool, line: &mut Vec<Move>) -> i16 {
+fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, null: bool) -> i16 {
     // stopping search
     if eng.abort { return 0 }
     if eng.nodes & 1023 == 0 && eng.timing.0.elapsed().as_millis() >= eng.timing.1 {
         eng.abort = true;
         return 0
     }
-
-    line.clear();
 
     // draw detection
     if pos.hfm >= 100 || pos.mat_draw() || eng.rep_draw(pos) { return 0 }
@@ -170,7 +167,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
             eng.stack.push(pos.hash);
             let mut new_pos = *pos;
             new_pos.r#do_null();
-            let nw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - r, false, false, &mut Vec::new());
+            let nw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - r, false, false);
             eng.stack.pop();
             eng.ply -= 1;
             if nw >= MATE { return beta }
@@ -181,11 +178,12 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     let mut moves = pos.gen::<ALL>();
     let mut scores = eng.score(pos, &moves, best_move);
     let can_lmr = depth > 1 && eng.ply > 0 && !in_check;
-    let (mut legal, mut eval, mut bound, mut sline) = (0, -MAX, UPPER, Vec::new());
+    let (mut legal, mut eval, mut bound) = (0, -MAX, UPPER);
 
     eng.ply += 1;
     eng.stack.push(pos.hash);
     while let Some((r#move, mscore)) = moves.pick(&mut scores) {
+        // copy position, make move and skip if not legal
         let mut new_pos = *pos;
         if new_pos.make(r#move, &eng.zvals) { continue }
         let check = new_pos.in_check();
@@ -199,11 +197,11 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
 
         // pvs framework
         let score = if legal == 1 {
-            -search(&new_pos, eng, -beta, -alpha, depth - 1, check, false, &mut sline)
+            -search(&new_pos, eng, -beta, -alpha, depth - 1, check, false)
         } else {
-            let zw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - 1 - reduce, check, true, &mut sline);
+            let zw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - 1 - reduce, check, true);
             if zw > alpha && (pv_node || reduce > 0) {
-                -search(&new_pos, eng, -beta, -alpha, depth - 1, check, false, &mut sline)
+                -search(&new_pos, eng, -beta, -alpha, depth - 1, check, false)
             } else { zw }
         };
 
@@ -211,11 +209,6 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
         if score <= eval { continue }
         eval = score;
         best_move = r#move;
-
-        // update pv line
-        line.clear();
-        line.push(r#move);
-        line.append(&mut sline);
 
         // improve alpha?
         if score <= alpha { continue }
@@ -236,7 +229,17 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     eng.stack.pop();
     eng.ply -= 1;
 
+    // don't trust results if search was aborted during the node
+    if eng.abort { return 0 }
+
+    // record best move at root
+    if eng.ply == 0 { eng.best_move = best_move }
+
+    // (stale/check)mate
     if legal == 0 { return i16::from(in_check) * (-MAX + eng.ply) }
-    if write && !eng.abort { eng.ttable.push(hash, best_move, depth, bound, eval, eng.ply) }
+
+    // writing to hash table
+    if write { eng.ttable.push(hash, best_move, depth, bound, eval, eng.ply) }
+
     eval
 }
