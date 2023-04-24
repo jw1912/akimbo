@@ -8,6 +8,20 @@ impl Default for Timer {
     }
 }
 
+struct LmrTable([[i8; 256]; 72]);
+
+impl Default for LmrTable {
+    fn default() -> Self {
+        let mut res = [[0; 256]; 72];
+        for i in 0..72 {
+            for j in 0..256 {
+                res[i][j] = (0.77 + (i as f64).ln() * (j as f64).ln() / 2.67) as i8;
+            }
+        }
+        Self(res)
+    }
+}
+
 #[derive(Default)]
 pub struct Engine {
     pub timing: Timer,
@@ -21,6 +35,7 @@ pub struct Engine {
     ply: i16,
     abort: bool,
     best_move: Move,
+    lmr_table: Box<LmrTable>,
 }
 
 impl Engine {
@@ -191,7 +206,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
 
         // late move reductions - Viridithas values used
         let reduce = if can_lmr && !check && mscore < KILLER {
-            let lmr = (0.77 + f64::from(depth).ln() * f64::from(legal).ln() / 2.67) as i8;
+            let lmr = eng.lmr_table.0[depth as usize][legal];
             if pv_node { 1.max(lmr - 1) } else { lmr }
         } else {0};
 

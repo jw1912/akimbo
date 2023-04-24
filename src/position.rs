@@ -64,7 +64,7 @@ impl Position {
                 let (pc, sq) = (idx + 2 - 6 * side, 8 * row + col);
                 pos.toggle(side, pc, 1 << sq);
                 pos.hash ^= zvals.pcs[side][pc][sq as usize];
-                pos.pst += SIDE[side] * PST[pc][sq as usize ^ (56 * (side^ 1))];
+                pos.pst += SIDE[side] * PST[pc][sq as usize ^ (56 * (side ^ 1))];
                 pos.phase += PHASE_VALS[pc];
                 col += 1;
             }
@@ -118,10 +118,12 @@ impl Position {
         let (sign, flip) = (SIDE[side], 56 * (side ^ 1));
 
         // update state
-        self.cr &= CR[m.to as usize] & CR[m.from as usize];
+        self.cr &= CR[to] & CR[from];
         self.enp = if m.flag == DBL {if side == WH {m.to - 8} else {m.to + 8}} else {0};
-        self.hfm = u8::from(m.mpc > P as u8 && m.flag != CAP) * (self.hfm + 1);
+        self.hfm = u8::from(mpc > P && m.flag != CAP) * (self.hfm + 1);
         self.c = !self.c;
+
+        // move piece
         self.toggle(side, mpc, f | t);
         self.hash ^= zvals.pcs[side][mpc][from] ^ zvals.pcs[side][mpc][to];
         self.pst += sign * PST[mpc][to ^ flip];
@@ -145,7 +147,7 @@ impl Position {
                 self.pst += sign * PST[R][idx2 ^ flip];
             },
             ENP => {
-                let pwn = usize::from(m.to + [8u8.wrapping_neg(), 8][side]);
+                let pwn = to + [8usize.wrapping_neg(), 8][side];
                 self.toggle(side ^ 1, P, 1 << pwn);
                 self.hash ^= zvals.pcs[side ^ 1][P][pwn];
                 self.pst += sign * PST[P][pwn ^ (56 * side)];
@@ -197,13 +199,13 @@ fn sq_to_idx(sq: &str) -> u8 {
 impl Move {
     pub fn from_short(m: u16, pos: &Position) -> Self {
         let from = ((m >> 6) & 63) as u8;
-        Self { from, to: (m & 63) as u8, flag: ((m >> 12) & 63) as u8, mpc: pos.get_pc(1 << from) as u8 }
+        Self { from, to: (m & 63) as u8, flag: (m >> 12) as u8, mpc: pos.get_pc(1 << from) as u8 }
     }
 
     pub fn to_uci(self) -> String {
         let idx_to_sq = |i| format!("{}{}", ((i & 7) + b'a') as char, (i / 8) + 1);
         let promo = if self.flag & 0b1000 > 0 {["n","b","r","q"][(self.flag & 0b11) as usize]} else {""};
-        format!("{}{}{} ", idx_to_sq(self.from), idx_to_sq(self.to), promo)
+        format!("{}{}{}", idx_to_sq(self.from), idx_to_sq(self.to), promo)
     }
 
     pub fn from_uci(pos: &Position, m_str: &str) -> Self {
