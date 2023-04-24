@@ -8,13 +8,13 @@ impl Default for Timer {
     }
 }
 
-struct LmrTable([[i8; 256]; 72]);
+struct LmrTable([[i8; 64]; 72]);
 
 impl Default for LmrTable {
     fn default() -> Self {
-        let mut res = [[0; 256]; 72];
+        let mut res = [[0; 64]; 72];
         for i in 0..72 {
-            for j in 0..256 {
+            for j in 0..64 {
                 res[i][j] = (0.77 + (i as f64).ln() * (j as f64).ln() / 2.67) as i8;
             }
         }
@@ -205,7 +205,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
 
         // late move reductions - Viridithas values used
         let reduce = if can_lmr && !check && mscore < KILLER {
-            let lmr = eng.lmr_table.0[depth as usize][legal];
+            let lmr = eng.lmr_table.0[depth as usize][legal.min(63)];
             if pv_node { 1.max(lmr - 1) } else { lmr }
         } else {0};
 
