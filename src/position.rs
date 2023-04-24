@@ -167,7 +167,7 @@ impl Position {
         self.is_sq_att(kidx, side, self.bb[0] | self.bb[1])
     }
 
-    pub fn r#do_null(&mut self) {
+    pub fn make_null(&mut self) {
         self.nulls += 1;
         self.enp = 0;
         self.c = !self.c;
@@ -184,7 +184,7 @@ impl Position {
     }
 
     pub fn lazy_eval(&self) -> i16 {
-        let (score, phase) = (self.pst, std::cmp::min(self.phase as i32, TPHASE));
+        let (score, phase) = (self.pst, TPHASE.min(self.phase as i32));
         SIDE[usize::from(self.c)] * ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16
     }
 }

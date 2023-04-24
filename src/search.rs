@@ -42,7 +42,7 @@ impl Engine {
                 else if m.flag & 4 > 0 { self.mvv_lva(m, pos) }
                 else if m.flag & 8 > 0 { PROMOTION + i16::from(m.flag & 7) }
                 else if killers.contains(&m) { KILLER }
-                else {self.htable.score(pos.c, m)}
+                else { self.htable.score(pos.c, m) }
             );
         }
         scores
@@ -166,7 +166,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
             eng.ply += 1;
             eng.stack.push(pos.hash);
             let mut new_pos = *pos;
-            new_pos.r#do_null();
+            new_pos.make_null();
             let nw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - r, false, false);
             eng.stack.pop();
             eng.ply -= 1;

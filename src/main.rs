@@ -8,7 +8,7 @@ mod search;
 use consts::*;
 use position::{Move, Position, ZobristVals};
 use search::{Engine, go};
-use std::{io::stdin, process, time::Instant};
+use std::{io, process, time::Instant};
 
 fn main() {
     println!("{NAME}, created by {AUTHOR}");
@@ -17,7 +17,7 @@ fn main() {
     eng.ttable.resize(1);
     loop {
         let mut input = String::new();
-        stdin().read_line(&mut input).unwrap();
+        io::stdin().read_line(&mut input).unwrap();
         parse_commands(input.split_whitespace().collect(), &mut pos, &mut eng);
     }
 }

@@ -49,7 +49,7 @@ impl Default for KillerTable {
 impl KillerTable {
     pub fn push(&mut self, m: Move, p: i16) {
         let ply = p as usize - 1;
-        (0..{KILLERS - 1}).rev().for_each(|i| self.0[ply][i + 1] = self.0[ply][i]);
+        self.0[ply][1] = self.0[ply][0];
         self.0[ply][0] = m;
     }
 }
@@ -64,7 +64,7 @@ impl Default for HistoryTable {
 
 impl HistoryTable {
     pub fn age(&mut self) {
-        self.1 = std::cmp::max(self.1 / 64, 1);
+        self.1 = 1.max(self.1 / 64);
         self.0.iter_mut().for_each(|side|
             side.iter_mut().for_each(|pc|
                 pc.iter_mut().for_each(|sq| *sq /= 64)))
