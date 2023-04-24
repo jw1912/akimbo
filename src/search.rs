@@ -73,25 +73,25 @@ impl Engine {
 
 pub fn go(pos: &Position, eng: &mut Engine) {
     eng.reset();
-    let mut best_move = String::new();
+    let mut best = String::new();
     let in_check: bool = pos.in_check();
 
     for d in 1..=64 {
-        let score = search(pos, eng, -MAX, MAX, d, in_check, false);
+        let eval = search(pos, eng, -MAX, MAX, d, in_check, false);
         if eng.abort { break }
-        best_move = eng.best_move.to_uci();
+        best = eng.best_move.to_uci();
 
         // UCI output
-        let (stype, sval) = if score.abs() >= MATE {
-            ("mate", if score < 0 {score.abs() - MAX} else {MAX - score + 1} / 2)
-        } else {("cp", score)};
+        let score = if eval.abs() >= MATE {
+            format!("score mate {: <2}", if eval < 0 {eval.abs() - MAX} else {MAX - eval + 1} / 2)
+        } else {format!("score cp {: <4}", eval)};
         let t = eng.timing.0.elapsed();
         let nodes = eng.nodes + eng.qnodes;
         let nps = ((nodes as f64) / t.as_secs_f64()) as u32;
-        println!("info depth {d} score {stype} {sval} time {} nodes {nodes} nps {nps} pv {best_move}", t.as_millis());
+        println!("info depth {d: <2} {score} time {: <5} nodes {nodes: <9} nps {nps: <8.0} pv {best}", t.as_millis());
     }
 
-    println!("bestmove {best_move}");
+    println!("bestmove {best}");
     *eng.ktable = Default::default();
     eng.htable.age();
 }

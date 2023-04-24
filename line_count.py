@@ -1,7 +1,6 @@
 import os
 
-sloc = 0
-tloc = 0
+sloc, tloc = 0, 0
 files = os.listdir('src')
 
 for file in files:
