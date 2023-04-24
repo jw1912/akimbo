@@ -73,12 +73,12 @@ impl Engine {
         MVV_LVA * pos.get_pc(1 << m.to) as i16 - m.mpc as i16
     }
 
-    fn rep_draw(&self, pos: &Position) -> bool {
-        let mut num = 1 + 2 * u8::from(self.ply == 0);
+    fn rep_draw(&self, pos: &Position, curr_hash: u64) -> bool {
+        let mut num = 1 + u8::from(self.ply == 0);
         let l = self.stack.len();
         if l < 6 || pos.nulls > 0 { return false }
         for &hash in self.stack.iter().rev().take(pos.hfm as usize + 1).skip(1).step_by(2) {
-            num -= u8::from(hash == pos.hash);
+            num -= u8::from(hash == curr_hash);
             if num == 0 { return true }
         }
         false
@@ -135,8 +135,11 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
         return 0
     }
 
+    // calculate full hash
+    let hash = pos.hash(&eng.zvals);
+
     // draw detection
-    if pos.hfm >= 100 || pos.mat_draw() || eng.rep_draw(pos) { return 0 }
+    if pos.hfm >= 100 || pos.mat_draw() || eng.rep_draw(pos, hash) { return 0 }
 
     // mate distance pruning
     alpha = alpha.max(-MAX + eng.ply);
@@ -150,7 +153,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     if depth <= 0 || eng.ply == MAX_PLY { return qsearch(pos, eng, alpha, beta) }
 
     eng.nodes += 1;
-    let (pv_node, hash) = (beta > alpha + 1, pos.hash(&eng.zvals));
+    let pv_node = beta > alpha + 1;
     let (mut best_move, mut write) = (Move::default(), true);
 
     // probing hash table
@@ -178,7 +181,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
         if null && depth >= 3 && pos.phase >= 6 && eval >= beta {
             let r = 2 + depth / 3;
             eng.ply += 1;
-            eng.stack.push(pos.hash);
+            eng.stack.push(hash);
             let mut new_pos = *pos;
             new_pos.make_null();
             let nw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - r, false, false);
@@ -195,7 +198,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     let (mut legal, mut eval, mut bound) = (0, -MAX, UPPER);
 
     eng.ply += 1;
-    eng.stack.push(pos.hash);
+    eng.stack.push(hash);
     while let Some((r#move, mscore)) = moves.pick(&mut scores) {
         // copy position, make move and skip if not legal
         let mut new_pos = *pos;
