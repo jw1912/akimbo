@@ -21,33 +21,29 @@ impl<T> List<T> {
         #[allow(clippy::uninit_assumed_init, invalid_value)]
         Self { list: unsafe { std::mem::MaybeUninit::uninit().assume_init() }, len: 0 }
     }
-
-    #[inline]
-    pub fn add(&mut self, entry: T) {
-        self.list[self.len] = entry;
-        self.len += 1;
-    }
 }
 
 impl MoveList {
+    #[inline]
     pub fn push(&mut self, from: u8, to: u8, flag: u8, mpc: usize) {
-        self.add(Move { from, to, flag, mpc: mpc as u8 });
+        self.list[self.len] = Move { from, to, flag, mpc: mpc as u8 };
+        self.len += 1;
     }
 
     pub fn pick(&mut self, scores: &mut ScoreList) -> Option<(Move, i16)> {
-        if scores.len == 0 { return None }
+        if self.len == 0 { return None }
         let (mut idx, mut best) = (0, i16::MIN);
-        for i in 0..scores.len {
+        for i in 0..self.len {
             let score = scores.list[i];
             if score > best {
                 best = score;
                 idx = i;
             }
         }
-        scores.len -= 1;
-        scores.list.swap(idx, scores.len);
-        self.list.swap(idx, scores.len);
-        Some((self.list[scores.len], best))
+        self.len -= 1;
+        scores.list.swap(idx, self.len);
+        self.list.swap(idx, self.len);
+        Some((self.list[self.len], best))
     }
 }
 

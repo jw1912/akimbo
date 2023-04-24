@@ -50,22 +50,21 @@ impl Engine {
     fn score(&self, pos: &Position, moves: &MoveList, hash_move: Move) -> ScoreList {
         let mut scores = ScoreList::uninit();
         let killers = self.ktable.0[self.ply as usize];
-        for &m in &moves.list[0..moves.len] {
-            scores.add(
+        for (i, &m) in moves.list[0..moves.len].iter().enumerate() {
+            scores.list[i] =
                 if m == hash_move { HASH }
                 else if m.flag == ENP { 2 * MVV_LVA }
                 else if m.flag & 4 > 0 { self.mvv_lva(m, pos) }
                 else if m.flag & 8 > 0 { PROMOTION + i16::from(m.flag & 7) }
                 else if killers.contains(&m) { KILLER }
-                else { self.htable.score(pos.c, m) }
-            );
+                else { self.htable.score(pos.c, m) };
         }
         scores
     }
 
     fn score_caps(&self, caps: &MoveList, pos: &Position) -> ScoreList {
         let mut scores = ScoreList::uninit();
-        for i in 0..caps.len { scores.add(self.mvv_lva(caps.list[i], pos)) }
+        for i in 0..caps.len { scores.list[i] = self.mvv_lva(caps.list[i], pos) }
         scores
     }
 
