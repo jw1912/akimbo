@@ -95,12 +95,12 @@ impl Position {
 
     #[inline]
     pub fn is_sq_att(&self, idx: usize, side: usize, occ: u64) -> bool {
-        let s = self.bb[side ^ 1];
-           (NATT[idx] & self.bb[N] & s > 0)
-        || (KATT[idx] & self.bb[K] & s > 0)
-        || (PATT[side][idx] & self.bb[P] & s > 0)
-        || (ratt(idx, occ) & ((self.bb[R] | self.bb[Q]) & s) > 0)
-        || (batt(idx, occ) & ((self.bb[B] | self.bb[Q]) & s) > 0)
+        ( (NATT[idx] & self.bb[N])
+        | (KATT[idx] & self.bb[K])
+        | (PATT[side][idx] & self.bb[P])
+        | (ratt(idx, occ) & ((self.bb[R] | self.bb[Q])))
+        | (batt(idx, occ) & ((self.bb[B] | self.bb[Q])))
+        ) & self.bb[side ^ 1] > 0
     }
 
     #[inline]
