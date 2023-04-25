@@ -65,9 +65,11 @@ impl Default for HistoryTable {
 impl HistoryTable {
     pub fn age(&mut self) {
         self.1 = 1.max(self.1 / 64);
-        self.0.iter_mut().for_each(|side|
-            side.iter_mut().for_each(|pc|
-                pc.iter_mut().for_each(|sq| *sq /= 64)))
+        for side in self.0.iter_mut() {
+            for pc in side.iter_mut() {
+                pc.iter_mut().for_each(|sq| *sq /= 64);
+            }
+        }
     }
 
     pub fn push(&mut self, m: Move, side: bool, depth: i8) {
