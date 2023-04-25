@@ -64,7 +64,7 @@ impl Position {
                 let (pc, sq) = (idx + 2 - 6 * side, 8 * row + col);
                 pos.toggle(side, pc, 1 << sq);
                 pos.hash ^= zvals.pcs[side][pc][sq as usize];
-                pos.pst += SIDE[side] * PST[side][pc][sq as usize];
+                pos.pst += PST[side][pc][sq as usize];
                 pos.phase += PHASE_VALS[pc];
                 col += 1;
             }
@@ -228,7 +228,11 @@ impl Default for ZobristVals {
     fn default() -> Self {
         let mut seed = 180_620_142;
         let mut vals = Self { pcs: [[[0; 64]; 8]; 2], cr: [0; 4], enp: [0; 8], c: random(&mut seed) };
-        vals.pcs.iter_mut().for_each(|s| s.iter_mut().skip(2).for_each(|p| p.iter_mut().for_each(|sq| *sq = random(&mut seed))));
+        for side in vals.pcs.iter_mut() {
+            for pc in side.iter_mut().skip(2) {
+                pc.iter_mut().for_each(|sq| *sq = random(&mut seed))
+            }
+        }
         vals.cr.iter_mut().for_each(|r| *r = random(&mut seed));
         vals.enp.iter_mut().for_each(|f| *f = random(&mut seed));
         vals
