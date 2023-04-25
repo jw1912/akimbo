@@ -1,46 +1,24 @@
 use std::time::Instant;
 use super::{consts::*, position::*, movegen::*, tables::*};
 
-pub struct Timer(Instant, pub u128);
-impl Default for Timer {
-    fn default() -> Self {
-        Timer(Instant::now(), 1000)
-    }
-}
-
-struct LmrTable([[i8; 64]; 72]);
-
-impl Default for LmrTable {
-    fn default() -> Self {
-        let mut res = [[0; 64]; 72];
-        for i in 0..72 {
-            for j in 0..64 {
-                res[i][j] = (0.77 + (i as f64).ln() * (j as f64).ln() / 2.67) as i8;
-            }
-        }
-        Self(res)
-    }
-}
-
 #[derive(Default)]
 pub struct Engine {
-    pub timing: Timer,
+    timing: Option<Instant>,
+    pub max_time: u128,
     pub ttable: HashTable,
     pub htable: Box<HistoryTable>,
     ktable: Box<KillerTable>,
-    pub zvals: Box<ZobristVals>,
     stack: Vec<u64>,
     nodes: u64,
     qnodes: u64,
     ply: i16,
     abort: bool,
     best_move: Move,
-    lmr_table: Box<LmrTable>,
 }
 
 impl Engine {
     fn reset(&mut self) {
-        self.timing.0 = Instant::now();
+        self.timing = Some(Instant::now());
         self.nodes = 0;
         self.qnodes = 0;
         self.ply = 0;
@@ -99,7 +77,7 @@ pub fn go(pos: &Position, eng: &mut Engine) {
         let score = if eval.abs() >= MATE {
             format!("score mate {: <2}", if eval < 0 {eval.abs() - MAX} else {MAX - eval + 1} / 2)
         } else {format!("score cp {: <4}", eval)};
-        let t = eng.timing.0.elapsed();
+        let t = eng.timing.unwrap().elapsed();
         let nodes = eng.nodes + eng.qnodes;
         let nps = ((nodes as f64) / t.as_secs_f64()) as u32;
         println!("info depth {d: <2} {score} time {: <5} nodes {nodes: <9} nps {nps: <8.0} pv {best}", t.as_millis());
@@ -119,7 +97,7 @@ fn qsearch(pos: &Position, eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
     let mut scores = eng.score_caps(&caps, pos);
     while let Some((r#move, _)) = caps.pick(&mut scores) {
         let mut new_pos = *pos;
-        if new_pos.make(r#move, &eng.zvals) { continue }
+        if new_pos.make(r#move) { continue }
         eval = eval.max(-qsearch(&new_pos, eng, -beta, -alpha));
         if eval >= beta { break }
         alpha = alpha.max(eval);
@@ -130,13 +108,13 @@ fn qsearch(pos: &Position, eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
 fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, null: bool) -> i16 {
     // stopping search
     if eng.abort { return 0 }
-    if eng.nodes & 1023 == 0 && eng.timing.0.elapsed().as_millis() >= eng.timing.1 {
+    if eng.nodes & 1023 == 0 && eng.timing.unwrap().elapsed().as_millis() >= eng.max_time {
         eng.abort = true;
         return 0
     }
 
     // calculate full hash
-    let hash = pos.hash(&eng.zvals);
+    let hash = pos.hash();
 
     // draw detection
     if pos.hfm >= 100 || pos.mat_draw() || eng.rep_draw(pos, hash) { return 0 }
@@ -202,13 +180,13 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     while let Some((r#move, mscore)) = moves.pick(&mut scores) {
         // copy position, make move and skip if not legal
         let mut new_pos = *pos;
-        if new_pos.make(r#move, &eng.zvals) { continue }
+        if new_pos.make(r#move) { continue }
         let check = new_pos.in_check();
         legal += 1;
 
         // late move reductions - Viridithas values used
         let reduce = if can_lmr && !check && mscore < KILLER {
-            let lmr = eng.lmr_table.0[depth as usize][legal.min(63)];
+            let lmr = (0.77 + (depth as f64).ln() * (legal.min(63) as f64).ln() / 2.67) as i8;
             if pv_node { 1.max(lmr - 1) } else { lmr }
         } else {0};
 

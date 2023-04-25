@@ -1,4 +1,4 @@
-use super::{consts::*};
+use super::consts::*;
 
 #[derive(Clone, Copy, Default)]
 pub struct Position {
@@ -19,13 +19,6 @@ pub struct Move {
     pub to: u8,
     pub flag: u8,
     pub mpc: u8,
-}
-
-pub struct ZobristVals {
-    pcs: [[[u64; 64]; 8]; 2],
-    cr: [u64; 4],
-    enp: [u64; 8],
-    c: u64,
 }
 
 #[inline(always)]
@@ -51,7 +44,7 @@ pub fn ratt(idx: usize, occ: u64) -> u64 {
 }
 
 impl Position {
-    pub fn from_fen(fen: &str, zvals: &ZobristVals) -> Self {
+    pub fn from_fen(fen: &str) -> Self {
         let vec = fen.split_whitespace().collect::<Vec<&str>>();
         let p = vec[0].chars().collect::<Vec<char>>();
         let (mut pos, mut row, mut col) = (Self::default(), 7, 0);
@@ -63,7 +56,7 @@ impl Position {
                 let side = usize::from(idx > 5);
                 let (pc, sq) = (idx + 2 - 6 * side, 8 * row + col);
                 pos.toggle(side, pc, 1 << sq);
-                pos.hash ^= zvals.pcs[side][pc][sq as usize];
+                pos.hash ^= ZVALS.pcs[side][pc][sq as usize];
                 pos.pst += PST[side][pc][sq as usize];
                 pos.phase += PHASE_VALS[pc];
                 col += 1;
@@ -76,12 +69,12 @@ impl Position {
         pos
     }
 
-    pub fn hash(&self, zvals: &ZobristVals) -> u64 {
+    pub fn hash(&self) -> u64 {
         let (mut hash, mut r) = (self.hash, self.cr);
-        if self.c {hash ^= zvals.c}
-        if self.enp > 0 {hash ^= zvals.enp[self.enp as usize & 7]}
+        if self.c {hash ^= ZVALS.c}
+        if self.enp > 0 {hash ^= ZVALS.enp[self.enp as usize & 7]}
         while r > 0 {
-            hash ^= zvals.cr[r.trailing_zeros() as usize];
+            hash ^= ZVALS.cr[r.trailing_zeros() as usize];
             r &= r - 1;
         }
         hash
@@ -98,8 +91,8 @@ impl Position {
         ( (NATT[idx] & self.bb[N])
         | (KATT[idx] & self.bb[K])
         | (PATT[side][idx] & self.bb[P])
-        | (ratt(idx, occ) & ((self.bb[R] | self.bb[Q])))
-        | (batt(idx, occ) & ((self.bb[B] | self.bb[Q])))
+        | (ratt(idx, occ) & (self.bb[R] | self.bb[Q]))
+        | (batt(idx, occ) & (self.bb[B] | self.bb[Q]))
         ) & self.bb[side ^ 1] > 0
     }
 
@@ -110,7 +103,7 @@ impl Position {
         | (4 * usize::from((self.bb[B] | self.bb[R] | self.bb[Q] | self.bb[K]) & bit > 0))
     }
 
-    pub fn make(&mut self, m: Move, zvals: &ZobristVals) -> bool {
+    pub fn make(&mut self, m: Move) -> bool {
         let (f, t, mpc) = (1 << m.from, 1 << m.to, usize::from(m.mpc));
         let (to, from) = (usize::from(m.to), usize::from(m.from));
         let cpc = if m.flag & CAP == 0 || m.flag == ENP {E} else {self.get_pc(t)};
@@ -124,14 +117,14 @@ impl Position {
 
         // move piece
         self.toggle(side, mpc, f | t);
-        self.hash ^= zvals.pcs[side][mpc][from] ^ zvals.pcs[side][mpc][to];
+        self.hash ^= ZVALS.pcs[side][mpc][from] ^ ZVALS.pcs[side][mpc][to];
         self.pst += PST[side][mpc][to];
         self.pst += -1 * PST[side][mpc][from];
 
         // captures
         if cpc != E {
             self.toggle(side ^ 1, cpc, t);
-            self.hash ^= zvals.pcs[side ^ 1][cpc][to];
+            self.hash ^= ZVALS.pcs[side ^ 1][cpc][to];
             self.pst += -1 * PST[side ^ 1][cpc][to];
             self.phase -= PHASE_VALS[cpc];
         }
@@ -141,21 +134,21 @@ impl Position {
             KS | QS => {
                 let (bits, idx1, idx2) = CM[usize::from(m.flag == KS)][side];
                 self.toggle(side, R, bits);
-                self.hash ^= zvals.pcs[side][R][idx1] ^ zvals.pcs[side][R][idx2];
+                self.hash ^= ZVALS.pcs[side][R][idx1] ^ ZVALS.pcs[side][R][idx2];
                 self.pst += -1 * PST[side][R][idx1];
                 self.pst += PST[side][R][idx2];
             },
             ENP => {
                 let pwn = to + [8usize.wrapping_neg(), 8][side];
                 self.toggle(side ^ 1, P, 1 << pwn);
-                self.hash ^= zvals.pcs[side ^ 1][P][pwn];
+                self.hash ^= ZVALS.pcs[side ^ 1][P][pwn];
                 self.pst += -1 * PST[side ^ 1][P][pwn];
             },
             NPR.. => {
                 let ppc = usize::from((m.flag & 3) + 3);
                 self.bb[P] ^= t;
                 self.bb[ppc] ^= t;
-                self.hash ^= zvals.pcs[side][P][to] ^ zvals.pcs[side][ppc][to];
+                self.hash ^= ZVALS.pcs[side][P][to] ^ ZVALS.pcs[side][ppc][to];
                 self.pst += -1 * PST[side][P][to];
                 self.pst += PST[side][ppc][to];
                 self.phase += PHASE_VALS[ppc];
@@ -214,27 +207,5 @@ impl Move {
         *possible_moves.list.iter().take(possible_moves.len).find(|um|
             m.from == um.from && m.to == um.to && (m_str.len() < 5 || m.flag == um.flag & 0b1011)
         ).unwrap()
-    }
-}
-
-fn random(seed: &mut u64) -> u64 {
-    *seed ^= *seed << 13;
-    *seed ^= *seed >> 7;
-    *seed ^= *seed << 17;
-    *seed
-}
-
-impl Default for ZobristVals {
-    fn default() -> Self {
-        let mut seed = 180_620_142;
-        let mut vals = Self { pcs: [[[0; 64]; 8]; 2], cr: [0; 4], enp: [0; 8], c: random(&mut seed) };
-        for side in vals.pcs.iter_mut() {
-            for pc in side.iter_mut().skip(2) {
-                pc.iter_mut().for_each(|sq| *sq = random(&mut seed))
-            }
-        }
-        vals.cr.iter_mut().for_each(|r| *r = random(&mut seed));
-        vals.enp.iter_mut().for_each(|f| *f = random(&mut seed));
-        vals
     }
 }

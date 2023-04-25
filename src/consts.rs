@@ -7,6 +7,13 @@ pub struct Mask {
     pub file: u64,
 }
 
+pub struct ZobristVals {
+    pub pcs: [[[u64; 64]; 8]; 2],
+    pub cr: [u64; 4],
+    pub enp: [u64; 8],
+    pub c: u64,
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct S(pub i16, pub i16);
 
@@ -29,6 +36,7 @@ macro_rules! consts {{$t:ty, $($n:ident = $v:expr),*} => {$(pub const $n: $t = $
 macro_rules! init {($i:ident, $size:expr, $($r:tt)+) => {{
     let mut $i = 0;
     let mut res = [{$($r)+}; $size];
+    $i += 1;
     while $i < $size {
         res[$i] = {$($r)+};
         $i += 1;
@@ -99,6 +107,26 @@ pub const RANKS: [[u64; 64]; 8] = init!(f, 8, init!(i, 64, {
 
 // Draw detection
 consts!(u64, LSQ = 0x55AA55AA55AA55AA, DSQ = 0xAA55AA55AA55AA55);
+
+// Zobrist values
+pub const fn rand(mut seed: u64) -> u64 {
+    seed ^= seed << 13;
+    seed ^= seed >> 7;
+    seed ^= seed << 17;
+    seed
+}
+
+pub static ZVALS: ZobristVals = {
+    let mut seed = 180_620_142;
+    seed = rand(seed);
+    let c = seed;
+    let pcs = init!(side, 2, init!(pc, 8, init!(sq, 64, {
+        if pc < 2 { 0 } else { seed = rand(seed); seed }
+    })));
+    let cr = init!(i, 4, {seed = rand(seed); seed});
+    let enp = init!(i, 8, {seed = rand(seed); seed});
+    ZobristVals { pcs, cr, enp, c }
+};
 
 // Eval
 pub const SIDE: [i16; 2] = [1, -1];
