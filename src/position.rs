@@ -1,4 +1,4 @@
-use super::{consts::*, eval::*};
+use super::{consts::*};
 
 #[derive(Clone, Copy, Default)]
 pub struct Position {
@@ -64,7 +64,7 @@ impl Position {
                 let (pc, sq) = (idx + 2 - 6 * side, 8 * row + col);
                 pos.toggle(side, pc, 1 << sq);
                 pos.hash ^= zvals.pcs[side][pc][sq as usize];
-                pos.pst += SIDE[side] * PST[pc][sq as usize ^ (56 * (side ^ 1))];
+                pos.pst += SIDE[side] * PST[side][pc][sq as usize];
                 pos.phase += PHASE_VALS[pc];
                 col += 1;
             }
@@ -115,7 +115,6 @@ impl Position {
         let (to, from) = (usize::from(m.to), usize::from(m.from));
         let cpc = if m.flag & CAP == 0 || m.flag == ENP {E} else {self.get_pc(t)};
         let side = usize::from(self.c);
-        let (sign, flip) = (SIDE[side], 56 * (side ^ 1));
 
         // update state
         self.cr &= CR[to] & CR[from];
@@ -126,14 +125,14 @@ impl Position {
         // move piece
         self.toggle(side, mpc, f | t);
         self.hash ^= zvals.pcs[side][mpc][from] ^ zvals.pcs[side][mpc][to];
-        self.pst += sign * PST[mpc][to ^ flip];
-        self.pst += -sign * PST[mpc][from ^ flip];
+        self.pst += PST[side][mpc][to];
+        self.pst += -1 * PST[side][mpc][from];
 
         // captures
         if cpc != E {
             self.toggle(side ^ 1, cpc, t);
             self.hash ^= zvals.pcs[side ^ 1][cpc][to];
-            self.pst += sign * PST[cpc][to ^ (56 * side)];
+            self.pst += -1 * PST[side ^ 1][cpc][to];
             self.phase -= PHASE_VALS[cpc];
         }
 
@@ -143,22 +142,22 @@ impl Position {
                 let (bits, idx1, idx2) = CM[usize::from(m.flag == KS)][side];
                 self.toggle(side, R, bits);
                 self.hash ^= zvals.pcs[side][R][idx1] ^ zvals.pcs[side][R][idx2];
-                self.pst += -sign * PST[R][idx1 ^ flip];
-                self.pst += sign * PST[R][idx2 ^ flip];
+                self.pst += -1 * PST[side][R][idx1];
+                self.pst += PST[side][R][idx2];
             },
             ENP => {
                 let pwn = to + [8usize.wrapping_neg(), 8][side];
                 self.toggle(side ^ 1, P, 1 << pwn);
                 self.hash ^= zvals.pcs[side ^ 1][P][pwn];
-                self.pst += sign * PST[P][pwn ^ (56 * side)];
+                self.pst += -1 * PST[side ^ 1][P][pwn];
             },
             NPR.. => {
                 let ppc = usize::from((m.flag & 3) + 3);
                 self.bb[P] ^= t;
                 self.bb[ppc] ^= t;
                 self.hash ^= zvals.pcs[side][P][to] ^ zvals.pcs[side][ppc][to];
-                self.pst += -sign * PST[P][to ^ flip];
-                self.pst += sign * PST[ppc][to ^ flip];
+                self.pst += -1 * PST[side][P][to];
+                self.pst += PST[side][ppc][to];
                 self.phase += PHASE_VALS[ppc];
             }
             _ => {}
