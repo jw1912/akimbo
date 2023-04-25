@@ -31,7 +31,7 @@ impl HashTable {
     }
 
     pub fn probe(&self, hash: u64, ply: i16) -> Option<HashEntry> {
-        let mut entry = self.0[(hash as usize) & (self.1- 1)];
+        let mut entry = self.0[(hash as usize) & (self.1 - 1)];
         if entry.key != (hash >> 48) as u16 { return None }
         entry.score -= if entry.score.abs() > MATE {entry.score.signum() * ply} else {0};
         Some(entry)

@@ -132,11 +132,11 @@ impl Position {
         // more complex moves
         match m.flag {
             KS | QS => {
-                let (bits, idx1, idx2) = CM[usize::from(m.flag == KS)][side];
+                let (bits, rfr, rto) = CM[usize::from(m.flag == KS)][side];
                 self.toggle(side, R, bits);
-                self.hash ^= ZVALS.pcs[side][R][idx1] ^ ZVALS.pcs[side][R][idx2];
-                self.pst += -1 * PST[side][R][idx1];
-                self.pst += PST[side][R][idx2];
+                self.hash ^= ZVALS.pcs[side][R][rfr] ^ ZVALS.pcs[side][R][rto];
+                self.pst += -1 * PST[side][R][rfr];
+                self.pst += PST[side][R][rto];
             },
             ENP => {
                 let pwn = to + [8usize.wrapping_neg(), 8][side];
