@@ -69,14 +69,9 @@ impl Position {
     }
 
     pub fn hash(&self) -> u64 {
-        let (mut hash, mut r) = (self.hash, self.cr);
-        if self.c {hash ^= ZVALS.c}
+        let mut hash = self.hash;
         if self.enp > 0 {hash ^= ZVALS.enp[self.enp as usize & 7]}
-        while r > 0 {
-            hash ^= ZVALS.cr[r.trailing_zeros() as usize];
-            r &= r - 1;
-        }
-        hash
+        hash ^ ZVALS.cr[usize::from(self.cr)] ^ ZVALS.c[usize::from(self.c)]
     }
 
     #[inline]

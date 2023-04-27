@@ -9,9 +9,9 @@ pub struct Mask {
 
 pub struct ZobristVals {
     pub pcs: [[[u64; 64]; 8]; 2],
-    pub cr: [u64; 4],
+    pub cr: [u64; 16],
     pub enp: [u64; 8],
-    pub c: u64,
+    pub c: [u64; 2],
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -119,11 +119,15 @@ const fn rand(mut seed: u64) -> u64 {
 pub static ZVALS: ZobristVals = {
     let mut seed = 180_620_142;
     seed = rand(seed);
-    let c = seed;
+    let c = [0, seed];
     let pcs = init!(side, 2, init!(pc, 8, init!(sq, 64, {
         if pc < 2 { 0 } else { seed = rand(seed); seed }
     })));
-    let cr = init!(i, 4, {seed = rand(seed); seed});
+    let cf = init!(i, 4, {seed = rand(seed); seed});
+    let cr = init!(i, 16, {
+          ((i & 1 > 0) as u64 * cf[0]) ^ ((i & 2 > 0) as u64 * cf[1])
+        ^ ((i & 4 > 0) as u64 * cf[2]) ^ ((i & 8 > 0) as u64 * cf[3])
+    });
     let enp = init!(i, 8, {seed = rand(seed); seed});
     ZobristVals { pcs, cr, enp, c }
 };
