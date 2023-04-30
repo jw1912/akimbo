@@ -157,7 +157,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
 
         // null move pruning?
         if null && depth >= 3 && pos.phase >= 6 && eval >= beta {
-            let r = 2 + depth / 3;
+            let r = 3 + depth / 3;
             eng.ply += 1;
             eng.stack.push(hash);
             let mut new_pos = *pos;
