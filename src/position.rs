@@ -7,9 +7,10 @@ pub struct Position {
     pub hfm: u8,
     pub enp: u8,
     pub cr: u8,
+    pub check: bool,
+    hash: u64,
     pub phase: i16,
-    pub nulls: u16,
-    pub hash: u64,
+    pub nulls: i16,
     pst: S,
 }
 
@@ -26,9 +27,9 @@ pub fn batt(idx: usize, occ: u64) -> u64 {
     let m = MASKS[idx];
     let rb = m.bit.swap_bytes();
     let (mut f1, mut f2) = (occ & m.diag, occ & m.anti);
-    let (r1, r2) = (f1.swap_bytes() - rb, f2.swap_bytes() - rb);
-    f1 -= m.bit;
-    f2 -= m.bit;
+    let (r1, r2) = (f1.swap_bytes().wrapping_sub(rb), f2.swap_bytes().wrapping_sub(rb));
+    f1 = f1.wrapping_sub(m.bit);
+    f2 = f2.wrapping_sub(m.bit);
     ((f1 ^ r1.swap_bytes()) & m.diag) | ((f2 ^ r2.swap_bytes()) & m.anti)
 }
 
@@ -38,8 +39,8 @@ pub fn ratt(idx: usize, occ: u64) -> u64 {
     let mut f = occ & m.file;
     let i = idx & 7;
     let s = idx - i;
-    let r = f.swap_bytes() - m.bit.swap_bytes();
-    f -= m.bit;
+    let r = f.swap_bytes().wrapping_sub(m.bit.swap_bytes());
+    f = f.wrapping_sub(m.bit);
     ((f ^ r.swap_bytes()) & m.file) | (RANKS[i][((occ >> (s + 1)) & 0x3F) as usize] << s)
 }
 
@@ -134,7 +135,7 @@ impl Position {
                 self.pst += PST[side][R][rto];
             },
             ENP => {
-                let pwn = to + [8usize.wrapping_neg(), 8][side];
+                let pwn = to.wrapping_add([8usize.wrapping_neg(), 8][side]);
                 self.toggle(side ^ 1, P, 1 << pwn);
                 self.hash ^= ZVALS.pcs[side ^ 1][P][pwn];
                 self.pst += -1 * PST[side ^ 1][P][pwn];
@@ -156,12 +157,6 @@ impl Position {
         self.is_sq_att(kidx, side, self.bb[0] | self.bb[1])
     }
 
-    pub fn make_null(&mut self) {
-        self.nulls += 1;
-        self.enp = 0;
-        self.c = !self.c;
-    }
-
     pub fn mat_draw(&self) -> bool {
         let (ph, b, p, wh, bl) = (self.phase, self.bb[B], self.bb[P], self.bb[WH], self.bb[BL]);
         ph <= 2 && p == 0 && ((ph != 2) || (b & wh != b && b & bl != b && (b & LSQ == b || b & DSQ == b)))
@@ -172,7 +167,7 @@ impl Position {
         self.is_sq_att(kidx, usize::from(self.c), self.bb[0] | self.bb[1])
     }
 
-    pub fn lazy_eval(&self) -> i16 {
+    pub fn eval(&self) -> i16 {
         let (s, p) = (self.pst, TPHASE.min(self.phase as i32));
         SIDE[usize::from(self.c)] * ((p * s.0 as i32 + (TPHASE - p) * s.1 as i32) / TPHASE) as i16
     }

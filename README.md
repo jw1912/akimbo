@@ -2,7 +2,6 @@
 
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/JacquesRW/akimbo?style=for-the-badge)](https://github.com/JacquesRW/akimbo/releases/latest)
 ![Commits since latest release](https://img.shields.io/github/commits-since/JacquesRW/akimbo/latest?style=for-the-badge)
-![TLOC](https://img.shields.io/tokei/lines/github/JacquesRW/akimbo?style=for-the-badge)
 
 A compact UCI Chess engine written in Rust.
 
@@ -21,7 +20,7 @@ As a result writing idiomatic Rust is not an aim of this project.
 | :---------------------------------------------------------------:|:--------------------:|:----:|:----:|:-------------:|
 | [0.1.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.1.1) |    8th January 2023  | 1167 | 1381 |    2469       |
 | [0.2.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.2.0) |   10th   April 2023  |  866 | 1000 |    2524       |
-|                             dev                                  |          n/a         |  812 |  964 |     n/a       |
+|                             dev                                  |          n/a         |  788 |  937 |     n/a       |
 
 ## Features
 

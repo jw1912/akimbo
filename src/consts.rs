@@ -91,11 +91,8 @@ pub static KATT: [u64; 64] = init!(i, 64, {
 // Slider attacks
 const EA: [u64; 64] = init!(i, 64, (1 << i) ^ WE[i] ^ (0xFF << (i & 56)));
 const WE: [u64; 64] = init!(i, 64, ((1 << i) - 1) & (0xFF << (i & 56)));
-pub const DIAGS: [u64; 15] = [
-    0x0100000000000000, 0x0201000000000000, 0x0402010000000000, 0x0804020100000000, 0x1008040201000000,
-    0x2010080402010000, 0x4020100804020100, 0x8040201008040201, 0x0080402010080402, 0x0000804020100804,
-    0x0000008040201008, 0x0000000080402010, 0x0000000000804020, 0x0000000000008040, 0x0000000000000080,
-];
+const DIAG: u64 = 0x8040201008040201;
+const DIAGS: [u64; 15] = init!(i, 15, if i > 7 { DIAG >> (8 * (i - 7)) } else {DIAG << (8 * (7 - i)) });
 pub static MASKS: [Mask; 64] = init!(i, 64,
     let bit = 1 << i;
     Mask { bit, diag: bit ^ DIAGS[7 + (i & 7) - i / 8], anti: bit ^ DIAGS[(i & 7) + i / 8].swap_bytes(), file: bit ^ FILE << (i & 7) }
