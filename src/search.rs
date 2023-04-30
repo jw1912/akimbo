@@ -61,6 +61,16 @@ impl Engine {
         }
         false
     }
+
+    fn push(&mut self, hash: u64) {
+        self.ply += 1;
+        self.stack.push(hash);
+    }
+
+    fn pop(&mut self) {
+        self.stack.pop();
+        self.ply -= 1;
+    }
 }
 
 pub fn go(pos: &Position, eng: &mut Engine) {
@@ -152,19 +162,16 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
         let eval = pos.lazy_eval();
 
         // reverse futility pruning?
-        let margin = eval - 120 * i16::from(depth);
-        if depth <= 8 && margin >= beta { return margin }
+        if depth <= 8 && eval >= beta + 120 * i16::from(depth) { return eval }
 
         // null move pruning?
         if null && depth >= 3 && pos.phase >= 6 && eval >= beta {
-            let r = 3 + depth / 3;
-            eng.ply += 1;
-            eng.stack.push(hash);
             let mut new_pos = *pos;
+            let r = 3 + depth / 3;
+            eng.push(hash);
             new_pos.make_null();
             let nw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - r, false, false);
-            eng.stack.pop();
-            eng.ply -= 1;
+            eng.pop();
             if nw >= MATE { return beta }
             if nw >= beta { return nw }
         }
@@ -175,8 +182,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     let can_lmr = depth > 1 && eng.ply > 0 && !in_check;
     let (mut legal, mut eval, mut bound) = (0, -MAX, UPPER);
 
-    eng.ply += 1;
-    eng.stack.push(hash);
+    eng.push(hash);
     while let Some((r#move, mscore)) = moves.pick(&mut scores) {
         // copy position, make move and skip if not legal
         let mut new_pos = *pos;
@@ -221,8 +227,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
 
         break
     }
-    eng.stack.pop();
-    eng.ply -= 1;
+    eng.pop();
 
     // don't trust results if search was aborted during the node
     if eng.abort { return 0 }
