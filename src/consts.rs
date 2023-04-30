@@ -44,7 +44,7 @@ macro_rules! init {($i:ident, $size:expr, $($r:tt)+) => {{
 }}}
 
 // UCI
-consts!(&str, NAME = env!("CARGO_PKG_NAME"), VERSION = env!("CARGO_PKG_VERSION"), AUTHOR = env!("CARGO_PKG_AUTHORS"));
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 pub const CHARS: [char; 12] = ['P','N','B','R','Q','K','p','n','b','r','q','k'];
 

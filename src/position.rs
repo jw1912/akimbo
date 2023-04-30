@@ -105,7 +105,7 @@ impl Position {
 
         // update state
         self.cr &= CR[to] & CR[from];
-        self.enp = if m.flag == DBL {if side == WH {m.to - 8} else {m.to + 8}} else {0};
+        self.enp = 0;
         self.hfm = u8::from(mpc > P && m.flag != CAP) * (self.hfm + 1);
         self.c = !self.c;
 
@@ -125,6 +125,7 @@ impl Position {
 
         // more complex moves
         match m.flag {
+            DBL => self.enp = if side == WH {m.to - 8} else {m.to + 8},
             KS | QS => {
                 let (bits, rfr, rto) = CM[usize::from(m.flag == KS)][side];
                 self.toggle(side, R, bits);
@@ -172,8 +173,8 @@ impl Position {
     }
 
     pub fn lazy_eval(&self) -> i16 {
-        let (score, phase) = (self.pst, TPHASE.min(self.phase as i32));
-        SIDE[usize::from(self.c)] * ((phase * score.0 as i32 + (TPHASE - phase) * score.1 as i32) / TPHASE) as i16
+        let (s, p) = (self.pst, TPHASE.min(self.phase as i32));
+        SIDE[usize::from(self.c)] * ((p * s.0 as i32 + (TPHASE - p) * s.1 as i32) / TPHASE) as i16
     }
 }
 

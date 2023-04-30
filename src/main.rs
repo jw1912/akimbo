@@ -10,10 +10,10 @@ use search::{Engine, go};
 use std::{io, process, time::Instant};
 
 fn main() {
-    println!("{NAME}, created by {AUTHOR}");
+    println!("akimbo, created by Jamie Whiting");
     let mut eng = Engine::default();
     let mut pos = Position::from_fen(STARTPOS);
-    eng.ttable.resize(1);
+    eng.ttable.resize(128);
     loop {
         let mut input = String::new();
         io::stdin().read_line(&mut input).unwrap();
@@ -23,14 +23,24 @@ fn main() {
 
 fn parse_commands(commands: Vec<&str>, pos: &mut Position, eng: &mut Engine) {
     match *commands.first().unwrap_or(&"oops") {
-        "uci" => println!("id name {NAME} {VERSION}\nid author {AUTHOR}\noption name Hash type spin default 128 min 1 max 512\nuciok"),
+        "uci" => {
+            println!("id name akimbo {VERSION}");
+            println!("id author Jamie Whiting");
+            println!("option name Hash type spin default 128 min 1 max 1024");
+            println!("option name Clear Hash type button");
+            println!("uciok");
+        },
         "isready" => println!("readyok"),
         "ucinewgame" => {
             *pos = Position::from_fen(STARTPOS);
             eng.ttable.clear();
             *eng.htable = Default::default();
         },
-        "setoption" => if let ["setoption", "name", "Hash", "value", x] = commands[..] {eng.ttable.resize(x.parse().unwrap())},
+        "setoption" => match commands[..] {
+            ["setoption", "name", "Hash", "value", x] => eng.ttable.resize(x.parse().unwrap()),
+            ["setoption", "name", "Clear", "Hash"] => eng.ttable.clear(),
+            _ => {}
+        },
         "go" => parse_go(pos, eng, commands),
         "position" => parse_position(pos, commands),
         "perft" => parse_perft(pos, &commands),
