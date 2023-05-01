@@ -42,7 +42,7 @@ fn parse_commands(commands: Vec<&str>, pos: &mut Position, eng: &mut Engine) {
             _ => {}
         },
         "go" => parse_go(pos, eng, commands),
-        "position" => parse_position(pos, commands),
+        "position" => parse_position(pos, eng, commands),
         "perft" => parse_perft(pos, &commands),
         "quit" => process::exit(0),
         _ => {},
@@ -60,14 +60,14 @@ fn perft(pos: &Position, depth: u8) -> u64 {
     positions
 }
 
-fn parse_perft(pos: &mut Position, commands: &[&str]) {
+fn parse_perft(pos: &Position, commands: &[&str]) {
     let (depth, now) = (commands[1].parse().unwrap(), Instant::now());
     let count = perft(pos, depth);
     let time = now.elapsed();
     println!("perft {depth} time {} nodes {count} ({:.2} Mnps)", time.as_millis(), count as f64 / time.as_micros() as f64);
 }
 
-fn parse_position(pos: &mut Position, commands: Vec<&str>) {
+fn parse_position(pos: &mut Position, eng: &mut Engine, commands: Vec<&str>) {
     let (mut fen, mut move_list, mut moves) = (String::new(), Vec::new(), false);
     for cmd in commands {
         match cmd {
@@ -77,7 +77,11 @@ fn parse_position(pos: &mut Position, commands: Vec<&str>) {
         }
     }
     *pos = Position::from_fen(if fen.is_empty() { STARTPOS } else { &fen });
-    for m in move_list { pos.make(Move::from_uci(pos, m)); }
+    eng.stack.clear();
+    for m in move_list {
+        eng.stack.push(pos.hash());
+        pos.make(Move::from_uci(pos, m));
+    }
 }
 
 fn parse_go(pos: &Position, eng: &mut Engine, commands: Vec<&str>) {

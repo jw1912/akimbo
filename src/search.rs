@@ -8,7 +8,7 @@ pub struct Engine {
     pub ttable: HashTable,
     pub htable: Box<HistoryTable>,
     ktable: Box<KillerTable>,
-    stack: Vec<u64>,
+    pub stack: Vec<u64>,
     nodes: u64,
     qnodes: u64,
     ply: i16,
@@ -22,6 +22,7 @@ impl Engine {
         self.nodes = 0;
         self.qnodes = 0;
         self.ply = 0;
+        self.best_move = Move::default();
         self.abort = false;
     }
 
