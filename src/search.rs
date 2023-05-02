@@ -14,6 +14,7 @@ pub struct Engine {
     ply: i16,
     abort: bool,
     best_move: Move,
+    nulls: i16,
 }
 
 impl Engine {
@@ -55,7 +56,7 @@ impl Engine {
     fn rep_draw(&self, pos: &Position, curr_hash: u64) -> bool {
         let mut num = 1 + u8::from(self.ply == 0);
         let l = self.stack.len();
-        if l < 6 || pos.nulls > 0 { return false }
+        if l < 6 || self.nulls > 0 { return false }
         for &hash in self.stack.iter().rev().take(pos.hfm as usize + 1).skip(1).step_by(2) {
             num -= u8::from(hash == curr_hash);
             if num == 0 { return true }
@@ -176,8 +177,11 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
             let mut new_pos = *pos;
             let r = 3 + depth / 3;
             eng.push(hash);
-            new_pos.make_null();
+            eng.nulls += 1;
+            new_pos.c = !new_pos.c;
+            new_pos.enp = 0;
             let nw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - r, false, false);
+            eng.nulls -= 1;
             eng.pop();
             if nw >= MATE { return beta }
             if nw >= beta { return nw }

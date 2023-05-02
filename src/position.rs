@@ -7,10 +7,10 @@ pub struct Position {
     pub hfm: u8,
     pub enp: u8,
     pub cr: u8,
-    pub phase: i16,
-    pub nulls: u16,
     pub hash: u64,
+    pub phase: i16,
     pst: S,
+    _padding: i16,
 }
 
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
@@ -154,12 +154,6 @@ impl Position {
         // validating move
         let kidx = (self.bb[K] & self.bb[side]).trailing_zeros() as usize;
         self.is_sq_att(kidx, side, self.bb[0] | self.bb[1])
-    }
-
-    pub fn make_null(&mut self) {
-        self.nulls += 1;
-        self.enp = 0;
-        self.c = !self.c;
     }
 
     pub fn mat_draw(&self) -> bool {
