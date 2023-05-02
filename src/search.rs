@@ -162,10 +162,16 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     if !pv_node && !in_check && beta.abs() < MATE {
         let eval = pos.lazy_eval();
 
-        // reverse futility pruning?
+        // reverse futility pruning
         if depth <= 8 && eval >= beta + 120 * i16::from(depth) { return eval }
 
-        // null move pruning?
+        // razoring
+        if depth <= 2 && eval + 400 * i16::from(depth) < alpha {
+            let qeval = qsearch(pos, eng, alpha, beta);
+            if qeval < alpha { return qeval }
+        }
+
+        // null move pruning
         if null && depth >= 3 && pos.phase >= 6 && eval >= beta {
             let mut new_pos = *pos;
             let r = 3 + depth / 3;
@@ -178,10 +184,13 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
         }
     }
 
+    // stuff for going through moves
     let mut moves = pos.gen::<ALL>();
     let mut scores = eng.score(pos, &moves, best_move);
-    let can_lmr = depth > 1 && eng.ply > 0 && !in_check;
     let (mut legal, mut eval, mut bound) = (0, -MAX, UPPER);
+
+    // pruning/reductions allowed?
+    let can_lmr = depth > 1 && eng.ply > 0 && !in_check;
 
     eng.push(hash);
     while let Some((r#move, mscore)) = moves.pick(&mut scores) {
