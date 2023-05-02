@@ -75,13 +75,14 @@ impl Engine {
     }
 }
 
-pub fn go(pos: &Position, eng: &mut Engine) {
+pub fn go(start: &Position, eng: &mut Engine) {
     eng.reset();
     let mut best = String::new();
-    let in_check: bool = pos.in_check();
+    let mut pos = *start;
+    pos.check = pos.in_check();
 
     for d in 1..=64 {
-        let eval = search(pos, eng, -MAX, MAX, d, in_check, false);
+        let eval = search(&pos, eng, -MAX, MAX, d, false);
         if eng.abort { break }
         best = eng.best_move.to_uci();
 
@@ -117,7 +118,7 @@ fn qsearch(pos: &Position, eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
     eval
 }
 
-fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, in_check: bool, null: bool) -> i16 {
+fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, null: bool) -> i16 {
     // stopping search
     if eng.abort { return 0 }
     if eng.nodes & 1023 == 0 && eng.timing.unwrap().elapsed().as_millis() >= eng.max_time {
@@ -137,7 +138,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     if alpha >= beta { return alpha }
 
     // check extensions - not on root
-    depth += i8::from(in_check && eng.ply > 0);
+    depth += i8::from(pos.check && eng.ply > 0);
 
     // drop into quiescence search?
     if depth <= 0 || eng.ply == MAX_PLY { return qsearch(pos, eng, alpha, beta) }
@@ -160,7 +161,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     }
 
     // pruning
-    if !pv_node && !in_check && beta.abs() < MATE {
+    if !pv_node && !pos.check && beta.abs() < MATE {
         let eval = pos.lazy_eval();
 
         // reverse futility pruning
@@ -180,7 +181,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
             eng.nulls += 1;
             new_pos.c = !new_pos.c;
             new_pos.enp = 0;
-            let nw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - r, false, false);
+            let nw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - r, false);
             eng.nulls -= 1;
             eng.pop();
             if nw >= MATE { return beta }
@@ -194,29 +195,29 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     let (mut legal, mut eval, mut bound) = (0, -MAX, UPPER);
 
     // pruning/reductions allowed?
-    let can_lmr = depth > 1 && eng.ply > 0 && !in_check;
+    let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
 
     eng.push(hash);
     while let Some((r#move, mscore)) = moves.pick(&mut scores) {
         // copy position, make move and skip if not legal
         let mut new_pos = *pos;
         if new_pos.make(r#move) { continue }
-        let check = new_pos.in_check();
+        new_pos.check = new_pos.in_check();
         legal += 1;
 
         // late move reductions - Viridithas values used
-        let reduce = if can_lmr && !check && mscore < KILLER {
+        let reduce = if can_lmr && !new_pos.check && mscore < KILLER {
             let lmr = (0.77 + (depth as f64).ln() * (legal.min(63) as f64).ln() / 2.67) as i8;
             if pv_node { 1.max(lmr - 1) } else { lmr }
         } else {0};
 
         // pvs framework
         let score = if legal == 1 {
-            -search(&new_pos, eng, -beta, -alpha, depth - 1, check, false)
+            -search(&new_pos, eng, -beta, -alpha, depth - 1, false)
         } else {
-            let zw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - 1 - reduce, check, true);
+            let zw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - 1 - reduce, true);
             if zw > alpha && (pv_node || reduce > 0) {
-                -search(&new_pos, eng, -beta, -alpha, depth - 1, check, false)
+                -search(&new_pos, eng, -beta, -alpha, depth - 1, false)
             } else { zw }
         };
 
@@ -250,7 +251,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     if eng.ply == 0 { eng.best_move = best_move }
 
     // (stale/check)mate
-    if legal == 0 { return i16::from(in_check) * (-MAX + eng.ply) }
+    if legal == 0 { return i16::from(pos.check) * (-MAX + eng.ply) }
 
     // writing to hash table
     if write { eng.ttable.push(hash, best_move, depth, bound, eval, eng.ply) }

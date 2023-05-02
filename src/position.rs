@@ -7,6 +7,7 @@ pub struct Position {
     pub hfm: u8,
     pub enp: u8,
     pub cr: u8,
+    pub check: bool,
     pub hash: u64,
     pub phase: i16,
     pst: S,
