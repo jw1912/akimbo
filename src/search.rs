@@ -102,7 +102,6 @@ pub fn go(start: &Position, eng: &mut Engine) {
 }
 
 fn qsearch(pos: &Position, eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
-    eng.qnodes += 1;
     let mut eval = pos.lazy_eval();
     if eval >= beta { return eval }
     alpha = alpha.max(eval);
@@ -111,6 +110,7 @@ fn qsearch(pos: &Position, eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
     while let Some((r#move, _)) = caps.pick(&mut scores) {
         let mut new_pos = *pos;
         if new_pos.make(r#move) { continue }
+        eng.qnodes += 1;
         eval = eval.max(-qsearch(&new_pos, eng, -beta, -alpha));
         if eval >= beta { break }
         alpha = alpha.max(eval);
@@ -143,7 +143,6 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     // drop into quiescence search?
     if depth <= 0 || eng.ply == MAX_PLY { return qsearch(pos, eng, alpha, beta) }
 
-    eng.nodes += 1;
     let pv_node = beta > alpha + 1;
     let (mut best_move, mut write) = (Move::default(), true);
 
@@ -202,7 +201,10 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
         // copy position, make move and skip if not legal
         let mut new_pos = *pos;
         if new_pos.make(r#move) { continue }
+
+        // update stuff
         new_pos.check = new_pos.in_check();
+        eng.nodes += 1;
         legal += 1;
 
         // late move reductions - Viridithas values used
