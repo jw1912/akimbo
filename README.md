@@ -2,7 +2,6 @@
 
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/JacquesRW/akimbo?style=for-the-badge)](https://github.com/JacquesRW/akimbo/releases/latest)
 ![Commits since latest release](https://img.shields.io/github/commits-since/JacquesRW/akimbo/latest?style=for-the-badge)
-![TLOC](https://img.shields.io/tokei/lines/github/JacquesRW/akimbo?style=for-the-badge)
 
 A compact UCI Chess engine written in Rust.
 
