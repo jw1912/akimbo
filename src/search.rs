@@ -210,7 +210,7 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
         // late move reductions - Viridithas values used
         let reduce = if can_lmr && !new_pos.check && mscore < KILLER {
             let lmr = (0.77 + (depth as f64).ln() * (legal.min(63) as f64).ln() / 2.67) as i8;
-            if pv_node { 1.max(lmr - 1) } else { lmr }
+            if pv_node { 0.max(lmr - 1) } else { lmr }
         } else {0};
 
         // pvs framework
