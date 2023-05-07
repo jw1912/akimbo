@@ -107,11 +107,11 @@ fn qsearch(pos: &Position, eng: &mut Engine, mut alpha: i16, beta: i16) -> i16 {
     alpha = alpha.max(eval);
     let mut caps = pos.gen::<CAPTURES>();
     let mut scores = eng.score_caps(&caps, pos);
-    while let Some((r#move, _)) = caps.pick(&mut scores) {
-        let mut new_pos = *pos;
-        if new_pos.make(r#move) { continue }
+    while let Some((mov, _)) = caps.pick(&mut scores) {
+        let mut new = *pos;
+        if new.make(mov) { continue }
         eng.qnodes += 1;
-        eval = eval.max(-qsearch(&new_pos, eng, -beta, -alpha));
+        eval = eval.max(-qsearch(&new, eng, -beta, -alpha));
         if eval >= beta { break }
         alpha = alpha.max(eval);
     }
@@ -174,13 +174,13 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
 
         // null move pruning
         if null && depth >= 3 && pos.phase >= 6 && eval >= beta {
-            let mut new_pos = *pos;
+            let mut new = *pos;
             let r = 3 + depth / 3;
             eng.push(hash);
             eng.nulls += 1;
-            new_pos.c = !new_pos.c;
-            new_pos.enp = 0;
-            let nw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - r, false);
+            new.c = !new.c;
+            new.enp = 0;
+            let nw = -search(&new, eng, -alpha - 1, -alpha, depth - r, false);
             eng.nulls -= 1;
             eng.pop();
             if nw >= MATE { return beta }
@@ -197,36 +197,36 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
 
     eng.push(hash);
-    while let Some((r#move, mscore)) = moves.pick(&mut scores) {
+    while let Some((mov, ms)) = moves.pick(&mut scores) {
         // copy position, make move and skip if not legal
-        let mut new_pos = *pos;
-        if new_pos.make(r#move) { continue }
+        let mut new = *pos;
+        if new.make(mov) { continue }
 
         // update stuff
-        new_pos.check = new_pos.in_check();
+        new.check = new.in_check();
         eng.nodes += 1;
         legal += 1;
 
         // late move reductions - Viridithas values used
-        let reduce = if can_lmr && !new_pos.check && mscore < KILLER {
+        let reduce = if can_lmr && !new.check && ms < KILLER {
             let lmr = (0.77 + (depth as f64).ln() * (legal.min(63) as f64).ln() / 2.67) as i8;
             if pv_node { 0.max(lmr - 1) } else { lmr }
         } else {0};
 
         // pvs framework
         let score = if legal == 1 {
-            -search(&new_pos, eng, -beta, -alpha, depth - 1, false)
+            -search(&new, eng, -beta, -alpha, depth - 1, false)
         } else {
-            let zw = -search(&new_pos, eng, -alpha - 1, -alpha, depth - 1 - reduce, true);
+            let zw = -search(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true);
             if zw > alpha && (pv_node || reduce > 0) {
-                -search(&new_pos, eng, -beta, -alpha, depth - 1, false)
+                -search(&new, eng, -beta, -alpha, depth - 1, false)
             } else { zw }
         };
 
         // best move so far?
         if score <= eval { continue }
         eval = score;
-        best_move = r#move;
+        best_move = mov;
 
         // improve alpha?
         if score <= alpha { continue }
@@ -238,9 +238,9 @@ fn search(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut d
         bound = LOWER;
 
         // quiet cutoffs pushed to tables
-        if r#move.flag >= CAP { break }
-        eng.ktable.push(r#move, eng.ply);
-        eng.htable.push(r#move, pos.c, depth);
+        if mov.flag >= CAP { break }
+        eng.ktable.push(mov, eng.ply);
+        eng.htable.push(mov, pos.c, depth);
 
         break
     }
