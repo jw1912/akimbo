@@ -16,10 +16,9 @@ pub struct List<T> {
 pub type MoveList = List<Move>;
 pub type ScoreList = List<i16>;
 
-impl<T> List<T> {
-    pub fn uninit() -> Self {
-        #[allow(clippy::uninit_assumed_init, invalid_value)]
-        Self { list: unsafe { std::mem::MaybeUninit::uninit().assume_init() }, len: 0 }
+impl<T: Copy + Default> Default for List<T> {
+    fn default() -> Self {
+        Self { list: [T::default(); 252], len: 0 }
     }
 }
 
@@ -54,7 +53,7 @@ fn encode<const PC: usize, const FLAG: u8>(moves: &mut MoveList, mut attacks: u6
 
 impl Position {
     pub fn gen<const QUIETS: bool>(&self) -> MoveList {
-        let mut moves = MoveList::uninit();
+        let mut moves = MoveList::default();
         let (side, occ) = (usize::from(self.c), self.bb[0] | self.bb[1]);
         let (boys, opps) = (self.bb[side], self.bb[side ^ 1]);
         let pawns = self.bb[P] & boys;

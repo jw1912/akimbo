@@ -28,7 +28,7 @@ impl Engine {
     }
 
     fn score(&self, pos: &Position, moves: &MoveList, hash_move: Move) -> ScoreList {
-        let mut scores = ScoreList::uninit();
+        let mut scores = ScoreList::default();
         let killers = self.ktable.0[self.ply as usize];
         for (i, &m) in moves.list[0..moves.len].iter().enumerate() {
             scores.list[i] =
@@ -43,7 +43,7 @@ impl Engine {
     }
 
     fn score_caps(&self, caps: &MoveList, pos: &Position) -> ScoreList {
-        let mut scores = ScoreList::uninit();
+        let mut scores = ScoreList::default();
         for i in 0..caps.len { scores.list[i] = self.mvv_lva(caps.list[i], pos) }
         scores
     }
