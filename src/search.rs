@@ -81,28 +81,24 @@ pub fn go(start: &Position, eng: &mut Engine) {
 
 fn qs(pos: &Position, mut alpha: i16, beta: i16) -> i16 {
     let mut eval = pos.lazy_eval();
-
-    // early out
     if eval >= beta { return eval }
     alpha = alpha.max(eval);
 
-    // generating and scoring moves
     let mut caps = pos.gen::<CAPTURES>();
     let mut scores = ScoreList::default();
     for i in 0..caps.len { scores.list[i] = mvv_lva(caps.list[i], pos) }
 
     while let Some((mov, _)) = caps.pick(&mut scores) {
-        // copy position, make move and skip if illegal
         let mut new = *pos;
         if new.make(mov) { continue }
         QNODES.fetch_add(1, Relaxed);
 
         eval = eval.max(-qs(&new, -beta, -alpha));
 
-        // alpha-beta pruning
         if eval >= beta { break }
         alpha = alpha.max(eval);
     }
+
     eval
 }
 
@@ -224,7 +220,7 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
         bound = LOWER;
 
         // quiet cutoffs pushed to tables
-        if mov.flag >= CAP { break }
+        if mov.flag >= CAP || eng.abort { break }
         eng.ktable.push(mov, eng.ply);
         eng.htable.push(mov, pos.c, depth);
 

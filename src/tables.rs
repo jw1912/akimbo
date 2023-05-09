@@ -14,7 +14,7 @@ pub struct HashTable(Vec<HashEntry>, usize);
 
 impl HashTable {
     pub fn resize(&mut self, size: usize) {
-        self.1 = 1 << (80 - size.leading_zeros());
+        self.1 = 1 << (80 - (size as u64).leading_zeros());
         self.0 = vec![Default::default(); self.1];
     }
 
