@@ -15,7 +15,6 @@ pub struct Engine {
     ply: i16,
     abort: bool,
     best_move: Move,
-    nulls: i16,
 }
 
 #[inline]
@@ -57,7 +56,7 @@ impl Engine {
     fn rep_draw(&self, pos: &Position, curr_hash: u64) -> bool {
         let mut num = 1 + u8::from(self.ply == 0);
         let l = self.stack.len();
-        if l < 6 || self.nulls > 0 { return false }
+        if l < 6 || pos.nulls > 0 { return false }
         for &hash in self.stack.iter().rev().take(pos.hfm as usize + 1).skip(1).step_by(2) {
             num -= u8::from(hash == curr_hash);
             if num == 0 { return true }
@@ -175,11 +174,10 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
             let mut new = *pos;
             let r = 3 + depth / 3;
             eng.push(hash);
-            eng.nulls += 1;
+            new.nulls += 1;
             new.c = !new.c;
             new.enp = 0;
             let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false);
-            eng.nulls -= 1;
             eng.pop();
             if nw >= MATE { return beta }
             if nw >= beta { return nw }

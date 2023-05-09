@@ -47,8 +47,8 @@ impl MoveList {
 }
 
 #[inline]
-fn encode<const PC: usize, const FLAG: u8>(moves: &mut MoveList, mut attacks: u64, from: u8) {
-    bitloop!(attacks, to, moves.push(from, to, FLAG, PC))
+fn encode<const FLAG: u8>(moves: &mut MoveList, mut attacks: u64, from: u8, pc: usize) {
+    bitloop!(attacks, to, moves.push(from, to, FLAG, pc))
 }
 
 impl Position {
@@ -57,74 +57,67 @@ impl Position {
         let (side, occ) = (usize::from(self.c), self.bb[0] | self.bb[1]);
         let (boys, opps) = (self.bb[side], self.bb[side ^ 1]);
         let pawns = self.bb[P] & boys;
+
+        // special quiet moves
         if QUIETS {
-            if self.cr & CS[side] > 0 && !self.in_check() {self.castles(&mut moves, occ)}
-            if side == WH {pushes::<WH>(&mut moves, !occ, pawns)} else {pushes::<BL>(&mut moves, !occ, pawns)}
+            if self.cr & CS[side] > 0 && !self.in_check() {
+                if self.c {
+                    if self.cr & BQS > 0 && occ & BD8 == 0 && !self.is_sq_att(59, BL, occ) {moves.push(60, 58, QS, K)}
+                    if self.cr & BKS > 0 && occ & FG8 == 0 && !self.is_sq_att(61, BL, occ) {moves.push(60, 62, KS, K)}
+                } else {
+                    if self.cr & WQS > 0 && occ & BD1 == 0 && !self.is_sq_att(3, WH, occ) {moves.push(4, 2, QS, K)}
+                    if self.cr & WKS > 0 && occ & FG1 == 0 && !self.is_sq_att(5, WH, occ) {moves.push(4, 6, KS, K)}
+                }
+            }
+
+            // pawn pushes
+            let empty = !occ;
+            let mut dbl = shift(side, shift(side, empty & DBLRANK[side]) & empty) & pawns;
+            let mut push = shift(side, empty) & pawns;
+            let mut promo = push & PENRANK[side];
+            push &= !PENRANK[side];
+            bitloop!(push, from, moves.push(from, idx_shift::<8>(side, from), QUIET, P));
+            bitloop!(promo, from, for flag in NPR..=QPR {moves.push(from, idx_shift::<8>(side, from), flag, P)});
+            bitloop!(dbl, from, moves.push(from, idx_shift::<16>(side, from), DBL, P));
         }
-        if self.enp > 0 {en_passants(&mut moves, pawns, self.enp, side)}
-        pawn_caps(&mut moves, pawns, opps, side);
-        pc_moves::<N, QUIETS>(&mut moves, occ, opps, boys & self.bb[N]);
-        pc_moves::<B, QUIETS>(&mut moves, occ, opps, boys & self.bb[B]);
-        pc_moves::<R, QUIETS>(&mut moves, occ, opps, boys & self.bb[R]);
-        pc_moves::<Q, QUIETS>(&mut moves, occ, opps, boys & self.bb[Q]);
-        pc_moves::<K, QUIETS>(&mut moves, occ, opps, boys & self.bb[K]);
+
+        // pawn captures
+        if self.enp > 0 {
+            let mut attackers = PATT[side ^ 1][self.enp as usize] & pawns;
+            bitloop!(attackers, from, moves.push(from, self.enp, ENP, P));
+        }
+        let (mut attackers, mut promo) = (pawns & !PENRANK[side], pawns & PENRANK[side]);
+        bitloop!(attackers, from, encode::<CAP>(&mut moves, PATT[side][from as usize] & opps, from, P));
+        bitloop!(promo, from, {
+            let mut attacks = PATT[side][from as usize] & opps;
+            bitloop!(attacks, to, for flag in NPC..=QPC { moves.push(from, to, flag, P) });
+        });
+
+        // non-pawn moves
+        for pc in N..=K {
+            let mut attackers = boys & self.bb[pc];
+            bitloop!(attackers, from, {
+                let attacks = match pc {
+                    N => NATT[from as usize],
+                    R => ratt(from as usize, occ),
+                    B => batt(from as usize, occ),
+                    Q => ratt(from as usize, occ) | batt(from as usize, occ),
+                    K => KATT[from as usize],
+                    _ => 0
+                };
+                encode::<CAP>(&mut moves, attacks & opps, from, pc);
+                if QUIETS { encode::<QUIET>(&mut moves, attacks & !occ, from, pc) }
+            });
+        }
         moves
     }
-
-    fn castles(&self, moves: &mut MoveList, occ: u64) {
-        if self.c {
-            if self.cr & BQS > 0 && occ & BD8 == 0 && !self.is_sq_att(59, BL, occ) {moves.push(60, 58, QS, K)}
-            if self.cr & BKS > 0 && occ & FG8 == 0 && !self.is_sq_att(61, BL, occ) {moves.push(60, 62, KS, K)}
-        } else {
-            if self.cr & WQS > 0 && occ & BD1 == 0 && !self.is_sq_att(3, WH, occ) {moves.push(4, 2, QS, K)}
-            if self.cr & WKS > 0 && occ & FG1 == 0 && !self.is_sq_att(5, WH, occ) {moves.push(4, 6, KS, K)}
-        }
-    }
 }
 
-fn pc_moves<const PC: usize, const QUIETS: bool>(moves: &mut MoveList, occ: u64, opps: u64, mut attackers: u64) {
-    bitloop!(attackers, from, {
-        let attacks = match PC {
-            N => NATT[from as usize],
-            R => ratt(from as usize, occ),
-            B => batt(from as usize, occ),
-            Q => ratt(from as usize, occ) | batt(from as usize, occ),
-            K => KATT[from as usize],
-            _ => 0
-        };
-        encode::<PC, CAP>(moves, attacks & opps, from);
-        if QUIETS { encode::<PC, QUIET>(moves, attacks & !occ, from) }
-    });
+fn shift(side: usize,bb: u64) -> u64 {
+    if side == WH {bb >> 8} else {bb << 8}
 }
 
-fn pawn_caps(moves: &mut MoveList, pawns: u64, opps: u64, c: usize) {
-    let (mut attackers, mut promo) = (pawns & !PENRANK[c], pawns & PENRANK[c]);
-    bitloop!(attackers, from, encode::<P, CAP>(moves, PATT[c][from as usize] & opps, from));
-    bitloop!(promo, from, {
-        let mut attacks = PATT[c][from as usize] & opps;
-        bitloop!(attacks, to, for flag in NPC..=QPC { moves.push(from, to, flag, P) })
-    });
+fn idx_shift<const AMOUNT: u8>(side: usize, idx: u8) -> u8 {
+    if side == WH {idx + AMOUNT} else {idx - AMOUNT}
 }
 
-fn en_passants(moves: &mut MoveList, pawns: u64, sq: u8, c: usize) {
-    let mut attackers = PATT[c ^ 1][sq as usize] & pawns;
-    bitloop!(attackers, from, moves.push(from, sq, ENP, P))
-}
-
-fn shift<const SIDE: usize>(bb: u64) -> u64 {
-    if SIDE == WH {bb >> 8} else {bb << 8}
-}
-
-fn idx_shift<const SIDE: usize, const AMOUNT: u8>(idx: u8) -> u8 {
-    if SIDE == WH {idx + AMOUNT} else {idx - AMOUNT}
-}
-
-fn pushes<const SIDE: usize>(moves: &mut MoveList, empty: u64, pawns: u64) {
-    let mut dbl = shift::<SIDE>(shift::<SIDE>(empty & DBLRANK[SIDE]) & empty) & pawns;
-    let mut push = shift::<SIDE>(empty) & pawns;
-    let mut promo = push & PENRANK[SIDE];
-    push &= !PENRANK[SIDE];
-    bitloop!(push, from, moves.push(from, idx_shift::<SIDE, 8>(from), QUIET, P));
-    bitloop!(promo, from, for flag in NPR..=QPR {moves.push(from, idx_shift::<SIDE, 8>(from), flag, P)});
-    bitloop!(dbl, from, moves.push(from, idx_shift::<SIDE, 16>(from), DBL, P));
-}

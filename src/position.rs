@@ -8,10 +8,10 @@ pub struct Position {
     pub enp: u8,
     pub cr: u8,
     pub check: bool,
-    pub hash: u64,
+    hash: u64,
     pub phase: i16,
+    pub nulls: i16,
     pst: S,
-    _padding: i16,
 }
 
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
