@@ -22,37 +22,7 @@ fn mvv_lva(m: Move, pos: &Position) -> i16 {
     MVV_LVA * pos.get_pc(1 << m.to) as i16 - m.mpc as i16
 }
 
-fn score_caps(caps: &MoveList, pos: &Position) -> ScoreList {
-    let mut scores = ScoreList::default();
-    for i in 0..caps.len { scores.list[i] = mvv_lva(caps.list[i], pos) }
-    scores
-}
-
 impl Engine {
-    fn reset(&mut self) {
-        self.timing = Some(Instant::now());
-        self.nodes = 0;
-        self.ply = 0;
-        self.best_move = Move::default();
-        self.abort = false;
-        QNODES.store(0, Relaxed)
-    }
-
-    fn score(&self, pos: &Position, moves: &MoveList, hash_move: Move) -> ScoreList {
-        let mut scores = ScoreList::default();
-        let killers = self.ktable.0[self.ply as usize];
-        for (i, &m) in moves.list[0..moves.len].iter().enumerate() {
-            scores.list[i] =
-                if m == hash_move { HASH }
-                else if m.flag == ENP { 2 * MVV_LVA }
-                else if m.flag & 4 > 0 { mvv_lva(m, pos) }
-                else if m.flag & 8 > 0 { PROMOTION + i16::from(m.flag & 7) }
-                else if killers.contains(&m) { KILLER }
-                else { self.htable.score(pos.c, m) };
-        }
-        scores
-    }
-
     fn rep_draw(&self, pos: &Position, curr_hash: u64) -> bool {
         let mut num = 1 + u8::from(self.ply == 0);
         let l = self.stack.len();
@@ -76,11 +46,19 @@ impl Engine {
 }
 
 pub fn go(start: &Position, eng: &mut Engine) {
-    eng.reset();
+    // reset engine
+    eng.timing = Some(Instant::now());
+    eng.nodes = 0;
+    eng.ply = 0;
+    eng.best_move = Move::default();
+    eng.abort = false;
+    QNODES.store(0, Relaxed);
+
     let mut best = String::new();
     let mut pos = *start;
     pos.check = pos.in_check();
 
+    // iterative deepening loop
     for d in 1..=64 {
         let eval = pvs(&pos, eng, -MAX, MAX, d, false);
         if eng.abort { break }
@@ -103,15 +81,25 @@ pub fn go(start: &Position, eng: &mut Engine) {
 
 fn qs(pos: &Position, mut alpha: i16, beta: i16) -> i16 {
     let mut eval = pos.lazy_eval();
+
+    // early out
     if eval >= beta { return eval }
     alpha = alpha.max(eval);
+
+    // generating and scoring moves
     let mut caps = pos.gen::<CAPTURES>();
-    let mut scores = score_caps(&caps, pos);
+    let mut scores = ScoreList::default();
+    for i in 0..caps.len { scores.list[i] = mvv_lva(caps.list[i], pos) }
+
     while let Some((mov, _)) = caps.pick(&mut scores) {
+        // copy position, make move and skip if illegal
         let mut new = *pos;
         if new.make(mov) { continue }
         QNODES.fetch_add(1, Relaxed);
+
         eval = eval.max(-qs(&new, -beta, -alpha));
+
+        // alpha-beta pruning
         if eval >= beta { break }
         alpha = alpha.max(eval);
     }
@@ -184,9 +172,20 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
         }
     }
 
-    // stuff for going through moves
+    // generating and scoring moves
     let mut moves = pos.gen::<ALL>();
-    let mut scores = eng.score(pos, &moves, best_move);
+    let mut scores = ScoreList::default();
+    let killers = eng.ktable.0[eng.ply as usize];
+    for (i, &m) in moves.list[0..moves.len].iter().enumerate() {
+        scores.list[i] = if m == best_move { HASH }
+            else if m.flag == ENP { 2 * MVV_LVA }
+            else if m.flag & 4 > 0 { mvv_lva(m, pos) }
+            else if m.flag & 8 > 0 { PROMOTION + i16::from(m.flag & 7) }
+            else if killers.contains(&m) { KILLER }
+            else { eng.htable.score(pos.c, m) };
+    }
+
+    // stuff for going through moves
     let (mut legal, mut eval, mut bound) = (0, -MAX, UPPER);
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
 
