@@ -85,7 +85,7 @@ fn parse_position(pos: &mut Position, eng: &mut Engine, commands: Vec<&str>) {
 }
 
 fn parse_go(pos: &Position, eng: &mut Engine, commands: Vec<&str>) {
-    let (mut token, mut times, mut mtg, mut alloc, mut incs) = (0, [0, 0], None, 1000, [0, 0]);
+    let (mut token, mut times, mut mtg, mut alloc, mut incs) = (0, [0, 0], 25, 1000, [0, 0]);
     let tokens = ["go", "movetime", "wtime", "btime", "movestogo", "winc", "binc"];
     for cmd in commands {
         if let Some(x) = tokens.iter().position(|&y| y == cmd) { token = x }
@@ -93,15 +93,15 @@ fn parse_go(pos: &Position, eng: &mut Engine, commands: Vec<&str>) {
             match token {
                 1 => alloc = val,
                 2 | 3 => times[token - 2] = val.max(0),
-                4 => mtg = Some(val),
+                4 => mtg = val,
                 5 | 6 => incs[token - 5] = val.max(0),
                 _ => {},
             }
         }
     }
     let side = usize::from(pos.c);
-    let (mytime, myinc) = (times[side], incs[side]);
-    if mytime != 0 { alloc = mytime.min(mytime / mtg.unwrap_or(25) + 3 * myinc / 4) }
+    let (time, inc) = (times[side], incs[side]);
+    if time != 0 { alloc = time.min(time / mtg + 3 * inc / 4) }
     eng.max_time = 10.max(alloc - 10) as u128;
     go(pos, eng);
 }
