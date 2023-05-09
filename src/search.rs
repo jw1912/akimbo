@@ -25,8 +25,7 @@ fn mvv_lva(m: Move, pos: &Position) -> i16 {
 impl Engine {
     fn rep_draw(&self, pos: &Position, curr_hash: u64) -> bool {
         let mut num = 1 + u8::from(self.ply == 0);
-        let l = self.stack.len();
-        if l < 6 || pos.nulls > 0 { return false }
+        if self.stack.len() < 6 || pos.nulls > 0 { return false }
         for &hash in self.stack.iter().rev().take(pos.hfm as usize + 1).skip(1).step_by(2) {
             num -= u8::from(hash == curr_hash);
             if num == 0 { return true }
