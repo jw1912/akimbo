@@ -27,9 +27,9 @@ pub fn batt(idx: usize, occ: u64) -> u64 {
     let m = MASKS[idx];
     let rb = m.bit.swap_bytes();
     let (mut f1, mut f2) = (occ & m.diag, occ & m.anti);
-    let (r1, r2) = (f1.swap_bytes() - rb, f2.swap_bytes() - rb);
-    f1 -= m.bit;
-    f2 -= m.bit;
+    let (r1, r2) = (f1.swap_bytes().wrapping_sub(rb), f2.swap_bytes().wrapping_sub(rb));
+    f1 = f1.wrapping_sub(m.bit);
+    f2 = f2.wrapping_sub(m.bit);
     ((f1 ^ r1.swap_bytes()) & m.diag) | ((f2 ^ r2.swap_bytes()) & m.anti)
 }
 
@@ -39,8 +39,8 @@ pub fn ratt(idx: usize, occ: u64) -> u64 {
     let mut f = occ & m.file;
     let i = idx & 7;
     let s = idx - i;
-    let r = f.swap_bytes() - m.bit.swap_bytes();
-    f -= m.bit;
+    let r = f.swap_bytes().wrapping_sub(m.bit.swap_bytes());
+    f = f.wrapping_sub(m.bit);
     ((f ^ r.swap_bytes()) & m.file) | (RANKS[i][((occ >> (s + 1)) & 0x3F) as usize] << s)
 }
 
@@ -135,7 +135,7 @@ impl Position {
                 self.pst += PST[side][R][rto];
             },
             ENP => {
-                let pwn = to + [8usize.wrapping_neg(), 8][side];
+                let pwn = to.wrapping_add([8usize.wrapping_neg(), 8][side]);
                 self.toggle(side ^ 1, P, 1 << pwn);
                 self.hash ^= ZVALS.pcs[side ^ 1][P][pwn];
                 self.pst += -1 * PST[side ^ 1][P][pwn];
