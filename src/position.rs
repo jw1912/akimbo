@@ -167,7 +167,7 @@ impl Position {
         self.is_sq_att(kidx, usize::from(self.c), self.bb[0] | self.bb[1])
     }
 
-    pub fn lazy_eval(&self) -> i16 {
+    pub fn eval(&self) -> i16 {
         let (s, p) = (self.pst, TPHASE.min(self.phase as i32));
         SIDE[usize::from(self.c)] * ((p * s.0 as i32 + (TPHASE - p) * s.1 as i32) / TPHASE) as i16
     }

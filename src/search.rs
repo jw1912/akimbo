@@ -79,7 +79,7 @@ pub fn go(start: &Position, eng: &mut Engine) {
 }
 
 fn qs(pos: &Position, mut alpha: i16, beta: i16) -> i16 {
-    let mut eval = pos.lazy_eval();
+    let mut eval = pos.eval();
     if eval >= beta { return eval }
     alpha = alpha.max(eval);
 
@@ -141,7 +141,7 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
 
     // pruning
     if !pv_node && !pos.check && beta.abs() < MATE {
-        let eval = pos.lazy_eval();
+        let eval = pos.eval();
 
         // reverse futility pruning
         if depth <= 8 && eval >= beta + 120 * i16::from(depth) { return eval }
