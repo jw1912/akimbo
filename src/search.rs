@@ -150,7 +150,7 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
         best_move = Move::from_short(res.best_move, pos);
 
         // hash score pruning
-        if !pv_node && res.depth >= depth && match res.bound {
+        if !pv_node && !write && match res.bound {
             LOWER => res.score >= beta,
             UPPER => res.score <= alpha,
             _ => true,
@@ -202,7 +202,7 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
 
         // late move reductions - Viridithas values used
         let reduce = if can_lmr && !new.check && ms < KILLER {
-            let lmr = (0.77 + (depth as f64).ln() * (legal.min(63) as f64).ln() / 2.67) as i8;
+            let lmr = (0.77 + (depth as f64).ln() * (legal as f64).ln() / 2.67) as i8;
             if pv_node { 0.max(lmr - 1) } else { lmr }
         } else { 0 };
 
