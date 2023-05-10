@@ -65,12 +65,12 @@ pub fn go(start: &Position, eng: &mut Engine) {
 
         // UCI output
         let score = if eval.abs() >= MATE {
-            format!("score mate {: <2}", if eval < 0 {eval.abs() - MAX} else {MAX - eval + 1} / 2)
-        } else {format!("score cp {: <4}", eval)};
-        let t = eng.timing.unwrap().elapsed();
+            format!("score mate {}", if eval < 0 {eval.abs() - MAX} else {MAX - eval + 1} / 2)
+        } else {format!("score cp {eval}")};
+        let t = eng.timing.unwrap().elapsed().as_millis();
         let nodes = eng.nodes + QNODES.load(Relaxed);
-        let nps = ((nodes as f64) / t.as_secs_f64()) as u32;
-        println!("info depth {d: <2} {score} time {: <5} nodes {nodes: <9} nps {nps: <8.0} pv {best}", t.as_millis());
+        let nps = (1000.0 * nodes as f64 / t as f64) as u32;
+        println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {best}");
     }
 
     println!("bestmove {best}");
