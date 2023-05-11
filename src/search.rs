@@ -153,7 +153,7 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
         }
 
         // null move pruning
-        if null && depth >= 3 && pos.phase >= 6 && eval >= beta {
+        if null && depth >= 3 && pos.phase > 2 && eval >= beta {
             let mut new = *pos;
             let r = 3 + depth / 3;
             eng.push(hash);
