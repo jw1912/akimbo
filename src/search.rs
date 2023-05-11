@@ -183,6 +183,7 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
     // stuff for going through moves
     let (mut legal, mut eval, mut bound) = (0, -MAX, UPPER);
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
+    let lmr_base = (depth as f64).ln() / 2.67;
 
     eng.push(hash);
     while let Some((mov, ms)) = moves.pick(&mut scores) {
@@ -194,7 +195,7 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
 
         // late move reductions - Viridithas values used
         let reduce = if can_lmr && !new.check && ms < KILLER {
-            let lmr = (0.77 + (depth as f64).ln() * (legal as f64).ln() / 2.67) as i8;
+            let lmr = (0.77 + lmr_base * (legal as f64).ln()) as i8;
             if pv_node { 0.max(lmr - 1) } else { lmr }
         } else { 0 };
 
