@@ -232,8 +232,8 @@ impl Move {
         let idx_to_sq = |i| format!("{}{}", ((i & 7) + b'a') as char, (i / 8) + 1);
         let promo = if self.flag & 0b1000 > 0 {["n","b","r","q"][(self.flag & 0b11) as usize]} else {""};
         let to = if CHESS960.load(Relaxed) && [QS, KS].contains(&self.flag) {
-            let sf = 56 * (self.to) / 56;
-            sf + ROOKS[usize::from(self.flag)].load(Relaxed)
+            let sf = 56 * (self.to / 56);
+            sf + ROOKS[usize::from(self.flag == KS)].load(Relaxed)
         } else { self.to };
         format!("{}{}{} ", idx_to_sq(self.from), idx_to_sq(to), promo)
     }
