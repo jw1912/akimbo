@@ -1,4 +1,5 @@
-use super::{consts::*, position::{Position, Move, ratt, batt}};
+use super::{consts::*, position::*};
+use std::sync::atomic::Ordering::Relaxed;
 
 macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
     while $bb > 0 {
@@ -61,12 +62,14 @@ impl Position {
         // special quiet moves
         if QUIETS {
             if self.cr & CS[side] > 0 && !self.in_check() {
+                let kbb = self.bb[K] & self.bb[side];
+                let ksq = kbb.trailing_zeros() as u8;
                 if self.c {
-                    if self.cr & BQS > 0 && occ & BD8 == 0 && !self.is_sq_att(59, BL, occ) {moves.push(60, 58, QS, K)}
-                    if self.cr & BKS > 0 && occ & FG8 == 0 && !self.is_sq_att(61, BL, occ) {moves.push(60, 62, KS, K)}
+                    if self.cr & BQS > 0 && self.castle(BL, 0, occ, kbb, 1 << 58, 1 << 59) {moves.push(ksq, 58, QS, K)}
+                    if self.cr & BKS > 0 && self.castle(BL, 1, occ, kbb, 1 << 62, 1 << 61) {moves.push(ksq, 62, KS, K)}
                 } else {
-                    if self.cr & WQS > 0 && occ & BD1 == 0 && !self.is_sq_att(3, WH, occ) {moves.push(4, 2, QS, K)}
-                    if self.cr & WKS > 0 && occ & FG1 == 0 && !self.is_sq_att(5, WH, occ) {moves.push(4, 6, KS, K)}
+                    if self.cr & WQS > 0 && self.castle(WH, 0, occ, kbb, 1 << 2, 1 << 3) {moves.push(ksq, 2, QS, K)}
+                    if self.cr & WKS > 0 && self.castle(WH, 1, occ, kbb, 1 << 6, 1 << 5) {moves.push(ksq, 6, KS, K)}
                 }
             }
 
@@ -111,6 +114,16 @@ impl Position {
         }
         moves
     }
+
+    fn path(&self, side: usize, mut path: u64, occ: u64) -> bool {
+        bitloop!(path, idx, if self.is_sq_att(idx as usize, side, occ) {return false});
+        true
+    }
+
+    fn castle(&self, side: usize, ks: usize, occ: u64, kbb: u64, kto: u64, rto: u64) -> bool {
+        let bit = 1 << (56 * side + usize::from(ROOKS[ks].load(Relaxed)));
+        (occ ^ bit) & (btwn(kbb, kto) ^ kto) == 0 && (occ ^ kbb) & (btwn(bit, rto) ^ rto) == 0 && self.path(side, btwn(kbb, kto), occ)
+    }
 }
 
 fn shift(side: usize,bb: u64) -> u64 {
@@ -119,5 +132,10 @@ fn shift(side: usize,bb: u64) -> u64 {
 
 fn idx_shift<const AMOUNT: u8>(side: usize, idx: u8) -> u8 {
     if side == WH {idx + AMOUNT} else {idx - AMOUNT}
+}
+
+fn btwn(bit1: u64, bit2: u64) -> u64 {
+    let min = bit1.min(bit2);
+    (bit1.max(bit2) - min) ^ min
 }
 

@@ -61,11 +61,8 @@ consts!(u8, QUIET = 0, DBL = 1, KS = 2, QS = 3, CAP = 4, ENP = 5, NPR = 8, QPR =
 
 // Castling
 consts!(u8, WQS = 8, WKS = 4, BQS = 2, BKS = 1);
-consts!(u64, BD1 = 0xE, FG1 = 0x60, BD8 = 0xE00000000000000, FG8 = 0x6000000000000000);
 pub const CS: [u8; 2] = [WKS | WQS, BKS | BQS];
-pub const CR: [u8; 64] = init!(i, 64, match i {0 => 7, 4 => 3, 7 => 11, 56 => 13, 60 => 12, 63 => 14, _ => 15});
-pub const CM: [[(u64, usize, usize); 2]; 2] = [[(9, 0, 3), (0x900000000000000, 56, 59)], [(160, 7, 5), (0xA000000000000000, 63, 61)]];
-
+pub const RD: [usize; 2] = [3, 5];
 // Pawns
 consts!([u64; 2], PENRANK = [0xFF000000000000, 0xFF00], DBLRANK = [0xFF000000, 0xFF00000000]);
 consts!(u64, FILE = 0x101010101010101, NOTH = !(FILE << 7));
