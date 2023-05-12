@@ -23,6 +23,7 @@ fn main() {
                 println!("id name akimbo {VERSION}\nid author Jamie Whiting");
                 println!("option name Hash type spin default 128 min 1 max 1024");
                 println!("option name Clear Hash type button");
+                println!("option name UCI_Chess960 type check default false");
                 println!("uciok");
             },
             "isready" => println!("readyok"),
