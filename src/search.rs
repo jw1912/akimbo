@@ -24,11 +24,9 @@ fn mvv_lva(m: Move, pos: &Position) -> i16 {
 
 impl Engine {
     fn rep_draw(&self, pos: &Position, curr_hash: u64) -> bool {
-        let mut num = 1 + u8::from(self.ply == 0);
         if self.stack.len() < 6 || pos.nulls > 0 { return false }
         for &hash in self.stack.iter().rev().take(pos.hfm as usize + 1).skip(1).step_by(2) {
-            num -= u8::from(hash == curr_hash);
-            if num == 0 { return true }
+            if hash == curr_hash { return true }
         }
         false
     }
@@ -59,7 +57,8 @@ pub fn go(start: &Position, eng: &mut Engine) {
 
     // iterative deepening loop
     for d in 1..=64 {
-        let eval = pvs(&pos, eng, -MAX, MAX, d, false);
+        let mut pv_line = Vec::new();
+        let eval = pvs(&pos, eng, -MAX, MAX, d, false, &mut pv_line);
         if eng.abort { break }
         best = eng.best_move.to_uci();
 
@@ -70,7 +69,8 @@ pub fn go(start: &Position, eng: &mut Engine) {
         let t = eng.timing.unwrap().elapsed().as_millis();
         let nodes = eng.nodes + QNODES.load(Relaxed);
         let nps = (1000.0 * nodes as f64 / t as f64) as u32;
-        println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {best}");
+        let pv = pv_line.iter().map(|mov| mov.to_uci()).collect::<String>();
+        println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}");
     }
 
     println!("bestmove {best}");
@@ -101,7 +101,7 @@ fn qs(pos: &Position, mut alpha: i16, beta: i16) -> i16 {
     eval
 }
 
-fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null: bool) -> i16 {
+fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, null: bool, line: &mut Vec<Move>) -> i16 {
     // stopping search
     if eng.abort { return 0 }
     if eng.nodes & 1023 == 0 && eng.timing.unwrap().elapsed().as_millis() >= eng.max_time {
@@ -109,17 +109,21 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
         return 0
     }
 
-    // draw detection
+    line.clear();
     let hash = pos.hash();
-    if pos.hfm >= 100 || pos.mat_draw() || eng.rep_draw(pos, hash) { return 0 }
 
-    // mate distance pruning
-    let mut alpha = alpha.max(-MAX + eng.ply);
-    let beta = beta.min(MAX - eng.ply - 1);
-    if alpha >= beta { return alpha }
+    if eng.ply > 0 {
+        // draw detection
+        if pos.hfm >= 100 || pos.mat_draw() || eng.rep_draw(pos, hash) { return 0 }
 
-    // check extensions - not on root
-    let depth = depth + i8::from(pos.check && eng.ply > 0);
+        // mate distance pruning
+        alpha = alpha.max(eng.ply - MAX);
+        beta = beta.min(MAX - eng.ply - 1);
+        if alpha >= beta { return alpha }
+
+        // check extensions - not on root
+        depth += i8::from(pos.check);
+    }
 
     // drop into quiescence search
     if depth <= 0 || eng.ply == MAX_PLY { return qs(pos, alpha, beta) }
@@ -160,7 +164,7 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
             new.nulls += 1;
             new.c = !new.c;
             new.enp = 0;
-            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false);
+            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, &mut Vec::new());
             eng.pop();
             if nw >= MATE { return beta }
             if nw >= beta { return nw }
@@ -181,7 +185,7 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
     }
 
     // stuff for going through moves
-    let (mut legal, mut eval, mut bound) = (0, -MAX, UPPER);
+    let (mut legal, mut eval, mut bound, mut sline) = (0, -MAX, UPPER, Vec::new());
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
 
@@ -200,17 +204,22 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
         } else { 0 };
 
         let score = if legal == 1 {
-            -pvs(&new, eng, -beta, -alpha, depth - 1, false)
+            -pvs(&new, eng, -beta, -alpha, depth - 1, false, &mut sline)
         } else {
-            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true);
+            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true, &mut sline);
             if zw > alpha && (pv_node || reduce > 0) {
-                -pvs(&new, eng, -beta, -alpha, depth - 1, false)
+                -pvs(&new, eng, -beta, -alpha, depth - 1, false, &mut sline)
             } else { zw }
         };
 
         if score <= eval { continue }
         eval = score;
         best_move = mov;
+        if pv_node {
+            line.clear();
+            line.push(mov);
+            line.append(&mut sline);
+        }
 
         if score <= alpha { continue }
         alpha = score;

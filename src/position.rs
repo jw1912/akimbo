@@ -1,4 +1,11 @@
 use super::consts::*;
+use std::sync::atomic::{AtomicU8, AtomicBool, Ordering::Relaxed};
+
+#[allow(clippy::declare_interior_mutable_const)]
+const ATOMIC_INIT: AtomicU8 = AtomicU8::new(0);
+static CHESS960: AtomicBool = AtomicBool::new(false);
+static CR: [AtomicU8; 64] = [ATOMIC_INIT; 64];
+pub static ROOKS: [AtomicU8; 2] = [ATOMIC_INIT; 2];
 
 #[derive(Clone, Copy, Default)]
 pub struct Position {
@@ -63,10 +70,39 @@ impl Position {
             }
         }
         pos.c = vec[1] == "b";
-        pos.cr = vec[2].chars().fold(0, |cr, ch| cr | match ch {'Q' => WQS, 'K' => WKS, 'q' => BQS, 'k' => BKS, _ => 0});
+
+        let mut king = 4;
+        CHESS960.store(false, Relaxed);
+        ROOKS[0].store(0, Relaxed);
+        ROOKS[1].store(7, Relaxed);
+        pos.cr = vec[2].chars().fold(0, |cr, ch| cr | match ch as u8 {
+            b'Q' => WQS, b'K' => WKS, b'q' => BQS, b'k' => BKS,
+            b'A'..=b'H' => pos.handle_castle(WH, &mut king, ch),
+            b'a'..=b'h' => pos.handle_castle(BL, &mut king, ch),
+            _ => 0
+        });
+
+        for sq in &CR { sq.store(15, Relaxed) }
+        CR[usize::from(ROOKS[0].load(Relaxed))].store(7, Relaxed);
+        CR[usize::from(ROOKS[1].load(Relaxed))].store(11, Relaxed);
+        CR[usize::from(56 + ROOKS[0].load(Relaxed))].store(13, Relaxed);
+        CR[usize::from(56 + ROOKS[1].load(Relaxed))].store(14, Relaxed);
+        CR[king].store(3, Relaxed);
+        CR[56 + king].store(12, Relaxed);
+
         pos.enp = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
         pos.hfm = vec.get(4).unwrap_or(&"0").parse::<u8>().unwrap();
         pos
+    }
+
+    fn handle_castle(&self, side: usize, king: &mut usize, ch: char) -> u8 {
+        CHESS960.store(true, Relaxed);
+        let wkc = (self.bb[side] & self.bb[K]).trailing_zeros() as u8 & 7;
+        *king = wkc as usize;
+        let rook = ch as u8 - [b'A', b'a'][side];
+        let i = usize::from(rook > wkc);
+        ROOKS[i].store(rook, Relaxed);
+        [[WQS, WKS], [BQS, BKS]][side][i]
     }
 
     pub fn hash(&self) -> u64 {
@@ -105,13 +141,13 @@ impl Position {
         let side = usize::from(self.c);
 
         // update state
-        self.cr &= CR[to] & CR[from];
+        self.cr &= CR[to].load(Relaxed) & CR[from].load(Relaxed);
         self.enp = 0;
         self.hfm = u8::from(mpc > P && m.flag != CAP) * (self.hfm + 1);
         self.c = !self.c;
 
         // move piece
-        self.toggle(side, mpc, f | t);
+        self.toggle(side, mpc, f ^ t);
         self.hash ^= ZVALS.pcs[side][mpc][from] ^ ZVALS.pcs[side][mpc][to];
         self.pst += PST[side][mpc][to];
         self.pst += -1 * PST[side][mpc][from];
@@ -128,8 +164,10 @@ impl Position {
         match m.flag {
             DBL => self.enp = if side == WH {m.to - 8} else {m.to + 8},
             KS | QS => {
-                let (bits, rfr, rto) = CM[usize::from(m.flag == KS)][side];
-                self.toggle(side, R, bits);
+                let (idx, sf) = (usize::from(m.flag == KS), 56 * side);
+                let rfr = sf + ROOKS[idx].load(Relaxed) as usize;
+                let rto = sf + RD[idx];
+                self.toggle(side, R, (1 << rfr) ^ (1 << rto));
                 self.hash ^= ZVALS.pcs[side][R][rfr] ^ ZVALS.pcs[side][R][rto];
                 self.pst += -1 * PST[side][R][rfr];
                 self.pst += PST[side][R][rto];
@@ -187,15 +225,28 @@ impl Move {
     pub fn to_uci(self) -> String {
         let idx_to_sq = |i| format!("{}{}", ((i & 7) + b'a') as char, (i / 8) + 1);
         let promo = if self.flag & 0b1000 > 0 {["n","b","r","q"][(self.flag & 0b11) as usize]} else {""};
-        format!("{}{}{}", idx_to_sq(self.from), idx_to_sq(self.to), promo)
+        let to = if CHESS960.load(Relaxed) && [QS, KS].contains(&self.flag) {
+            let sf = 56 * (self.to / 56);
+            sf + ROOKS[usize::from(self.flag == KS)].load(Relaxed)
+        } else { self.to };
+        format!("{}{}{} ", idx_to_sq(self.from), idx_to_sq(to), promo)
     }
 
     pub fn from_uci(pos: &Position, m_str: &str) -> Self {
-        let mut m = Move { from: sq_to_idx(&m_str[0..2]), to: sq_to_idx(&m_str[2..4]), flag: 0, mpc: 0};
+        let (from, to) = (sq_to_idx(&m_str[0..2]), sq_to_idx(&m_str[2..4]));
+
+        if CHESS960.load(Relaxed) && pos.bb[usize::from(pos.c)] & (1 << to) > 0 {
+            let side = 56 * (from / 56);
+            let (to2, flag) = if to == ROOKS[0].load(Relaxed) + side { (2 + side, QS) } else { (6 + side, KS) };
+            return Move { from, to: to2, flag, mpc: K as u8};
+        }
+
+        let mut m = Move { from, to, flag: 0, mpc: 0};
         m.flag = match m_str.chars().nth(4).unwrap_or('f') {'n' => 8, 'b' => 9, 'r' => 10, 'q' => 11, _ => 0};
         let possible_moves = pos.gen::<ALL>();
         *possible_moves.list.iter().take(possible_moves.len).find(|um|
             m.from == um.from && m.to == um.to && (m_str.len() < 5 || m.flag == um.flag & 0b1011)
+            && !(CHESS960.load(Relaxed) && [QS, KS].contains(&um.flag))
         ).unwrap()
     }
 }
