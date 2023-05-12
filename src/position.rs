@@ -1,4 +1,11 @@
 use super::consts::*;
+use std::sync::atomic::{AtomicU8, AtomicBool, Ordering::Relaxed};
+
+#[allow(clippy::declare_interior_mutable_const)]
+const ATOMIC_INIT: AtomicU8 = AtomicU8::new(0);
+static CHESS960: AtomicBool = AtomicBool::new(false);
+static CR: [AtomicU8; 64] = [ATOMIC_INIT; 64];
+pub static ROOKS: [AtomicU8; 2] = [ATOMIC_INIT; 2];
 
 #[derive(Clone, Copy, Default)]
 pub struct Position {
@@ -63,7 +70,40 @@ impl Position {
             }
         }
         pos.c = vec[1] == "b";
-        pos.cr = vec[2].chars().fold(0, |cr, ch| cr | match ch {'Q' => WQS, 'K' => WKS, 'q' => BQS, 'k' => BKS, _ => 0});
+
+        let mut king = 4;
+        CHESS960.store(false, Relaxed);
+        pos.cr = vec[2].chars().fold(0, |cr, ch| cr | match ch as u8 {
+            b'Q' => WQS, b'K' => WKS, b'q' => BQS, b'k' => BKS,
+            b'A'..=b'H' => {
+                CHESS960.store(true, Relaxed);
+                let wkc = (pos.bb[WH] & pos.bb[K]).trailing_zeros() as u8 & 7;
+                king = wkc as usize;
+                let rook = ch as u8 - b'A';
+                let i = usize::from(rook > wkc);
+                ROOKS[i].store(rook, Relaxed);
+                [WQS, WKS][i]
+            }
+            b'a'..=b'h' => {
+                CHESS960.store(true, Relaxed);
+                let bkc = (pos.bb[BL] & pos.bb[K]).trailing_zeros() as u8 & 7;
+                king = bkc as usize;
+                let rook = ch as u8 - b'a';
+                let i = usize::from(rook > bkc);
+                ROOKS[i].store(rook, Relaxed);
+                [BQS, BKS][i]
+            }
+            _ => 0
+        });
+
+        for sq in &CR { sq.store(15, Relaxed) }
+        CR[usize::from(ROOKS[0].load(Relaxed))].store(7, Relaxed);
+        CR[usize::from(ROOKS[1].load(Relaxed))].store(11, Relaxed);
+        CR[usize::from(56 + ROOKS[0].load(Relaxed))].store(13, Relaxed);
+        CR[usize::from(56 + ROOKS[1].load(Relaxed))].store(14, Relaxed);
+        CR[king].store(3, Relaxed);
+        CR[56 + king].store(12, Relaxed);
+
         pos.enp = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
         pos.hfm = vec.get(4).unwrap_or(&"0").parse::<u8>().unwrap();
         pos
@@ -105,13 +145,13 @@ impl Position {
         let side = usize::from(self.c);
 
         // update state
-        self.cr &= CR[to] & CR[from];
+        self.cr &= CR[to].load(Relaxed) & CR[from].load(Relaxed);
         self.enp = 0;
         self.hfm = u8::from(mpc > P && m.flag != CAP) * (self.hfm + 1);
         self.c = !self.c;
 
         // move piece
-        self.toggle(side, mpc, f | t);
+        self.toggle(side, mpc, f ^ t);
         self.hash ^= ZVALS.pcs[side][mpc][from] ^ ZVALS.pcs[side][mpc][to];
         self.pst += PST[side][mpc][to];
         self.pst += -1 * PST[side][mpc][from];
@@ -128,8 +168,10 @@ impl Position {
         match m.flag {
             DBL => self.enp = if side == WH {m.to - 8} else {m.to + 8},
             KS | QS => {
-                let (bits, rfr, rto) = CM[usize::from(m.flag == KS)][side];
-                self.toggle(side, R, bits);
+                let (idx, sf) = (usize::from(m.flag == KS), 56 * side);
+                let rfr = sf + ROOKS[idx].load(Relaxed) as usize;
+                let rto = sf + RD[idx];
+                self.toggle(side, R, (1 << rfr) ^ (1 << rto));
                 self.hash ^= ZVALS.pcs[side][R][rfr] ^ ZVALS.pcs[side][R][rto];
                 self.pst += -1 * PST[side][R][rfr];
                 self.pst += PST[side][R][rto];
