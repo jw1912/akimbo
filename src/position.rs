@@ -73,6 +73,8 @@ impl Position {
 
         let mut king = 4;
         CHESS960.store(false, Relaxed);
+        ROOKS[0].store(0, Relaxed);
+        ROOKS[1].store(7, Relaxed);
         pos.cr = vec[2].chars().fold(0, |cr, ch| cr | match ch as u8 {
             b'Q' => WQS, b'K' => WKS, b'q' => BQS, b'k' => BKS,
             b'A'..=b'H' => {
@@ -229,15 +231,28 @@ impl Move {
     pub fn to_uci(self) -> String {
         let idx_to_sq = |i| format!("{}{}", ((i & 7) + b'a') as char, (i / 8) + 1);
         let promo = if self.flag & 0b1000 > 0 {["n","b","r","q"][(self.flag & 0b11) as usize]} else {""};
-        format!("{}{}{}", idx_to_sq(self.from), idx_to_sq(self.to), promo)
+        let to = if CHESS960.load(Relaxed) && [QS, KS].contains(&self.flag) {
+            let sf = 56 * (self.to) / 56;
+            sf + ROOKS[usize::from(self.flag)].load(Relaxed)
+        } else { self.to };
+        format!("{}{}{} ", idx_to_sq(self.from), idx_to_sq(to), promo)
     }
 
     pub fn from_uci(pos: &Position, m_str: &str) -> Self {
-        let mut m = Move { from: sq_to_idx(&m_str[0..2]), to: sq_to_idx(&m_str[2..4]), flag: 0, mpc: 0};
+        let (from, to) = (sq_to_idx(&m_str[0..2]), sq_to_idx(&m_str[2..4]));
+
+        if CHESS960.load(Relaxed) && pos.bb[usize::from(pos.c)] & (1 << to) > 0 {
+            let side = 56 * (from / 56);
+            let (to2, flag) = if to == ROOKS[0].load(Relaxed) + side { (2 + side, QS) } else { (6 + side, KS) };
+            return Move { from, to: to2, flag, mpc: K as u8};
+        }
+
+        let mut m = Move { from, to, flag: 0, mpc: 0};
         m.flag = match m_str.chars().nth(4).unwrap_or('f') {'n' => 8, 'b' => 9, 'r' => 10, 'q' => 11, _ => 0};
         let possible_moves = pos.gen::<ALL>();
         *possible_moves.list.iter().take(possible_moves.len).find(|um|
             m.from == um.from && m.to == um.to && (m_str.len() < 5 || m.flag == um.flag & 0b1011)
+            && !(CHESS960.load(Relaxed) && [QS, KS].contains(&m.flag))
         ).unwrap()
     }
 }

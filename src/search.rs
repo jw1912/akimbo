@@ -59,7 +59,8 @@ pub fn go(start: &Position, eng: &mut Engine) {
 
     // iterative deepening loop
     for d in 1..=64 {
-        let eval = pvs(&pos, eng, -MAX, MAX, d, false);
+        let mut pv_line = Vec::new();
+        let eval = pvs(&pos, eng, -MAX, MAX, d, false, &mut pv_line);
         if eng.abort { break }
         best = eng.best_move.to_uci();
 
@@ -70,7 +71,8 @@ pub fn go(start: &Position, eng: &mut Engine) {
         let t = eng.timing.unwrap().elapsed().as_millis();
         let nodes = eng.nodes + QNODES.load(Relaxed);
         let nps = (1000.0 * nodes as f64 / t as f64) as u32;
-        println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {best}");
+        let pv = pv_line.iter().map(|mov| mov.to_uci()).collect::<String>();
+        println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}");
     }
 
     println!("bestmove {best}");
@@ -101,13 +103,15 @@ fn qs(pos: &Position, mut alpha: i16, beta: i16) -> i16 {
     eval
 }
 
-fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null: bool) -> i16 {
+fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null: bool, line: &mut Vec<Move>) -> i16 {
     // stopping search
     if eng.abort { return 0 }
     if eng.nodes & 1023 == 0 && eng.timing.unwrap().elapsed().as_millis() >= eng.max_time {
         eng.abort = true;
         return 0
     }
+
+    line.clear();
 
     // draw detection
     let hash = pos.hash();
@@ -160,7 +164,7 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
             new.nulls += 1;
             new.c = !new.c;
             new.enp = 0;
-            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false);
+            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, &mut Vec::new());
             eng.pop();
             if nw >= MATE { return beta }
             if nw >= beta { return nw }
@@ -181,7 +185,7 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
     }
 
     // stuff for going through moves
-    let (mut legal, mut eval, mut bound) = (0, -MAX, UPPER);
+    let (mut legal, mut eval, mut bound, mut sline) = (0, -MAX, UPPER, Vec::new());
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
 
@@ -200,17 +204,20 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
         } else { 0 };
 
         let score = if legal == 1 {
-            -pvs(&new, eng, -beta, -alpha, depth - 1, false)
+            -pvs(&new, eng, -beta, -alpha, depth - 1, false, &mut sline)
         } else {
-            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true);
+            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true, &mut sline);
             if zw > alpha && (pv_node || reduce > 0) {
-                -pvs(&new, eng, -beta, -alpha, depth - 1, false)
+                -pvs(&new, eng, -beta, -alpha, depth - 1, false, &mut sline)
             } else { zw }
         };
 
         if score <= eval { continue }
         eval = score;
         best_move = mov;
+        line.clear();
+        line.push(mov);
+        line.append(&mut sline);
 
         if score <= alpha { continue }
         alpha = score;
