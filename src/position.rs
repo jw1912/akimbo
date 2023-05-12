@@ -77,24 +77,8 @@ impl Position {
         ROOKS[1].store(7, Relaxed);
         pos.cr = vec[2].chars().fold(0, |cr, ch| cr | match ch as u8 {
             b'Q' => WQS, b'K' => WKS, b'q' => BQS, b'k' => BKS,
-            b'A'..=b'H' => {
-                CHESS960.store(true, Relaxed);
-                let wkc = (pos.bb[WH] & pos.bb[K]).trailing_zeros() as u8 & 7;
-                king = wkc as usize;
-                let rook = ch as u8 - b'A';
-                let i = usize::from(rook > wkc);
-                ROOKS[i].store(rook, Relaxed);
-                [WQS, WKS][i]
-            }
-            b'a'..=b'h' => {
-                CHESS960.store(true, Relaxed);
-                let bkc = (pos.bb[BL] & pos.bb[K]).trailing_zeros() as u8 & 7;
-                king = bkc as usize;
-                let rook = ch as u8 - b'a';
-                let i = usize::from(rook > bkc);
-                ROOKS[i].store(rook, Relaxed);
-                [BQS, BKS][i]
-            }
+            b'A'..=b'H' => pos.handle_castle(WH, &mut king, ch),
+            b'a'..=b'h' => pos.handle_castle(BL, &mut king, ch),
             _ => 0
         });
 
@@ -109,6 +93,16 @@ impl Position {
         pos.enp = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
         pos.hfm = vec.get(4).unwrap_or(&"0").parse::<u8>().unwrap();
         pos
+    }
+
+    fn handle_castle(&self, side: usize, king: &mut usize, ch: char) -> u8 {
+        CHESS960.store(true, Relaxed);
+        let wkc = (self.bb[side] & self.bb[K]).trailing_zeros() as u8 & 7;
+        *king = wkc as usize;
+        let rook = ch as u8 - [b'A', b'a'][side];
+        let i = usize::from(rook > wkc);
+        ROOKS[i].store(rook, Relaxed);
+        [[WQS, WKS], [BQS, BKS]][side][i]
     }
 
     pub fn hash(&self) -> u64 {
@@ -252,7 +246,7 @@ impl Move {
         let possible_moves = pos.gen::<ALL>();
         *possible_moves.list.iter().take(possible_moves.len).find(|um|
             m.from == um.from && m.to == um.to && (m_str.len() < 5 || m.flag == um.flag & 0b1011)
-            && !(CHESS960.load(Relaxed) && [QS, KS].contains(&m.flag))
+            && !(CHESS960.load(Relaxed) && [QS, KS].contains(&um.flag))
         ).unwrap()
     }
 }
