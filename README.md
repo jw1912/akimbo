@@ -3,7 +3,7 @@
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/JacquesRW/akimbo?style=for-the-badge)](https://github.com/JacquesRW/akimbo/releases/latest)
 ![Commits since latest release](https://img.shields.io/github/commits-since/JacquesRW/akimbo/latest?style=for-the-badge)
 
-A compact UCI Chess engine written in Rust.
+A compact UCI Chess and Chess960 engine written in Rust.
 
 ### Compiling
 If you have cargo installed, run `cargo build --release`, binary will be in `/target/release`.
@@ -24,19 +24,15 @@ As a result writing idiomatic Rust is not an aim of this project.
 
 ## Features
 
-#### Structure
-- Bitboards
-- Hyperbola Quintessence / Rank Lookup
-- Copy-Make
-
 #### Evaluation
-- Tapered PSTs
+- Tapered Piece-Square Tables
 
 #### Selectivity
 - Check Extensions
 - Late Move Reductions
 - Reverse Futility Pruning
 - Null Move Pruning
+- Razoring
 
 #### Move Ordering
 1. Hash Move

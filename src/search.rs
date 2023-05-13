@@ -215,9 +215,11 @@ fn pvs(pos: &Position, eng: &mut Engine, alpha: i16, beta: i16, depth: i8, null:
         if score <= eval { continue }
         eval = score;
         best_move = mov;
-        line.clear();
-        line.push(mov);
-        line.append(&mut sline);
+        if pv_node {
+            line.clear();
+            line.push(mov);
+            line.append(&mut sline);
+        }
 
         if score <= alpha { continue }
         alpha = score;
