@@ -10,22 +10,31 @@ pub struct HashEntry {
 }
 
 #[derive(Default)]
-pub struct HashTable(Vec<HashEntry>);
+pub struct HashTable(Vec<HashEntry>, u8);
 
 impl HashTable {
     pub fn resize(&mut self, size: usize) {
         self.0 = vec![Default::default(); 1 << (80 - (size as u64).leading_zeros())];
+        self.1 = 0;
     }
 
     pub fn clear(&mut self) {
         self.0.iter_mut().for_each(|bucket| *bucket = Default::default());
+        self.1 = 0;
+    }
+
+    pub fn age(&mut self) {
+        self.1 = 63.min(self.1 + 1);
     }
 
     pub fn push(&mut self, hash: u64, m: Move, depth: i8, bound: u8, mut score: i16, ply: i16) {
         let (key, idx) = ((hash >> 48) as u16, (hash as usize) & (self.0.len() - 1));
+        let entry = &mut self.0[idx];
+        let diff = self.1 - (entry.bound >> 2);
+        if ply > 0 && key == entry.key && depth as u8 + 2 * diff < entry.depth as u8  { return }
         score += if score.abs() > MATE {score.signum() * ply} else {0};
         let best_move = (m.from as u16) << 6 | m.to as u16 | (m.flag as u16) << 12;
-        self.0[idx] = HashEntry { key, best_move, score, depth, bound };
+        *entry = HashEntry { key, best_move, score, depth, bound: (self.1 << 2) | bound };
     }
 
     pub fn probe(&self, hash: u64, ply: i16) -> Option<HashEntry> {

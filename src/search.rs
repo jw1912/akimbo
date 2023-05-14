@@ -44,6 +44,8 @@ impl Engine {
 
 pub fn go(start: &Position, eng: &mut Engine) {
     // reset engine
+    *eng.ktable = Default::default();
+    eng.htable.age();
     eng.timing = Some(Instant::now());
     eng.nodes = 0;
     eng.ply = 0;
@@ -72,10 +74,8 @@ pub fn go(start: &Position, eng: &mut Engine) {
         let pv = pv_line.iter().map(|mov| mov.to_uci()).collect::<String>();
         println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}");
     }
-
+    eng.ttable.age();
     println!("bestmove {best}");
-    *eng.ktable = Default::default();
-    eng.htable.age();
 }
 
 fn qs(pos: &Position, mut alpha: i16, beta: i16) -> i16 {
@@ -130,13 +130,10 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
 
     // probing hash table
     let pv_node = beta > alpha + 1;
-    let (mut best_move, mut write) = (Move::default(), true);
+    let mut best_move = Move::default();
     if let Some(res) = eng.ttable.probe(hash, eng.ply) {
-        write = depth > res.depth;
         best_move = Move::from_short(res.best_move, pos);
-
-        // hash score pruning
-        if !pv_node && !write && match res.bound {
+        if !pv_node && depth <= res.depth && match res.bound & 3 {
             LOWER => res.score >= beta,
             UPPER => res.score <= alpha,
             _ => true,
@@ -241,6 +238,6 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
     if eng.abort { return 0 }
     if eng.ply == 0 { eng.best_move = best_move }
     if legal == 0 { return i16::from(pos.check) * (-MAX + eng.ply) }
-    if write { eng.ttable.push(hash, best_move, depth, bound, eval, eng.ply) }
+    eng.ttable.push(hash, best_move, depth, bound, eval, eng.ply);
     eval
 }
