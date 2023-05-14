@@ -10,12 +10,11 @@ pub struct HashEntry {
 }
 
 #[derive(Default)]
-pub struct HashTable(Vec<HashEntry>, usize);
+pub struct HashTable(Vec<HashEntry>);
 
 impl HashTable {
     pub fn resize(&mut self, size: usize) {
-        self.1 = 1 << (80 - (size as u64).leading_zeros());
-        self.0 = vec![Default::default(); self.1];
+        self.0 = vec![Default::default(); 1 << (80 - (size as u64).leading_zeros())];
     }
 
     pub fn clear(&mut self) {
@@ -23,14 +22,14 @@ impl HashTable {
     }
 
     pub fn push(&mut self, hash: u64, m: Move, depth: i8, bound: u8, mut score: i16, ply: i16) {
-        let (key, idx) = ((hash >> 48) as u16, (hash as usize) & (self.1 - 1));
+        let (key, idx) = ((hash >> 48) as u16, (hash as usize) & (self.0.len() - 1));
         score += if score.abs() > MATE {score.signum() * ply} else {0};
         let best_move = (m.from as u16) << 6 | m.to as u16 | (m.flag as u16) << 12;
         self.0[idx] = HashEntry { key, best_move, score, depth, bound };
     }
 
     pub fn probe(&self, hash: u64, ply: i16) -> Option<HashEntry> {
-        let mut entry = self.0[(hash as usize) & (self.1 - 1)];
+        let mut entry = self.0[(hash as usize) & (self.0.len() - 1)];
         if entry.key != (hash >> 48) as u16 { return None }
         entry.score -= if entry.score.abs() > MATE {entry.score.signum() * ply} else {0};
         Some(entry)
