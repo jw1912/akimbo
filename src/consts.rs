@@ -51,7 +51,7 @@ pub const CHARS: [char; 12] = ['P','N','B','R','Q','K','p','n','b','r','q','k'];
 // Search
 pub const KILLERS: usize = 2;
 pub const HISTORY_MAX: i64 = 2048;
-consts!(u8, LOWER = 1, EXACT = 2, UPPER = 3);
+consts!(u8, LOWER = 0, EXACT = 1, UPPER = 2);
 consts!(i16, MAX_PLY = 96, MAX = 30000, MATE = MAX - 256, HASH = MAX, MVV_LVA = 2048, PROMOTION = 3000, KILLER = 2500);
 
 // Pieces, sides, movegen type
