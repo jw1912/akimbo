@@ -168,7 +168,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
         }
     }
 
-    // internal iterative deepening
+    // internal iterative reduction
     if depth >= 4 && best_move == Move::default() { depth -= 1 }
 
     // generating and scoring moves
