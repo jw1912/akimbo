@@ -1,4 +1,4 @@
-use crate::{consts::*, position::Move};
+use crate::{util::*, position::Move};
 
 #[derive(Clone, Copy, Default)]
 pub struct HashEntry {

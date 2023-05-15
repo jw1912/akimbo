@@ -1,5 +1,5 @@
 use std::{sync::atomic::{AtomicU64, Ordering::Relaxed}, time::Instant};
-use super::{consts::*, position::*, movegen::*, tables::*};
+use super::{util::*, position::*, movegen::*, tables::*};
 
 static QNODES: AtomicU64 = AtomicU64::new(0);
 

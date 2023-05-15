@@ -1,4 +1,4 @@
-use super::consts::*;
+use super::util::*;
 use std::sync::atomic::{AtomicU8, AtomicBool, Ordering::Relaxed};
 
 #[allow(clippy::declare_interior_mutable_const)]

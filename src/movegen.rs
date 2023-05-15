@@ -1,4 +1,4 @@
-use super::{consts::*, position::*};
+use super::{util::*, position::*};
 use std::sync::atomic::Ordering::Relaxed;
 
 macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {

@@ -1,10 +1,10 @@
-mod consts;
+mod util;
 mod position;
 mod movegen;
 mod tables;
 mod search;
 
-use consts::*;
+use util::*;
 use position::{Move, Position};
 use search::{Engine, go};
 use std::{io, process, time::Instant};
