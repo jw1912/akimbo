@@ -66,11 +66,11 @@ impl Position {
                 let kbb = self.bb[Piece::KING] & self.bb[side];
                 let ksq = kbb.trailing_zeros() as u8;
                 if self.c {
-                    if r & BQS > 0 && self.castle(0, occ, kbb, 1 << 58, 1 << 59) {moves.push(ksq, 58, Flag::QS, Piece::KING)}
-                    if r & BKS > 0 && self.castle(1, occ, kbb, 1 << 62, 1 << 61) {moves.push(ksq, 62, Flag::KS, Piece::KING)}
+                    if self.castle(BQS, 0, occ, kbb, 1 << 58, 1 << 59) {moves.push(ksq, 58, Flag::QS, Piece::KING)}
+                    if self.castle(BKS, 1, occ, kbb, 1 << 62, 1 << 61) {moves.push(ksq, 62, Flag::KS, Piece::KING)}
                 } else {
-                    if r & WQS > 0 && self.castle(0, occ, kbb, 1 << 2, 1 << 3) {moves.push(ksq, 2, Flag::QS, Piece::KING)}
-                    if r & WKS > 0 && self.castle(1, occ, kbb, 1 << 6, 1 << 5) {moves.push(ksq, 6, Flag::KS, Piece::KING)}
+                    if self.castle(WQS, 0, occ, kbb, 1 << 2, 1 << 3) {moves.push(ksq, 2, Flag::QS, Piece::KING)}
+                    if self.castle(WKS, 1, occ, kbb, 1 << 6, 1 << 5) {moves.push(ksq, 6, Flag::KS, Piece::KING)}
                 }
             }
 
@@ -125,10 +125,13 @@ impl Position {
         true
     }
 
-    fn castle(&self, ks: usize, occ: u64, kbb: u64, kto: u64, rto: u64) -> bool {
+    fn castle(&self, right: u8, ks: usize, occ: u64, kbb: u64, kto: u64, rto: u64) -> bool {
         let side = usize::from(self.c);
         let bit = 1 << (56 * side + usize::from(ROOK_FILES[side][ks].load(Relaxed)));
-        (occ ^ bit) & (btwn(kbb, kto) ^ kto) == 0 && (occ ^ kbb) & (btwn(bit, rto) ^ rto) == 0 && self.path(side, btwn(kbb, kto), occ)
+        self.rights & right > 0
+            && (occ ^ bit) & (btwn(kbb, kto) ^ kto) == 0
+            && (occ ^ kbb) & (btwn(bit, rto) ^ rto) == 0
+            && self.path(side, btwn(kbb, kto), occ)
     }
 }
 

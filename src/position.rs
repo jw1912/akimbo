@@ -70,7 +70,6 @@ impl Position {
             b'a'..=b'h' => pos.handle_castle(Side::BLACK, &mut king, ch),
             _ => 0
         });
-
         for sq in &CASTLE_MASK { sq.store(15, Relaxed) }
         CASTLE_MASK[usize::from(     ROOK_FILES[0][0].load(Relaxed))].store( 7, Relaxed);
         CASTLE_MASK[usize::from(     ROOK_FILES[0][1].load(Relaxed))].store(11, Relaxed);
@@ -105,12 +104,12 @@ impl Position {
     }
 
     #[inline]
-    pub fn sq_attacked(&self, idx: usize, side: usize, occ: u64) -> bool {
-        ( (Attacks::KNIGHT[idx] & self.bb[Piece::KNIGHT])
-        | (Attacks::KING  [idx] & self.bb[Piece::KING  ])
-        | (Attacks::PAWN  [side][idx] & self.bb[Piece::PAWN  ])
-        | (Attacks::rook  (idx, occ) & (self.bb[Piece::ROOK  ] | self.bb[Piece::QUEEN]))
-        | (Attacks::bishop(idx, occ) & (self.bb[Piece::BISHOP] | self.bb[Piece::QUEEN]))
+    pub fn sq_attacked(&self, sq: usize, side: usize, occ: u64) -> bool {
+        ( (Attacks::KNIGHT[sq] & self.bb[Piece::KNIGHT])
+        | (Attacks::KING  [sq] & self.bb[Piece::KING  ])
+        | (Attacks::PAWN  [side][sq] & self.bb[Piece::PAWN  ])
+        | (Attacks::rook  (sq, occ) & (self.bb[Piece::ROOK  ] | self.bb[Piece::QUEEN]))
+        | (Attacks::bishop(sq, occ) & (self.bb[Piece::BISHOP] | self.bb[Piece::QUEEN]))
         ) & self.bb[side ^ 1] > 0
     }
 
