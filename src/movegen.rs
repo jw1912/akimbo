@@ -1,4 +1,4 @@
-use super::{consts::*, position::*};
+use super::{util::*, position::*};
 use std::sync::atomic::Ordering::Relaxed;
 
 macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
@@ -26,7 +26,7 @@ impl<T: Copy + Default> Default for List<T> {
 impl MoveList {
     #[inline]
     pub fn push(&mut self, from: u8, to: u8, flag: u8, mpc: usize) {
-        self.list[self.len] = Move { from, to, flag, mpc: mpc as u8 };
+        self.list[self.len] = Move { from, to, flag, pc: mpc as u8 };
         self.len += 1;
     }
 
@@ -57,19 +57,20 @@ impl Position {
         let mut moves = MoveList::default();
         let (side, occ) = (usize::from(self.c), self.bb[0] | self.bb[1]);
         let (boys, opps) = (self.bb[side], self.bb[side ^ 1]);
-        let pawns = self.bb[P] & boys;
+        let pawns = self.bb[Piece::PAWN] & boys;
 
         // special quiet moves
         if QUIETS {
-            if self.cr & CS[side] > 0 && !self.in_check() {
-                let kbb = self.bb[K] & self.bb[side];
+            let r = self.rights;
+            if r & [Rights::WHITE, Rights::BLACK][side] > 0 && !self.in_check() {
+                let kbb = self.bb[Piece::KING] & self.bb[side];
                 let ksq = kbb.trailing_zeros() as u8;
                 if self.c {
-                    if self.cr & BQS > 0 && self.castle(BL, 0, occ, kbb, 1 << 58, 1 << 59) {moves.push(ksq, 58, QS, K)}
-                    if self.cr & BKS > 0 && self.castle(BL, 1, occ, kbb, 1 << 62, 1 << 61) {moves.push(ksq, 62, KS, K)}
+                    if self.castle(Rights::BQS, 0, occ, kbb, 1 << 58, 1 << 59) {moves.push(ksq, 58, Flag::QS, Piece::KING)}
+                    if self.castle(Rights::BKS, 1, occ, kbb, 1 << 62, 1 << 61) {moves.push(ksq, 62, Flag::KS, Piece::KING)}
                 } else {
-                    if self.cr & WQS > 0 && self.castle(WH, 0, occ, kbb, 1 << 2, 1 << 3) {moves.push(ksq, 2, QS, K)}
-                    if self.cr & WKS > 0 && self.castle(WH, 1, occ, kbb, 1 << 6, 1 << 5) {moves.push(ksq, 6, KS, K)}
+                    if self.castle(Rights::WQS, 0, occ, kbb, 1 << 2, 1 << 3) {moves.push(ksq, 2, Flag::QS, Piece::KING)}
+                    if self.castle(Rights::WKS, 1, occ, kbb, 1 << 6, 1 << 5) {moves.push(ksq, 6, Flag::KS, Piece::KING)}
                 }
             }
 
@@ -79,59 +80,67 @@ impl Position {
             let mut push = shift(side, empty) & pawns;
             let mut promo = push & PENRANK[side];
             push &= !PENRANK[side];
-            bitloop!(push, from, moves.push(from, idx_shift::<8>(side, from), QUIET, P));
-            bitloop!(promo, from, for flag in NPR..=QPR {moves.push(from, idx_shift::<8>(side, from), flag, P)});
-            bitloop!(dbl, from, moves.push(from, idx_shift::<16>(side, from), DBL, P));
+            bitloop!(push, from, moves.push(from, idx_shift::<8>(side, from), Flag::QUIET, Piece::PAWN));
+            bitloop!(promo, from,
+                for flag in Flag::PROMO..=Flag::QPR {moves.push(from, idx_shift::<8>(side, from), flag, Piece::PAWN)}
+            );
+            bitloop!(dbl, from, moves.push(from, idx_shift::<16>(side, from), Flag::DBL, Piece::PAWN));
         }
 
         // pawn captures
-        if self.enp > 0 {
-            let mut attackers = PATT[side ^ 1][self.enp as usize] & pawns;
-            bitloop!(attackers, from, moves.push(from, self.enp, ENP, P));
+        if self.enp_sq > 0 {
+            let mut attackers = Attacks::PAWN[side ^ 1][self.enp_sq as usize] & pawns;
+            bitloop!(attackers, from, moves.push(from, self.enp_sq, Flag::ENP, Piece::PAWN));
         }
         let (mut attackers, mut promo) = (pawns & !PENRANK[side], pawns & PENRANK[side]);
-        bitloop!(attackers, from, encode::<CAP>(&mut moves, PATT[side][from as usize] & opps, from, P));
+        bitloop!(attackers, from,
+            encode::<{ Flag::CAP }>(&mut moves, Attacks::PAWN[side][from as usize] & opps, from, Piece::PAWN)
+        );
         bitloop!(promo, from, {
-            let mut attacks = PATT[side][from as usize] & opps;
-            bitloop!(attacks, to, for flag in NPC..=QPC { moves.push(from, to, flag, P) });
+            let mut attacks = Attacks::PAWN[side][from as usize] & opps;
+            bitloop!(attacks, to, for flag in Flag::NPC..=Flag::QPC { moves.push(from, to, flag, Piece::PAWN) });
         });
 
         // non-pawn moves
-        for pc in N..=K {
+        for pc in Piece::KNIGHT..=Piece::KING {
             let mut attackers = boys & self.bb[pc];
             bitloop!(attackers, from, {
                 let attacks = match pc {
-                    N => NATT[from as usize],
-                    R => ratt(from as usize, occ),
-                    B => batt(from as usize, occ),
-                    Q => ratt(from as usize, occ) | batt(from as usize, occ),
-                    K => KATT[from as usize],
-                    _ => 0
+                    Piece::KNIGHT => Attacks::KNIGHT[from as usize],
+                    Piece::ROOK   => Attacks::rook  (from as usize, occ),
+                    Piece::BISHOP => Attacks::bishop(from as usize, occ),
+                    Piece::QUEEN  => Attacks::bishop(from as usize, occ) | Attacks::rook(from as usize, occ),
+                    Piece::KING   => Attacks::KING  [from as usize],
+                    _ => unreachable!(),
                 };
-                encode::<CAP>(&mut moves, attacks & opps, from, pc);
-                if QUIETS { encode::<QUIET>(&mut moves, attacks & !occ, from, pc) }
+                encode::<{ Flag::CAP }>(&mut moves, attacks & opps, from, pc);
+                if QUIETS { encode::<{ Flag::QUIET }>(&mut moves, attacks & !occ, from, pc) }
             });
         }
         moves
     }
 
     fn path(&self, side: usize, mut path: u64, occ: u64) -> bool {
-        bitloop!(path, idx, if self.is_sq_att(idx as usize, side, occ) {return false});
+        bitloop!(path, idx, if self.sq_attacked(idx as usize, side, occ) {return false});
         true
     }
 
-    fn castle(&self, side: usize, ks: usize, occ: u64, kbb: u64, kto: u64, rto: u64) -> bool {
-        let bit = 1 << (56 * side + usize::from(ROOKS[ks].load(Relaxed)));
-        (occ ^ bit) & (btwn(kbb, kto) ^ kto) == 0 && (occ ^ kbb) & (btwn(bit, rto) ^ rto) == 0 && self.path(side, btwn(kbb, kto), occ)
+    fn castle(&self, right: u8, ks: usize, occ: u64, kbb: u64, kto: u64, rto: u64) -> bool {
+        let side = usize::from(self.c);
+        let bit = 1 << (56 * side + usize::from(ROOK_FILES[side][ks].load(Relaxed)));
+        self.rights & right > 0
+            && (occ ^ bit) & (btwn(kbb, kto) ^ kto) == 0
+            && (occ ^ kbb) & (btwn(bit, rto) ^ rto) == 0
+            && self.path(side, btwn(kbb, kto), occ)
     }
 }
 
 fn shift(side: usize,bb: u64) -> u64 {
-    if side == WH {bb >> 8} else {bb << 8}
+    if side == Side::WHITE {bb >> 8} else {bb << 8}
 }
 
 fn idx_shift<const AMOUNT: u8>(side: usize, idx: u8) -> u8 {
-    if side == WH {idx + AMOUNT} else {idx - AMOUNT}
+    if side == Side::WHITE {idx + AMOUNT} else {idx - AMOUNT}
 }
 
 fn btwn(bit1: u64, bit2: u64) -> u64 {
