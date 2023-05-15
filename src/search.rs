@@ -25,7 +25,7 @@ fn mvv_lva(m: Move, pos: &Position) -> i16 {
 impl Engine {
     fn rep_draw(&self, pos: &Position, curr_hash: u64) -> bool {
         if self.stack.len() < 6 || pos.nulls > 0 { return false }
-        for &hash in self.stack.iter().rev().take(pos.hfm as usize + 1).skip(1).step_by(2) {
+        for &hash in self.stack.iter().rev().take(pos.halfm as usize + 1).skip(1).step_by(2) {
             if hash == curr_hash { return true }
         }
         false
@@ -114,7 +114,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
 
     if eng.ply > 0 {
         // draw detection
-        if pos.hfm >= 100 || pos.mat_draw() || eng.rep_draw(pos, hash) { return 0 }
+        if pos.halfm >= 100 || pos.mat_draw() || eng.rep_draw(pos, hash) { return 0 }
 
         // mate distance pruning
         alpha = alpha.max(eng.ply - MAX);
@@ -160,7 +160,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
             eng.push(hash);
             new.nulls += 1;
             new.c = !new.c;
-            new.enp = 0;
+            new.enp_sq = 0;
             let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, &mut Vec::new());
             eng.pop();
             if nw >= MATE { return beta }

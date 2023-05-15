@@ -61,15 +61,16 @@ impl Position {
 
         // special quiet moves
         if QUIETS {
-            if self.cr & CS[side] > 0 && !self.in_check() {
+            let r = self.rights;
+            if r & CS[side] > 0 && !self.in_check() {
                 let kbb = self.bb[K] & self.bb[side];
                 let ksq = kbb.trailing_zeros() as u8;
                 if self.c {
-                    if self.cr & BQS > 0 && self.castle(BL, 0, occ, kbb, 1 << 58, 1 << 59) {moves.push(ksq, 58, QS, K)}
-                    if self.cr & BKS > 0 && self.castle(BL, 1, occ, kbb, 1 << 62, 1 << 61) {moves.push(ksq, 62, KS, K)}
+                    if r & BQS > 0 && self.castle(BL, 0, occ, kbb, 1 << 58, 1 << 59) {moves.push(ksq, 58, QS, K)}
+                    if r & BKS > 0 && self.castle(BL, 1, occ, kbb, 1 << 62, 1 << 61) {moves.push(ksq, 62, KS, K)}
                 } else {
-                    if self.cr & WQS > 0 && self.castle(WH, 0, occ, kbb, 1 << 2, 1 << 3) {moves.push(ksq, 2, QS, K)}
-                    if self.cr & WKS > 0 && self.castle(WH, 1, occ, kbb, 1 << 6, 1 << 5) {moves.push(ksq, 6, KS, K)}
+                    if r & WQS > 0 && self.castle(WH, 0, occ, kbb, 1 << 2, 1 << 3) {moves.push(ksq, 2, QS, K)}
+                    if r & WKS > 0 && self.castle(WH, 1, occ, kbb, 1 << 6, 1 << 5) {moves.push(ksq, 6, KS, K)}
                 }
             }
 
@@ -85,9 +86,9 @@ impl Position {
         }
 
         // pawn captures
-        if self.enp > 0 {
-            let mut attackers = PATT[side ^ 1][self.enp as usize] & pawns;
-            bitloop!(attackers, from, moves.push(from, self.enp, ENP, P));
+        if self.enp_sq > 0 {
+            let mut attackers = PATT[side ^ 1][self.enp_sq as usize] & pawns;
+            bitloop!(attackers, from, moves.push(from, self.enp_sq, ENP, P));
         }
         let (mut attackers, mut promo) = (pawns & !PENRANK[side], pawns & PENRANK[side]);
         bitloop!(attackers, from, encode::<CAP>(&mut moves, PATT[side][from as usize] & opps, from, P));
@@ -121,7 +122,7 @@ impl Position {
     }
 
     fn castle(&self, side: usize, ks: usize, occ: u64, kbb: u64, kto: u64, rto: u64) -> bool {
-        let bit = 1 << (56 * side + usize::from(ROOKS[side][ks].load(Relaxed)));
+        let bit = 1 << (56 * side + usize::from(ROOK_FILES[side][ks].load(Relaxed)));
         (occ ^ bit) & (btwn(kbb, kto) ^ kto) == 0 && (occ ^ kbb) & (btwn(bit, rto) ^ rto) == 0 && self.path(side, btwn(kbb, kto), occ)
     }
 }
