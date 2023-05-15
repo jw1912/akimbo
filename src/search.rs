@@ -175,7 +175,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
     let mut moves = pos.gen::<ALL>();
     let mut scores = ScoreList::default();
     let killers = eng.ktable.0[eng.ply as usize];
-    for (i, &m) in moves.list[0..moves.len].iter().enumerate() {
+    for (i, &m) in moves.list[..moves.len].iter().enumerate() {
         scores.list[i] = if m == best_move { HASH }
             else if m.flag == ENP { 2 * MVV_LVA }
             else if m.flag & 4 > 0 { mvv_lva(m, pos) }
