@@ -1,4 +1,4 @@
-use crate::{consts::*, position::Move};
+use crate::{util::*, position::Move};
 
 #[derive(Clone, Copy, Default)]
 pub struct HashEntry {
@@ -32,7 +32,7 @@ impl HashTable {
         let entry = &mut self.0[idx];
         let diff = self.1 - (entry.bound >> 2);
         if ply > 0 && key == entry.key && depth as u8 + 2 * diff < entry.depth as u8  { return }
-        score += if score.abs() > MATE {score.signum() * ply} else {0};
+        score += if score.abs() > Score::MATE {score.signum() * ply} else {0};
         let best_move = (m.from as u16) << 6 | m.to as u16 | (m.flag as u16) << 12;
         *entry = HashEntry { key, best_move, score, depth, bound: (self.1 << 2) | bound };
     }
@@ -40,7 +40,7 @@ impl HashTable {
     pub fn probe(&self, hash: u64, ply: i16) -> Option<HashEntry> {
         let mut entry = self.0[(hash as usize) & (self.0.len() - 1)];
         if entry.key != (hash >> 48) as u16 { return None }
-        entry.score -= if entry.score.abs() > MATE {entry.score.signum() * ply} else {0};
+        entry.score -= if entry.score.abs() > Score::MATE {entry.score.signum() * ply} else {0};
         Some(entry)
     }
 }
@@ -79,14 +79,14 @@ impl HistoryTable {
         }
     }
 
-    pub fn push(&mut self, m: Move, side: bool, depth: i8) {
-        let entry = &mut self.0[usize::from(side)][usize::from(m.mpc - 2)][usize::from(m.to)];
+    pub fn push(&mut self, mov: Move, side: bool, depth: i8) {
+        let entry = &mut self.0[usize::from(side)][usize::from(mov.pc - 2)][usize::from(mov.to)];
         *entry += (depth as i64).pow(2);
         self.1 = self.1.max(*entry);
     }
 
-    pub fn score(&self, side: bool, m: Move) -> i16 {
-        let entry = self.0[usize::from(side)][usize::from(m.mpc - 2)][usize::from(m.to)];
+    pub fn score(&self, mov: Move, side: bool) -> i16 {
+        let entry = self.0[usize::from(side)][usize::from(mov.pc - 2)][usize::from(mov.to)];
         ((HISTORY_MAX * entry + self.1 - 1) / self.1) as i16
     }
 }
