@@ -32,65 +32,6 @@ pub struct Move {
 }
 
 impl Position {
-    pub fn from_fen(fen: &str) -> Self {
-        let vec = fen.split_whitespace().collect::<Vec<&str>>();
-        let p = vec[0].chars().collect::<Vec<char>>();
-
-        // board
-        let (mut pos, mut row, mut col) = (Self::default(), 7, 0);
-        for ch in p {
-            if ch == '/' { row -= 1; col = 0; }
-            else if ('1'..='8').contains(&ch) { col += ch.to_string().parse().unwrap_or(0) }
-            else if let Some(idx) = CHARS.iter().position(|&el| el == ch) {
-                let side = usize::from(idx > 5);
-                let (pc, sq) = (idx + 2 - 6 * side, 8 * row + col);
-                pos.toggle(side, pc, 1 << sq);
-                pos.hash ^= ZVALS.pcs[side][pc][sq as usize];
-                pos.pst += PST[side][pc][sq as usize];
-                pos.phase += PHASE_VALS[pc];
-                col += 1;
-            }
-        }
-
-        // state
-        pos.c = vec[1] == "b";
-        pos.enp_sq = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
-        pos.halfm = vec.get(4).unwrap_or(&"0").parse::<u8>().unwrap();
-
-        // general castling stuff (for chess960)
-        let mut king = 4;
-        CHESS960.store(false, Relaxed);
-        ROOK_FILES[0][0].store(0, Relaxed);
-        ROOK_FILES[0][1].store(7, Relaxed);
-        ROOK_FILES[1][0].store(0, Relaxed);
-        ROOK_FILES[1][1].store(7, Relaxed);
-        pos.rights = vec[2].chars().fold(0, |cr, ch| cr | match ch as u8 {
-            b'Q' => WQS, b'K' => WKS, b'q' => BQS, b'k' => BKS,
-            b'A'..=b'H' => pos.handle_castle(Side::WHITE, &mut king, ch),
-            b'a'..=b'h' => pos.handle_castle(Side::BLACK, &mut king, ch),
-            _ => 0
-        });
-        for sq in &CASTLE_MASK { sq.store(15, Relaxed) }
-        CASTLE_MASK[usize::from(     ROOK_FILES[0][0].load(Relaxed))].store( 7, Relaxed);
-        CASTLE_MASK[usize::from(     ROOK_FILES[0][1].load(Relaxed))].store(11, Relaxed);
-        CASTLE_MASK[usize::from(56 + ROOK_FILES[1][0].load(Relaxed))].store(13, Relaxed);
-        CASTLE_MASK[usize::from(56 + ROOK_FILES[1][1].load(Relaxed))].store(14, Relaxed);
-        CASTLE_MASK[     king].store( 3, Relaxed);
-        CASTLE_MASK[56 + king].store(12, Relaxed);
-
-        pos
-    }
-
-    fn handle_castle(&self, side: usize, king: &mut usize, ch: char) -> u8 {
-        CHESS960.store(true, Relaxed);
-        let wkc = (self.bb[side] & self.bb[Piece::KING]).trailing_zeros() as u8 & 7;
-        *king = wkc as usize;
-        let rook = ch as u8 - [b'A', b'a'][side];
-        let i = usize::from(rook > wkc);
-        ROOK_FILES[side][i].store(rook, Relaxed);
-        [[WQS, WKS], [BQS, BKS]][side][i]
-    }
-
     pub fn hash(&self) -> u64 {
         let mut hash = self.hash;
         if self.enp_sq > 0 { hash ^= ZVALS.enp[self.enp_sq as usize & 7] }
@@ -200,6 +141,65 @@ impl Position {
     pub fn eval(&self) -> i16 {
         let (s, p) = (self.pst, TPHASE.min(self.phase as i32));
         SIDE[usize::from(self.c)] * ((p * s.0 as i32 + (TPHASE - p) * s.1 as i32) / TPHASE) as i16
+    }
+
+    pub fn from_fen(fen: &str) -> Self {
+        let vec = fen.split_whitespace().collect::<Vec<&str>>();
+        let p = vec[0].chars().collect::<Vec<char>>();
+
+        // board
+        let (mut pos, mut row, mut col) = (Self::default(), 7, 0);
+        for ch in p {
+            if ch == '/' { row -= 1; col = 0; }
+            else if ('1'..='8').contains(&ch) { col += ch.to_string().parse().unwrap_or(0) }
+            else if let Some(idx) = CHARS.iter().position(|&el| el == ch) {
+                let side = usize::from(idx > 5);
+                let (pc, sq) = (idx + 2 - 6 * side, 8 * row + col);
+                pos.toggle(side, pc, 1 << sq);
+                pos.hash ^= ZVALS.pcs[side][pc][sq as usize];
+                pos.pst += PST[side][pc][sq as usize];
+                pos.phase += PHASE_VALS[pc];
+                col += 1;
+            }
+        }
+
+        // state
+        pos.c = vec[1] == "b";
+        pos.enp_sq = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
+        pos.halfm = vec.get(4).unwrap_or(&"0").parse::<u8>().unwrap();
+
+        // general castling stuff (for chess960)
+        let mut king = 4;
+        CHESS960.store(false, Relaxed);
+        ROOK_FILES[0][0].store(0, Relaxed);
+        ROOK_FILES[0][1].store(7, Relaxed);
+        ROOK_FILES[1][0].store(0, Relaxed);
+        ROOK_FILES[1][1].store(7, Relaxed);
+        pos.rights = vec[2].chars().fold(0, |cr, ch| cr | match ch as u8 {
+            b'Q' => WQS, b'K' => WKS, b'q' => BQS, b'k' => BKS,
+            b'A'..=b'H' => pos.handle_castle(Side::WHITE, &mut king, ch),
+            b'a'..=b'h' => pos.handle_castle(Side::BLACK, &mut king, ch),
+            _ => 0
+        });
+        for sq in &CASTLE_MASK { sq.store(15, Relaxed) }
+        CASTLE_MASK[usize::from(     ROOK_FILES[0][0].load(Relaxed))].store( 7, Relaxed);
+        CASTLE_MASK[usize::from(     ROOK_FILES[0][1].load(Relaxed))].store(11, Relaxed);
+        CASTLE_MASK[usize::from(56 + ROOK_FILES[1][0].load(Relaxed))].store(13, Relaxed);
+        CASTLE_MASK[usize::from(56 + ROOK_FILES[1][1].load(Relaxed))].store(14, Relaxed);
+        CASTLE_MASK[     king].store( 3, Relaxed);
+        CASTLE_MASK[56 + king].store(12, Relaxed);
+
+        pos
+    }
+
+    fn handle_castle(&self, side: usize, king: &mut usize, ch: char) -> u8 {
+        CHESS960.store(true, Relaxed);
+        let wkc = (self.bb[side] & self.bb[Piece::KING]).trailing_zeros() as u8 & 7;
+        *king = wkc as usize;
+        let rook = ch as u8 - [b'A', b'a'][side];
+        let i = usize::from(rook > wkc);
+        ROOK_FILES[side][i].store(rook, Relaxed);
+        [[WQS, WKS], [BQS, BKS]][side][i]
     }
 }
 
