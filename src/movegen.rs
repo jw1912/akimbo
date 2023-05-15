@@ -121,7 +121,7 @@ impl Position {
     }
 
     fn castle(&self, side: usize, ks: usize, occ: u64, kbb: u64, kto: u64, rto: u64) -> bool {
-        let bit = 1 << (56 * side + usize::from(ROOKS[ks].load(Relaxed)));
+        let bit = 1 << (56 * side + usize::from(ROOKS[side][ks].load(Relaxed)));
         (occ ^ bit) & (btwn(kbb, kto) ^ kto) == 0 && (occ ^ kbb) & (btwn(bit, rto) ^ rto) == 0 && self.path(side, btwn(kbb, kto), occ)
     }
 }
