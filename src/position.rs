@@ -26,9 +26,9 @@ pub struct Position {
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct Move {
     pub from: u8,
-    pub to: u8,
+    pub   to: u8,
     pub flag: u8,
-    pub pc: u8,
+    pub   pc: u8,
 }
 
 impl Position {
@@ -41,7 +41,7 @@ impl Position {
     #[inline]
     fn toggle(&mut self, c: usize, pc: usize, bit: u64) {
         self.bb[pc] ^= bit;
-        self.bb[c] ^= bit;
+        self.bb[ c] ^= bit;
     }
 
     #[inline]
@@ -73,21 +73,22 @@ impl Position {
 
         // update state
         self.rights &= CASTLE_MASK[to].load(Relaxed) & CASTLE_MASK[from].load(Relaxed);
-        self.enp_sq = 0;
         self.halfm = u8::from(moved > Piece::PAWN && mov.flag != Flag::CAP) * (self.halfm + 1);
+        self.enp_sq = 0;
         self.c = !self.c;
 
         // move piece
         self.toggle(side, moved, from_bb ^ to_bb);
         self.hash ^= ZVALS.pcs[side][moved][from] ^ ZVALS.pcs[side][moved][to];
-        self.pst += PST[side][moved][to];
+        self.pst +=      PST[side][moved][to  ];
         self.pst += -1 * PST[side][moved][from];
 
         // captures
         if captured != Piece::EMPTY {
-            self.toggle(side ^ 1, captured, to_bb);
-            self.hash ^= ZVALS.pcs[side ^ 1][captured][to];
-            self.pst += -1 * PST[side ^ 1][captured][to];
+            let opp = side ^ 1;
+            self.toggle(opp, captured, to_bb);
+            self.hash ^= ZVALS.pcs[opp][captured][to];
+            self.pst += -1 * PST[opp][captured][to];
             self.phase -= PHASE_VALS[captured];
         }
 
@@ -97,26 +98,26 @@ impl Position {
             Flag::KS | Flag::QS => {
                 let (idx, sf) = (usize::from(mov.flag == Flag::KS), 56 * side);
                 let rfr = sf + ROOK_FILES[side][idx].load(Relaxed) as usize;
-                let rto = sf + RD[idx];
+                let rto = sf + [3, 5][idx];
                 self.toggle(side, Piece::ROOK, (1 << rfr) ^ (1 << rto));
                 self.hash ^= ZVALS.pcs[side][Piece::ROOK][rfr] ^ ZVALS.pcs[side][Piece::ROOK][rto];
                 self.pst += -1 * PST[side][Piece::ROOK][rfr];
-                self.pst += PST[side][Piece::ROOK][rto];
+                self.pst +=      PST[side][Piece::ROOK][rto];
             },
             Flag::ENP => {
-                let pwn = to.wrapping_add([8usize.wrapping_neg(), 8][side]);
-                self.toggle(side ^ 1, Piece::PAWN, 1 << pwn);
-                self.hash ^= ZVALS.pcs[side ^ 1][Piece::PAWN][pwn];
-                self.pst += -1 * PST[side ^ 1][Piece::PAWN][pwn];
+                let pawn_sq = to.wrapping_add([8usize.wrapping_neg(), 8][side]);
+                self.toggle(side ^ 1, Piece::PAWN, 1 << pawn_sq);
+                self.hash ^= ZVALS.pcs[side ^ 1][Piece::PAWN][pawn_sq];
+                self.pst += -1 * PST[side ^ 1][Piece::PAWN][pawn_sq];
             },
             Flag::PROMO.. => {
-                let ppc = usize::from((mov.flag & 3) + 3);
+                let promo = usize::from((mov.flag & 3) + 3);
                 self.bb[Piece::PAWN] ^= to_bb;
-                self.bb[ppc] ^= to_bb;
-                self.hash ^= ZVALS.pcs[side][Piece::PAWN][to] ^ ZVALS.pcs[side][ppc][to];
+                self.bb[promo] ^= to_bb;
+                self.hash ^= ZVALS.pcs[side][Piece::PAWN][to] ^ ZVALS.pcs[side][promo][to];
                 self.pst += -1 * PST[side][Piece::PAWN][to];
-                self.pst += PST[side][ppc][to];
-                self.phase += PHASE_VALS[ppc];
+                self.pst +=      PST[side][promo      ][to];
+                self.phase += PHASE_VALS[promo];
             }
             _ => {}
         }
@@ -130,7 +131,7 @@ impl Position {
         let (ph, b) = (self.phase, self.bb[Piece::BISHOP]);
         ph <= 2 && self.bb[Piece::PAWN] == 0 && ((ph != 2) // no pawns left, phase <= 2
             || (b & self.bb[Side::WHITE] != b && b & self.bb[Side::BLACK] != b // one bishop each
-                && (b & LSQ == b || b & DSQ == b))) // same colour bishops
+                && (b & 0x55AA55AA55AA55AA == b || b & 0xAA55AA55AA55AA55 == b))) // same colour bishops
     }
 
     pub fn in_check(&self) -> bool {
@@ -176,7 +177,7 @@ impl Position {
         ROOK_FILES[1][0].store(0, Relaxed);
         ROOK_FILES[1][1].store(7, Relaxed);
         pos.rights = vec[2].chars().fold(0, |cr, ch| cr | match ch as u8 {
-            b'Q' => WQS, b'K' => WKS, b'q' => BQS, b'k' => BKS,
+            b'Q' => Rights::WQS, b'K' => Rights::WKS, b'q' => Rights::BQS, b'k' => Rights::BKS,
             b'A'..=b'H' => pos.parse_castle(Side::WHITE, &mut king, ch),
             b'a'..=b'h' => pos.parse_castle(Side::BLACK, &mut king, ch),
             _ => 0
@@ -199,7 +200,7 @@ impl Position {
         let rook = ch as u8 - [b'A', b'a'][side];
         let i = usize::from(rook > wkc);
         ROOK_FILES[side][i].store(rook, Relaxed);
-        [[WQS, WKS], [BQS, BKS]][side][i]
+        [[Rights::WQS, Rights::WKS], [Rights::BQS, Rights::BKS]][side][i]
     }
 }
 

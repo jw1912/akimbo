@@ -62,15 +62,15 @@ impl Position {
         // special quiet moves
         if QUIETS {
             let r = self.rights;
-            if r & CS[side] > 0 && !self.in_check() {
+            if r & [Rights::WHITE, Rights::BLACK][side] > 0 && !self.in_check() {
                 let kbb = self.bb[Piece::KING] & self.bb[side];
                 let ksq = kbb.trailing_zeros() as u8;
                 if self.c {
-                    if self.castle(BQS, 0, occ, kbb, 1 << 58, 1 << 59) {moves.push(ksq, 58, Flag::QS, Piece::KING)}
-                    if self.castle(BKS, 1, occ, kbb, 1 << 62, 1 << 61) {moves.push(ksq, 62, Flag::KS, Piece::KING)}
+                    if self.castle(Rights::BQS, 0, occ, kbb, 1 << 58, 1 << 59) {moves.push(ksq, 58, Flag::QS, Piece::KING)}
+                    if self.castle(Rights::BKS, 1, occ, kbb, 1 << 62, 1 << 61) {moves.push(ksq, 62, Flag::KS, Piece::KING)}
                 } else {
-                    if self.castle(WQS, 0, occ, kbb, 1 << 2, 1 << 3) {moves.push(ksq, 2, Flag::QS, Piece::KING)}
-                    if self.castle(WKS, 1, occ, kbb, 1 << 6, 1 << 5) {moves.push(ksq, 6, Flag::KS, Piece::KING)}
+                    if self.castle(Rights::WQS, 0, occ, kbb, 1 << 2, 1 << 3) {moves.push(ksq, 2, Flag::QS, Piece::KING)}
+                    if self.castle(Rights::WKS, 1, occ, kbb, 1 << 6, 1 << 5) {moves.push(ksq, 6, Flag::KS, Piece::KING)}
                 }
             }
 
