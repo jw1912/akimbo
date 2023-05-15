@@ -177,8 +177,8 @@ impl Position {
         ROOK_FILES[1][1].store(7, Relaxed);
         pos.rights = vec[2].chars().fold(0, |cr, ch| cr | match ch as u8 {
             b'Q' => WQS, b'K' => WKS, b'q' => BQS, b'k' => BKS,
-            b'A'..=b'H' => pos.handle_castle(Side::WHITE, &mut king, ch),
-            b'a'..=b'h' => pos.handle_castle(Side::BLACK, &mut king, ch),
+            b'A'..=b'H' => pos.parse_castle(Side::WHITE, &mut king, ch),
+            b'a'..=b'h' => pos.parse_castle(Side::BLACK, &mut king, ch),
             _ => 0
         });
         for sq in &CASTLE_MASK { sq.store(15, Relaxed) }
@@ -192,7 +192,7 @@ impl Position {
         pos
     }
 
-    fn handle_castle(&self, side: usize, king: &mut usize, ch: char) -> u8 {
+    fn parse_castle(&self, side: usize, king: &mut usize, ch: char) -> u8 {
         CHESS960.store(true, Relaxed);
         let wkc = (self.bb[side] & self.bb[Piece::KING]).trailing_zeros() as u8 & 7;
         *king = wkc as usize;
