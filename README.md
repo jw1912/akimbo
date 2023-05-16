@@ -3,7 +3,7 @@
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/JacquesRW/akimbo?style=for-the-badge)](https://github.com/JacquesRW/akimbo/releases/latest)
 ![Commits since latest release](https://img.shields.io/github/commits-since/JacquesRW/akimbo/latest?style=for-the-badge)
 
-A compact UCI Chess and Chess960 engine written in Rust.
+A compact UCI Chess and Chess960 (FRC and DFRC) engine written in Rust.
 
 ### Compiling
 If you have cargo installed, run `cargo build --release`, binary will be in `/target/release`.
@@ -20,7 +20,7 @@ As a result writing idiomatic Rust is not an aim of this project.
 | :---------------------------------------------------------------:|:--------------------:|:----:|:----:|:-------------:|
 | [0.1.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.1.1) |    8th January 2023  | 1167 | 1381 |    2469       |
 | [0.2.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.2.0) |   10th   April 2023  |  866 | 1000 |    2524       |
-|                             dev                                  |          n/a         |  891 | 1052 |     n/a       |
+|                             dev                                  |          n/a         |  891 | 1050 |     n/a       |
 
 ## Features
 
@@ -37,7 +37,7 @@ As a result writing idiomatic Rust is not an aim of this project.
 
 #### Move Ordering
 1. Hash Move
-2. Promotions
-3. Captures (MVV-LVA)
+2. Captures (MVV-LVA)
+3. Promotions
 4. Killer Moves
 5. History Heuristic
