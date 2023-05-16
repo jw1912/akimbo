@@ -16,11 +16,11 @@ The main aim is to stay under 1000 SLOC (excluding blank lines and comments) and
 As a result writing idiomatic Rust is not an aim of this project.
 
 ## Stats
-|                           Version                                |     Release Date     | SLOC | TLOC | [CCRL 40/15](https://www.computerchess.org.uk/ccrl/4040/cgi/compare_engines.cgi?family=Akimbo) |
-| :---------------------------------------------------------------:|:--------------------:|:----:|:----:|:-------------:|
-| [0.1.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.1.1) |    8th January 2023  | 1167 | 1381 |    2469       |
-| [0.2.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.2.0) |   10th   April 2023  |  866 | 1000 |    2524       |
-|                             dev                                  |          n/a         |  891 | 1050 |     n/a       |
+|                           Version                                |     Release Date     | SLOC | TLOC | [CCRL 40/15](https://www.computerchess.org.uk/ccrl/4040/cgi/compare_engines.cgi?family=Akimbo) | [CCRL 40/2 FRC](https://www.computerchess.org.uk/ccrl/404FRC/) |
+| :---------------------------------------------------------------:|:--------------------:|:----:|:----:|:----:|:----:|
+| [0.1.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.1.1) |    8th January 2023  | 1167 | 1381 | 2469 | 2313 |
+| [0.2.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.2.0) |   10th   April 2023  |  866 | 1000 | 2524 |  n/a |
+| [0.3.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.3.0) |   16th     May 2023  |  891 | 1050 |  TBD |  TBD |
 
 ## Features
 
