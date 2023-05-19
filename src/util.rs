@@ -108,10 +108,10 @@ c_enum!(usize, Side, WHITE = 0, BLACK = 1);
 c_enum!(usize, Piece, EMPTY = 0, PAWN = 2, KNIGHT = 3, BISHOP = 4, ROOK = 5, QUEEN = 6, KING = 7);
 c_enum!(u8, Flag, QUIET = 0, DBL = 1, KS = 2, QS = 3, CAP = 4, ENP = 5, PROMO = 8, QPR = 11, NPC = 12, QPC = 15);
 c_enum!(u8, Rights, WQS = 8, WKS = 4, BQS = 2, BKS = 1, WHITE = Self::WQS | Self::WKS, BLACK = Self::BQS | Self::BKS);
+c_enum!([u64; 2], Rank, PEN = [0xFF000000000000, 0xFF00], DBL = [0xFF000000, 0xFF00000000]);
 
 // Movegen
 consts!(bool, ALL = true, CAPTURES = false);
-consts!([u64; 2], PENRANK = [0xFF000000000000, 0xFF00], DBLRANK = [0xFF000000, 0xFF00000000]);
 consts!(u64, FILE = 0x101010101010101, NOTH = !(FILE << 7));
 const EA: [u64; 64] = init!(i, 64, (1 << i) ^ WE[i] ^ (0xFF << (i & 56)));
 const WE: [u64; 64] = init!(i, 64, ((1 << i) - 1) & (0xFF << (i & 56)));

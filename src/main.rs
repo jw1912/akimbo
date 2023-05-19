@@ -4,7 +4,7 @@ mod movegen;
 mod tables;
 mod search;
 
-use util::*;
+use util::{ALL, STARTPOS, VERSION};
 use position::{Move, Position};
 use search::{Engine, go};
 use std::{io, process, time::Instant};
@@ -64,7 +64,7 @@ fn main() {
                     match cmd {
                         "position" | "startpos" | "fen" => {}
                         "moves" => moves = true,
-                        _ => if moves { move_list.push(cmd) } else { fen.push_str(format!("{cmd} ").as_str()) }
+                        _ => if moves { move_list.push(cmd) } else { fen.push_str(&format!("{cmd} ")) }
                     }
                 }
                 pos = Position::from_fen(if fen.is_empty() { STARTPOS } else { &fen });
