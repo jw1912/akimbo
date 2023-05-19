@@ -1,4 +1,4 @@
-use crate::{util::*, position::Move};
+use crate::{util::{HISTORY_MAX, KILLERS, MAX_PLY, Score}, position::Move};
 
 #[derive(Clone, Copy, Default)]
 pub struct HashEntry {

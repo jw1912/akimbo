@@ -1,4 +1,4 @@
-use super::util::*;
+use super::util::{ALL, Attacks, CHARS, Flag, PHASE_VALS, Piece, PST, Rights, S, Side, SIDE, TPHASE, ZVALS};
 use std::sync::atomic::{AtomicU8, AtomicBool, Ordering::Relaxed};
 
 #[allow(clippy::declare_interior_mutable_const)]

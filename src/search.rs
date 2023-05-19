@@ -1,5 +1,9 @@
 use std::{sync::atomic::{AtomicU64, Ordering::Relaxed}, time::Instant};
-use super::{util::*, position::*, movegen::*, tables::*};
+use super::{
+    util::{ALL, Bound, CAPTURES, Flag, MAX_PLY, Score},
+    position::{Move, Position},
+    tables::{HashTable, HistoryTable, KillerTable}
+};
 
 static QNODES: AtomicU64 = AtomicU64::new(0);
 
@@ -84,8 +88,10 @@ fn qs(pos: &Position, mut alpha: i16, beta: i16) -> i16 {
     alpha = alpha.max(eval);
 
     let mut caps = pos.gen::<CAPTURES>();
-    let mut scores = ScoreList::default();
-    for i in 0..caps.len { scores.list[i] = mvv_lva(caps.list[i], pos) }
+    let mut scores = [0; 252];
+    for (i, score) in scores.iter_mut().enumerate().take(caps.len) {
+        *score = mvv_lva(caps.list[i], pos)
+    }
 
     while let Some((mov, _)) = caps.pick(&mut scores) {
         let mut new = *pos;
@@ -173,10 +179,10 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
 
     // generating and scoring moves
     let mut moves = pos.gen::<ALL>();
-    let mut scores = ScoreList::default();
+    let mut scores = [0; 252];
     let killers = eng.ktable.0[eng.ply as usize];
     for (i, &mov) in moves.list[..moves.len].iter().enumerate() {
-        scores.list[i] = if mov == best_move { Score::MAX }
+        scores[i] = if mov == best_move { Score::MAX }
             else if mov.flag == Flag::ENP { 2 * Score::MVV_LVA }
             else if mov.flag & 4 > 0 { mvv_lva(mov, pos) }
             else if mov.flag & 8 > 0 { Score::PROMO + i16::from(mov.flag & 7) }

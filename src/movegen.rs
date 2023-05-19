@@ -1,4 +1,4 @@
-use super::{util::*, position::*};
+use super::{util::{Attacks, Flag, Piece, Rank, Rights, Side}, position::{Move, Position, ROOK_FILES}};
 use std::sync::atomic::Ordering::Relaxed;
 
 macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
@@ -9,17 +9,14 @@ macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
     }
 }}
 
-pub struct List<T> {
-    pub list: [T; 252],
+pub struct MoveList {
+    pub list: [Move; 252],
     pub len: usize,
 }
 
-pub type MoveList = List<Move>;
-pub type ScoreList = List<i16>;
-
-impl<T: Copy + Default> Default for List<T> {
+impl Default for MoveList {
     fn default() -> Self {
-        Self { list: [T::default(); 252], len: 0 }
+        Self { list: [Move::default(); 252], len: 0 }
     }
 }
 
@@ -30,18 +27,17 @@ impl MoveList {
         self.len += 1;
     }
 
-    pub fn pick(&mut self, scores: &mut ScoreList) -> Option<(Move, i16)> {
+    pub fn pick(&mut self, scores: &mut [i16; 252]) -> Option<(Move, i16)> {
         if self.len == 0 { return None }
         let (mut idx, mut best) = (0, i16::MIN);
-        for i in 0..self.len {
-            let score = scores.list[i];
+        for (i, &score) in scores.iter().enumerate().take(self.len) {
             if score > best {
                 best = score;
                 idx = i;
             }
         }
         self.len -= 1;
-        scores.list.swap(idx, self.len);
+        scores.swap(idx, self.len);
         self.list.swap(idx, self.len);
         Some((self.list[self.len], best))
     }
@@ -76,10 +72,10 @@ impl Position {
 
             // pawn pushes
             let empty = !occ;
-            let mut dbl = shift(side, shift(side, empty & DBLRANK[side]) & empty) & pawns;
+            let mut dbl = shift(side, shift(side, empty & Rank::DBL[side]) & empty) & pawns;
             let mut push = shift(side, empty) & pawns;
-            let mut promo = push & PENRANK[side];
-            push &= !PENRANK[side];
+            let mut promo = push & Rank::PEN[side];
+            push &= !Rank::PEN[side];
             bitloop!(push, from, moves.push(from, idx_shift::<8>(side, from), Flag::QUIET, Piece::PAWN));
             bitloop!(promo, from,
                 for flag in Flag::PROMO..=Flag::QPR {moves.push(from, idx_shift::<8>(side, from), flag, Piece::PAWN)}
@@ -92,7 +88,7 @@ impl Position {
             let mut attackers = Attacks::PAWN[side ^ 1][self.enp_sq as usize] & pawns;
             bitloop!(attackers, from, moves.push(from, self.enp_sq, Flag::ENP, Piece::PAWN));
         }
-        let (mut attackers, mut promo) = (pawns & !PENRANK[side], pawns & PENRANK[side]);
+        let (mut attackers, mut promo) = (pawns & !Rank::PEN[side], pawns & Rank::PEN[side]);
         bitloop!(attackers, from,
             encode::<{ Flag::CAP }>(&mut moves, Attacks::PAWN[side][from as usize] & opps, from, Piece::PAWN)
         );
