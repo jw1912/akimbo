@@ -30,7 +30,7 @@ fn main() {
             "ucinewgame" => {
                 pos = Position::from_fen(STARTPOS);
                 eng.ttable.clear();
-                eng.htable = Default::default();
+                eng.htable = Box::default();
             },
             "setoption" => match commands[..] {
                 ["setoption", "name", "Hash", "value", x] => eng.ttable.resize(x.parse().unwrap()),

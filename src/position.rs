@@ -140,7 +140,7 @@ impl Position {
     }
 
     pub fn eval(&self) -> i16 {
-        let (s, p) = (self.pst, TPHASE.min(self.phase as i32));
+        let (s, p) = (self.pst, TPHASE.min(i32::from(self.phase)));
         SIDE[usize::from(self.c)] * ((p * s.0 as i32 + (TPHASE - p) * s.1 as i32) / TPHASE) as i16
     }
 
