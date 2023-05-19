@@ -14,12 +14,12 @@ pub struct HashTable(Vec<HashEntry>, u8);
 
 impl HashTable {
     pub fn resize(&mut self, size: usize) {
-        self.0 = vec![Default::default(); 1 << (80 - (size as u64).leading_zeros())];
+        self.0 = vec![HashEntry::default(); 1 << (80 - (size as u64).leading_zeros())];
         self.1 = 0;
     }
 
     pub fn clear(&mut self) {
-        self.0.iter_mut().for_each(|bucket| *bucket = Default::default());
+        self.0.iter_mut().for_each(|entry| *entry = HashEntry::default());
         self.1 = 0;
     }
 
@@ -33,7 +33,7 @@ impl HashTable {
         let diff = self.1 - (entry.bound >> 2);
         if ply > 0 && key == entry.key && depth as u8 + 2 * diff < entry.depth as u8  { return }
         score += if score.abs() > Score::MATE {score.signum() * ply} else {0};
-        let best_move = (m.from as u16) << 6 | m.to as u16 | (m.flag as u16) << 12;
+        let best_move = u16::from(m.from) << 6 | u16::from(m.to) | u16::from(m.flag) << 12;
         *entry = HashEntry { key, best_move, score, depth, bound: (self.1 << 2) | bound };
     }
 
@@ -72,7 +72,7 @@ impl Default for HistoryTable {
 impl HistoryTable {
     pub fn age(&mut self) {
         self.1 = 1.max(self.1 / 64);
-        for side in self.0.iter_mut() {
+        for side in &mut self.0 {
             for pc in side.iter_mut() {
                 pc.iter_mut().for_each(|sq| *sq /= 64);
             }
@@ -81,7 +81,7 @@ impl HistoryTable {
 
     pub fn push(&mut self, mov: Move, side: bool, depth: i8) {
         let entry = &mut self.0[usize::from(side)][usize::from(mov.pc - 2)][usize::from(mov.to)];
-        *entry += (depth as i64).pow(2);
+        *entry += i64::from(depth).pow(2);
         self.1 = self.1.max(*entry);
     }
 

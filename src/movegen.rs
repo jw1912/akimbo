@@ -45,7 +45,7 @@ impl MoveList {
 
 #[inline]
 fn encode<const FLAG: u8>(moves: &mut MoveList, mut attacks: u64, from: u8, pc: usize) {
-    bitloop!(attacks, to, moves.push(from, to, FLAG, pc))
+    bitloop!(attacks, to, moves.push(from, to, FLAG, pc));
 }
 
 impl Position {
