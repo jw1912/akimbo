@@ -1,7 +1,7 @@
 # akimbo
 
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/JacquesRW/akimbo?style=for-the-badge)](https://github.com/JacquesRW/akimbo/releases/latest)
-![Commits since latest release](https://img.shields.io/github/commits-since/JacquesRW/akimbo/latest?style=for-the-badge)
+[![Commits since latest release](https://img.shields.io/github/commits-since/JacquesRW/akimbo/latest?style=for-the-badge)](https://github.com/JacquesRW/akimbo/commits/)
 
 A compact UCI Chess and Chess960 (FRC and DFRC) engine written in Rust.
 
