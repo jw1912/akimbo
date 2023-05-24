@@ -1,4 +1,4 @@
-use super::util::{ALL, Attacks, CHARS, Flag, PHASE_VALS, Piece, PST, Rights, S, Side, SIDE, TPHASE, ZVALS};
+use super::util::{ALL, Attacks, CHARS, Flag, PHASE_VALS, Piece, PST, Rights, S, Side, SIDE, ZVALS};
 use std::sync::atomic::{AtomicU8, AtomicBool, Ordering::Relaxed};
 
 #[allow(clippy::declare_interior_mutable_const)]
@@ -140,8 +140,8 @@ impl Position {
     }
 
     pub fn eval(&self) -> i16 {
-        let (s, p) = (self.pst, TPHASE.min(i32::from(self.phase)));
-        SIDE[usize::from(self.c)] * ((p * s.0 as i32 + (TPHASE - p) * s.1 as i32) / TPHASE) as i16
+        let (s, p) = (self.pst, 24.min(i32::from(self.phase)));
+        SIDE[usize::from(self.c)] * ((p * s.0 as i32 + (24 - p) * s.1 as i32) / 24) as i16
     }
 
     pub fn from_fen(fen: &str) -> Self {

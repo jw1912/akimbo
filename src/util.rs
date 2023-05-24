@@ -14,7 +14,7 @@ pub struct ZobristVals {
     pub c: [u64; 2],
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Default)]
 pub struct S(pub i16, pub i16);
 
 impl std::ops::AddAssign<S> for S {
@@ -153,7 +153,6 @@ pub static ZVALS: ZobristVals = {
 // Eval
 pub const SIDE: [i16; 2] = [1, -1];
 pub const PHASE_VALS: [i16; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
-pub const TPHASE: i32 = 24;
 pub static PST: [[[S; 64]; 8]; 2] = [
     init!(i, 8, init!(j, 64, RAW_PST[i][j ^ 56])),
     init!(i, 8, init!(j, 64, S(-RAW_PST[i][j].0, -RAW_PST[i][j].1))),
