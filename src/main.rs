@@ -1,10 +1,9 @@
 mod util;
 mod position;
-mod movegen;
 mod tables;
 mod search;
 
-use util::{ALL, STARTPOS, VERSION};
+use util::{STARTPOS, VERSION};
 use position::{Move, Position};
 use search::{Engine, go};
 use std::{io, process, time::Instant};
@@ -87,7 +86,7 @@ fn main() {
 }
 
 fn perft(pos: &Position, depth: u8) -> u64 {
-    let moves = pos.gen::<ALL>();
+    let moves = pos.movegen::<true>();
     let mut positions = 0;
     for &m in &moves.list[0..moves.len] {
         let mut tmp = *pos;

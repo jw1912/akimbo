@@ -1,6 +1,6 @@
 use std::{sync::atomic::{AtomicU64, Ordering::Relaxed}, time::Instant};
 use super::{
-    util::{ALL, Bound, CAPTURES, Flag, MAX_PLY, Score},
+    util::{Bound, Flag, MAX_PLY, Score},
     position::{Move, Position},
     tables::{HashTable, HistoryTable, KillerTable}
 };
@@ -21,7 +21,6 @@ pub struct Engine {
     best_move: Move,
 }
 
-#[inline]
 fn mvv_lva(mov: Move, pos: &Position) -> i16 {
     Score::MVV_LVA * pos.get_pc(1 << mov.to) as i16 - mov.pc as i16
 }
@@ -87,7 +86,7 @@ fn qs(pos: &Position, mut alpha: i16, beta: i16) -> i16 {
     if eval >= beta { return eval }
     alpha = alpha.max(eval);
 
-    let mut caps = pos.gen::<CAPTURES>();
+    let mut caps = pos.movegen::<false>();
     let mut scores = [0; 252];
     for (i, score) in scores.iter_mut().enumerate().take(caps.len) {
         *score = mvv_lva(caps.list[i], pos)
@@ -178,7 +177,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
     if depth >= 4 && best_move == Move::default() { depth -= 1 }
 
     // generating and scoring moves
-    let mut moves = pos.gen::<ALL>();
+    let mut moves = pos.movegen::<true>();
     let mut scores = [0; 252];
     let killers = eng.ktable.0[eng.ply as usize];
     for (i, &mov) in moves.list[..moves.len].iter().enumerate() {
