@@ -13,7 +13,7 @@ fn main() {
     println!("akimbo, created by Jamie Whiting");
     let mut eng = Engine::default();
     let mut pos = Position::from_fen(STARTPOS);
-    eng.ttable.resize(128);
+    eng.ttable.resize(16);
     loop {
         let mut input = String::new();
         io::stdin().read_line(&mut input).unwrap();
@@ -21,7 +21,7 @@ fn main() {
         match *commands.first().unwrap_or(&"oops") {
             "uci" => {
                 println!("id name akimbo {VERSION}\nid author Jamie Whiting");
-                println!("option name Hash type spin default 128 min 1 max 1024");
+                println!("option name Hash type spin default 16 min 1 max 1024");
                 println!("option name Clear Hash type button");
                 println!("option name UCI_Chess960 type check default false");
                 println!("uciok");
