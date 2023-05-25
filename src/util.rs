@@ -32,7 +32,6 @@ impl std::ops::Mul<S> for i16 {
 }
 
 // Macros
-macro_rules! consts {{$t:ty, $($n:ident = $v:expr),*} => {$(pub const $n: $t = $v;)*}}
 macro_rules! init {($i:ident, $size:expr, $($r:tt)+) => {{
     let mut $i = 0;
     let mut res = [{$($r)+}; $size];
@@ -44,14 +43,14 @@ macro_rules! init {($i:ident, $size:expr, $($r:tt)+) => {{
 }}}
 macro_rules! c_enum {($t:ty, $name:ident, $($n:ident = $v:expr),*) => {
     pub struct $name;
-    impl $name { consts!{$t, $($n = $v),*} }
+    impl $name { $(pub const $n: $t = $v;)* }
 }}
 
 pub struct Attacks;
 impl Attacks {
     pub const PAWN: [[u64; 64]; 2] = [
-        init!(i, 64, (((1 << i) & !FILE) << 7) | (((1 << i) & NOTH) << 9)),
-        init!(i, 64, (((1 << i) & !FILE) >> 9) | (((1 << i) & NOTH) >> 7)),
+        init!(i, 64, (((1 << i) & !File::A) << 7) | (((1 << i) & !File::H) << 9)),
+        init!(i, 64, (((1 << i) & !File::A) >> 9) | (((1 << i) & !File::H) >> 7)),
     ];
 
     pub const KNIGHT: [u64; 64] = init!(i, 64, {
@@ -64,11 +63,10 @@ impl Attacks {
     pub const KING: [u64; 64] = init!(i, 64, {
         let mut k = 1 << i;
         k |= (k << 8) | (k >> 8);
-        k |= ((k & !FILE) >> 1) | ((k & NOTH) << 1);
+        k |= ((k & !File::A) >> 1) | ((k & !File::H) << 1);
         k ^ (1 << i)
     });
 
-    #[inline(always)]
     pub fn bishop(idx: usize, occ: u64) -> u64 {
         let m = MASKS[idx];
         let rb = m.bit.swap_bytes();
@@ -79,7 +77,6 @@ impl Attacks {
         ((f1 ^ r1.swap_bytes()) & m.diag) | ((f2 ^ r2.swap_bytes()) & m.anti)
     }
 
-    #[inline(always)]
     pub fn rook(idx: usize, occ: u64) -> u64 {
         let m = MASKS[idx];
         let mut f = occ & m.file;
@@ -109,21 +106,26 @@ c_enum!(usize, Piece, EMPTY = 0, PAWN = 2, KNIGHT = 3, BISHOP = 4, ROOK = 5, QUE
 c_enum!(u8, Flag, QUIET = 0, DBL = 1, KS = 2, QS = 3, CAP = 4, ENP = 5, PROMO = 8, QPR = 11, NPC = 12, QPC = 15);
 c_enum!(u8, Rights, WQS = 8, WKS = 4, BQS = 2, BKS = 1, WHITE = Self::WQS | Self::WKS, BLACK = Self::BQS | Self::BKS);
 c_enum!([u64; 2], Rank, PEN = [0xFF000000000000, 0xFF00], DBL = [0xFF000000, 0xFF00000000]);
+c_enum!(u64, File, A = 0x101010101010101, H = Self::A << 7);
 
 // Movegen
-consts!(bool, ALL = true, CAPTURES = false);
-consts!(u64, FILE = 0x101010101010101, NOTH = !(FILE << 7));
-const EA: [u64; 64] = init!(i, 64, (1 << i) ^ WE[i] ^ (0xFF << (i & 56)));
-const WE: [u64; 64] = init!(i, 64, ((1 << i) - 1) & (0xFF << (i & 56)));
+const EAST: [u64; 64] = init!(i, 64, (1 << i) ^ WEST[i] ^ (0xFF << (i & 56)));
+const WEST: [u64; 64] = init!(i, 64, ((1 << i) - 1) & (0xFF << (i & 56)));
 const DIAG: u64 = 0x8040201008040201;
 const DIAGS: [u64; 15] = init!(i, 15, if i > 7 { DIAG >> (8 * (i - 7)) } else {DIAG << (8 * (7 - i)) });
 static MASKS: [Mask; 64] = init!(i, 64,
-    let bit = 1 << i;
-    Mask { bit, diag: bit^DIAGS[7+(i&7)-i/8], anti: bit^DIAGS[(i&7)+i/8].swap_bytes(), file: bit^FILE<<(i&7) }
+    let (bit, rank, file) = (1 << i, i / 8, i & 7);
+    Mask {
+        bit,
+        diag: bit ^ DIAGS[7 + file - rank],
+        anti: bit ^ DIAGS[file + rank].swap_bytes(),
+        file: bit ^ File::A << file,
+    }
 );
 const RANKS: [[u64; 64]; 8] = init!(f, 8, init!(i, 64, {
     let occ = (i << 1) as u64;
-    EA[f]^EA[((EA[f]&occ)|(1<<63)).trailing_zeros() as usize]|WE[f]^WE[(((WE[f]&occ)|1).leading_zeros()^63) as usize]
+      EAST[f] ^ EAST[( (EAST[f] & occ) | (1<<63)).trailing_zeros() as usize]
+    | WEST[f] ^ WEST[(((WEST[f] & occ) | 1).leading_zeros() ^ 63) as usize]
 }));
 
 // Zobrist values
