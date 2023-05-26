@@ -17,11 +17,11 @@ static ROOK_FILES: [[AtomicU8; 2]; 2] = [[INIT; 2], [INIT; 2]];
 
 #[derive(Clone, Copy, Default)]
 pub struct Position {
-    pub bb: [u64; 8],
+    bb: [u64; 8],
     pub c: bool,
     pub halfm: u8,
     pub enp_sq: u8,
-    pub rights: u8,
+    rights: u8,
     pub check: bool,
     hash: u64,
     pub phase: i16,
@@ -49,7 +49,7 @@ impl Default for MoveList {
 }
 
 impl MoveList {
-    pub fn push(&mut self, from: u8, to: u8, flag: u8, mpc: usize) {
+    fn push(&mut self, from: u8, to: u8, flag: u8, mpc: usize) {
         self.list[self.len] = Move { from, to, flag, pc: mpc as u8 };
         self.len += 1;
     }
@@ -82,7 +82,7 @@ impl Position {
         self.bb[c] ^= bit;
     }
 
-    pub fn sq_attacked(&self, sq: usize, side: usize, occ: u64) -> bool {
+    fn sq_attacked(&self, sq: usize, side: usize, occ: u64) -> bool {
         ( (Attacks::KNIGHT[sq] & self.bb[Piece::KNIGHT])
         | (Attacks::KING  [sq] & self.bb[Piece::KING  ])
         | (Attacks::PAWN  [side][sq] & self.bb[Piece::PAWN  ])
