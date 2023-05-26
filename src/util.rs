@@ -88,16 +88,6 @@ impl Attacks {
     }
 }
 
-// UCI
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-pub const CHARS: [char; 12] = ['P','N','B','R','Q','K','p','n','b','r','q','k'];
-
-// Search
-pub const MAX_PLY: i16 = 96;
-pub const KILLERS: usize = 2;
-pub const HISTORY_MAX: i64 = 2048;
-
 // All named collections of constants
 c_enum!(u8, Bound, LOWER = 0, EXACT = 1, UPPER = 2);
 c_enum!(i16, Score, MAX = 30000, MATE = Self::MAX - 256, MVV_LVA = 2048, PROMO = 3000, KILLER = 2500);
