@@ -22,7 +22,7 @@ pub struct Engine {
     tt: Vec<HashEntry>,
     tt_age: u8,
     pub htable: Box<[[[i64; 64]; 6]; 2]>,
-    hmax: i64,
+    pub hmax: i64,
     ktable: Box<[[Move; 2]; 96]>,
     pub stack: Vec<u64>,
     nodes: u64,

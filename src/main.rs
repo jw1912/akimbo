@@ -29,6 +29,7 @@ fn main() {
                 pos = Position::from_fen(STARTPOS);
                 eng.clear_tt();
                 eng.htable = Box::new([[[0; 64]; 6]; 2]);
+                eng.hmax = 1;
             },
             "setoption" => match commands[..] {
                 ["setoption", "name", "Hash", "value", x] => eng.resize_tt(x.parse().unwrap()),
