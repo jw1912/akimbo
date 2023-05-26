@@ -29,10 +29,12 @@ pub struct Engine {
     ply: i16,
     abort: bool,
     best_move: Move,
+    lines: Box<[Vec<Move>; 96]>,
 }
 
 impl Default for Engine {
     fn default() -> Self {
+        const VEC: Vec<Move> = Vec::new();
         Self {
             timing: Instant::now(),
             max_time: Default::default(),
@@ -45,7 +47,8 @@ impl Default for Engine {
             nodes: Default::default(),
             ply: Default::default(),
             abort: Default::default(),
-            best_move: Default::default()
+            best_move: Default::default(),
+            lines: Box::new([VEC; 96]),
         }
     }
 }
@@ -144,8 +147,7 @@ pub fn go(start: &Position, eng: &mut Engine) {
 
     // iterative deepening loop
     for d in 1..=64 {
-        let mut pv_line = Vec::new();
-        let eval = pvs(&pos, eng, -Score::MAX, Score::MAX, d, false, &mut pv_line);
+        let eval = pvs(&pos, eng, -Score::MAX, Score::MAX, d, false);
         if eng.abort { break }
         best = eng.best_move.to_uci();
 
@@ -156,7 +158,7 @@ pub fn go(start: &Position, eng: &mut Engine) {
         let t = eng.timing.elapsed().as_millis();
         let nodes = eng.nodes + QNODES.load(Relaxed);
         let nps = (1000.0 * nodes as f64 / t as f64) as u32;
-        let pv = pv_line.iter().map(|mov| mov.to_uci()).collect::<String>();
+        let pv = eng.lines[0].iter().map(|mov| mov.to_uci()).collect::<String>();
         println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}");
     }
     eng.tt_age = 63.min(eng.tt_age + 1);
@@ -188,7 +190,7 @@ fn qs(pos: &Position, mut alpha: i16, beta: i16) -> i16 {
     eval
 }
 
-fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, null: bool, line: &mut Vec<Move>) -> i16 {
+fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, null: bool) -> i16 {
     // stopping search
     if eng.abort { return 0 }
     if eng.nodes & 1023 == 0 && eng.timing.elapsed().as_millis() >= eng.max_time {
@@ -196,7 +198,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
         return 0
     }
 
-    line.clear();
+    eng.lines[eng.ply as usize].clear();
     let hash = pos.hash();
 
     if eng.ply > 0 {
@@ -248,7 +250,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
             new.nulls += 1;
             new.c = !new.c;
             new.enp_sq = 0;
-            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, &mut Vec::new());
+            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false);
             eng.pop();
             if nw >= Score::MATE { return beta }
             if nw >= beta { return nw }
@@ -272,7 +274,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
     }
 
     // stuff for going through moves
-    let (mut legal, mut eval, mut bound, mut sline) = (0, -Score::MAX, Bound::UPPER, Vec::new());
+    let (mut legal, mut eval, mut bound) = (0, -Score::MAX, Bound::UPPER);
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
 
@@ -291,11 +293,11 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
         } else { 0 };
 
         let score = if legal == 1 {
-            -pvs(&new, eng, -beta, -alpha, depth - 1, false, &mut sline)
+            -pvs(&new, eng, -beta, -alpha, depth - 1, false)
         } else {
-            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true, &mut sline);
+            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true);
             if zw > alpha && (pv_node || reduce > 0) {
-                -pvs(&new, eng, -beta, -alpha, depth - 1, false, &mut sline)
+                -pvs(&new, eng, -beta, -alpha, depth - 1, false)
             } else { zw }
         };
 
@@ -303,9 +305,11 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
         eval = score;
         best_move = mov;
         if pv_node {
+            let sub_line = eng.lines[eng.ply as usize].clone();
+            let line = &mut eng.lines[eng.ply as usize - 1];
             line.clear();
             line.push(mov);
-            line.append(&mut sline);
+            line.extend_from_slice(&sub_line);
         }
 
         if score <= alpha { continue }
