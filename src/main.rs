@@ -1,25 +1,24 @@
 mod util;
 mod position;
-mod tables;
 mod search;
 
-use util::{STARTPOS, VERSION};
-use position::{Move, Position};
-use search::{Engine, go};
+use crate::{position::{Move, Position}, search::{Engine, go}};
 use std::{io, process, time::Instant};
+
+const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 fn main() {
     println!("akimbo, created by Jamie Whiting");
     let mut eng = Engine::default();
     let mut pos = Position::from_fen(STARTPOS);
-    eng.ttable.resize(16);
+    eng.resize_tt(16);
     loop {
         let mut input = String::new();
         io::stdin().read_line(&mut input).unwrap();
         let commands = input.split_whitespace().collect::<Vec<_>>();
         match *commands.first().unwrap_or(&"oops") {
             "uci" => {
-                println!("id name akimbo {VERSION}\nid author Jamie Whiting");
+                println!("id name akimbo {}\nid author Jamie Whiting", env!("CARGO_PKG_VERSION"));
                 println!("option name Hash type spin default 16 min 1 max 1024");
                 println!("option name Clear Hash type button");
                 println!("option name UCI_Chess960 type check default false");
@@ -28,12 +27,12 @@ fn main() {
             "isready" => println!("readyok"),
             "ucinewgame" => {
                 pos = Position::from_fen(STARTPOS);
-                eng.ttable.clear();
-                eng.htable = Box::default();
+                eng.clear_tt();
+                eng.htable = Box::new([[[0; 64]; 6]; 2]);
             },
             "setoption" => match commands[..] {
-                ["setoption", "name", "Hash", "value", x] => eng.ttable.resize(x.parse().unwrap()),
-                ["setoption", "name", "Clear", "Hash"] => eng.ttable.clear(),
+                ["setoption", "name", "Hash", "value", x] => eng.resize_tt(x.parse().unwrap()),
+                ["setoption", "name", "Clear", "Hash"] => eng.clear_tt(),
                 _ => {}
             },
             "go" => {
