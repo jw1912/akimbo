@@ -1,4 +1,4 @@
-use super::util::{Attacks, CHARS, Flag, PHASE_VALS, Piece, PST, Rank, Rights, S, Side, SIDE, ZVALS};
+use super::util::{Attacks, Flag, PHASE_VALS, Piece, PST, Rank, Rights, S, Side, SIDE, ZVALS};
 use std::sync::atomic::{AtomicU8, AtomicBool, Ordering::Relaxed};
 
 macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
@@ -32,9 +32,9 @@ pub struct Position {
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct Move {
     pub from: u8,
-    pub   to: u8,
+    pub to: u8,
     pub flag: u8,
-    pub   pc: u8,
+    pub pc: u8,
 }
 
 pub struct MoveList {
@@ -79,7 +79,7 @@ impl Position {
 
     fn toggle(&mut self, c: usize, pc: usize, bit: u64) {
         self.bb[pc] ^= bit;
-        self.bb[ c] ^= bit;
+        self.bb[c] ^= bit;
     }
 
     pub fn sq_attacked(&self, sq: usize, side: usize, occ: u64) -> bool {
@@ -270,7 +270,7 @@ impl Position {
         for ch in p {
             if ch == '/' { row -= 1; col = 0; }
             else if ('1'..='8').contains(&ch) { col += ch.to_string().parse().unwrap_or(0) }
-            else if let Some(idx) = CHARS.iter().position(|&el| el == ch) {
+            else if let Some(idx) = ['P','N','B','R','Q','K','p','n','b','r','q','k'].iter().position(|&el| el == ch) {
                 let side = usize::from(idx > 5);
                 let (pc, sq) = (idx + 2 - 6 * side, 8 * row + col);
                 pos.toggle(side, pc, 1 << sq);

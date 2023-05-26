@@ -1,19 +1,29 @@
 use std::{sync::atomic::{AtomicU64, Ordering::Relaxed}, time::Instant};
-use super::{
-    util::{Bound, Flag, MAX_PLY, Score},
-    position::{Move, Position},
-    tables::{HashTable, HistoryTable, KillerTable}
-};
+use super::{util::{Bound, Flag, Score}, position::{Move, Position}};
 
 static QNODES: AtomicU64 = AtomicU64::new(0);
 
-#[derive(Default)]
+fn mvv_lva(mov: Move, pos: &Position) -> i16 {
+    Score::MVV_LVA * pos.get_pc(1 << mov.to) as i16 - mov.pc as i16
+}
+
+#[derive(Clone, Copy, Default)]
+struct HashEntry {
+    key: u16,
+    best_move: u16,
+    score: i16,
+    depth: i8,
+    bound: u8,
+}
+
 pub struct Engine {
-    timing: Option<Instant>,
+    timing: Instant,
     pub max_time: u128,
-    pub ttable: HashTable,
-    pub htable: Box<HistoryTable>,
-    ktable: Box<KillerTable>,
+    tt: Vec<HashEntry>,
+    tt_age: u8,
+    pub htable: Box<[[[i64; 64]; 6]; 2]>,
+    hmax: i64,
+    ktable: Box<[[Move; 2]; 96]>,
     pub stack: Vec<u64>,
     nodes: u64,
     ply: i16,
@@ -21,8 +31,23 @@ pub struct Engine {
     best_move: Move,
 }
 
-fn mvv_lva(mov: Move, pos: &Position) -> i16 {
-    Score::MVV_LVA * pos.get_pc(1 << mov.to) as i16 - mov.pc as i16
+impl Default for Engine {
+    fn default() -> Self {
+        Self {
+            timing: Instant::now(),
+            max_time: Default::default(),
+            tt: Default::default(),
+            tt_age: Default::default(),
+            htable: Box::new([[[0; 64]; 6]; 2]),
+            hmax: 1,
+            ktable: Box::new([[Move::default(); 2]; 96]),
+            stack: Default::default(),
+            nodes: Default::default(),
+            ply: Default::default(),
+            abort: Default::default(),
+            best_move: Default::default()
+        }
+    }
 }
 
 impl Engine {
@@ -43,13 +68,70 @@ impl Engine {
         self.stack.pop();
         self.ply -= 1;
     }
+
+    pub fn resize_tt(&mut self, size: usize) {
+        self.tt = vec![HashEntry::default(); 1 << (80 - (size as u64).leading_zeros())];
+        self.tt_age = 0;
+    }
+
+    pub fn clear_tt(&mut self) {
+        self.tt.iter_mut().for_each(|entry| *entry = HashEntry::default());
+        self.tt_age = 0;
+    }
+
+    fn push_tt(&mut self, hash: u64, mov: Move, depth: i8, bound: u8, mut score: i16) {
+        let (key, idx) = ((hash >> 48) as u16, (hash as usize) & (self.tt.len() - 1));
+        let entry = &mut self.tt[idx];
+
+        // replacement scheme
+        let diff = self.tt_age - (entry.bound >> 2);
+        if self.ply > 0 && key == entry.key && depth as u8 + 2 * diff < entry.depth as u8  { return }
+
+        // replace entry
+        score += if score.abs() > Score::MATE {score.signum() * self.ply} else {0};
+        let best_move = u16::from(mov.from) << 6 | u16::from(mov.to) | u16::from(mov.flag) << 12;
+        *entry = HashEntry { key, best_move, score, depth, bound: (self.tt_age << 2) | bound };
+    }
+
+    fn probe_tt(&self, hash: u64) -> Option<HashEntry> {
+        let mut entry = self.tt[(hash as usize) & (self.tt.len() - 1)];
+        if entry.key != (hash >> 48) as u16 { return None }
+        entry.score -= if entry.score.abs() > Score::MATE {entry.score.signum() * self.ply} else {0};
+        Some(entry)
+    }
+
+    fn push_killer(&mut self, m: Move) {
+        let ply = self.ply as usize - 1;
+        self.ktable[ply][1] = self.ktable[ply][0];
+        self.ktable[ply][0] = m;
+    }
+
+    fn age_history(&mut self) {
+        self.hmax = 1.max(self.hmax / 64);
+        for side in self.htable.iter_mut() {
+            for pc in side.iter_mut() {
+                pc.iter_mut().for_each(|sq| *sq /= 64);
+            }
+        }
+    }
+
+    fn push_history(&mut self, mov: Move, side: bool, depth: i8) {
+        let entry = &mut self.htable[usize::from(side)][usize::from(mov.pc - 2)][usize::from(mov.to)];
+        *entry += i64::from(depth).pow(2);
+        self.hmax = self.hmax.max(*entry);
+    }
+
+    fn score_history(&self, mov: Move, side: bool) -> i16 {
+        let entry = self.htable[usize::from(side)][usize::from(mov.pc - 2)][usize::from(mov.to)];
+        ((Score::MVV_LVA as i64 * entry + self.hmax - 1) / self.hmax) as i16
+    }
 }
 
 pub fn go(start: &Position, eng: &mut Engine) {
     // reset engine
-    *eng.ktable = Default::default();
-    eng.htable.age();
-    eng.timing = Some(Instant::now());
+    *eng.ktable = [[Move::default(); 2]; 96];
+    eng.age_history();
+    eng.timing = Instant::now();
     eng.nodes = 0;
     eng.ply = 0;
     eng.best_move = Move::default();
@@ -71,13 +153,13 @@ pub fn go(start: &Position, eng: &mut Engine) {
         let score = if eval.abs() >= Score::MATE {
             format!("score mate {}", if eval < 0 {eval.abs() - Score::MAX} else {Score::MAX - eval + 1} / 2)
         } else {format!("score cp {eval}")};
-        let t = eng.timing.unwrap().elapsed().as_millis();
+        let t = eng.timing.elapsed().as_millis();
         let nodes = eng.nodes + QNODES.load(Relaxed);
         let nps = (1000.0 * nodes as f64 / t as f64) as u32;
         let pv = pv_line.iter().map(|mov| mov.to_uci()).collect::<String>();
         println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}");
     }
-    eng.ttable.age();
+    eng.tt_age = 63.min(eng.tt_age + 1);
     println!("bestmove {best}");
 }
 
@@ -109,7 +191,7 @@ fn qs(pos: &Position, mut alpha: i16, beta: i16) -> i16 {
 fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, null: bool, line: &mut Vec<Move>) -> i16 {
     // stopping search
     if eng.abort { return 0 }
-    if eng.nodes & 1023 == 0 && eng.timing.unwrap().elapsed().as_millis() >= eng.max_time {
+    if eng.nodes & 1023 == 0 && eng.timing.elapsed().as_millis() >= eng.max_time {
         eng.abort = true;
         return 0
     }
@@ -131,12 +213,12 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
     }
 
     // drop into quiescence search
-    if depth <= 0 || eng.ply == MAX_PLY { return qs(pos, alpha, beta) }
+    if depth <= 0 || eng.ply == 96 { return qs(pos, alpha, beta) }
 
     // probing hash table
     let pv_node = beta > alpha + 1;
     let mut best_move = Move::default();
-    if let Some(res) = eng.ttable.probe(hash, eng.ply) {
+    if let Some(res) = eng.probe_tt(hash) {
         best_move = Move::from_short(res.best_move, pos);
         if !pv_node && depth <= res.depth && match res.bound & 3 {
             Bound::LOWER => res.score >= beta,
@@ -179,14 +261,14 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
     // generating and scoring moves
     let mut moves = pos.movegen::<true>();
     let mut scores = [0; 252];
-    let killers = eng.ktable.0[eng.ply as usize];
+    let killers = eng.ktable[eng.ply as usize];
     for (i, &mov) in moves.list[..moves.len].iter().enumerate() {
         scores[i] = if mov == best_move { Score::MAX }
             else if mov.flag == Flag::ENP { 2 * Score::MVV_LVA }
             else if mov.flag & 4 > 0 { mvv_lva(mov, pos) }
             else if mov.flag & 8 > 0 { Score::PROMO + i16::from(mov.flag & 7) }
             else if killers.contains(&mov) { Score::KILLER }
-            else { eng.htable.score(mov, pos.c) };
+            else { eng.score_history(mov, pos.c) };
     }
 
     // stuff for going through moves
@@ -235,8 +317,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
 
         // quiet cutoffs pushed to tables
         if mov.flag >= Flag::CAP || eng.abort { break }
-        eng.ktable.push(mov, eng.ply);
-        eng.htable.push(mov, pos.c, depth);
+        eng.push_killer(mov);
+        eng.push_history(mov, pos.c, depth);
 
         break
     }
@@ -246,6 +328,6 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
     if eng.abort { return 0 }
     if eng.ply == 0 { eng.best_move = best_move }
     if legal == 0 { return i16::from(pos.check) * (-Score::MAX + eng.ply) }
-    eng.ttable.push(hash, best_move, depth, bound, eval, eng.ply);
+    eng.push_tt(hash, best_move, depth, bound, eval);
     eval
 }
