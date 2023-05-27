@@ -92,13 +92,7 @@ impl Position {
     }
 
     pub fn get_pc(&self, bit: u64) -> usize {
-        usize::from(
-            (self.bb[Piece::KNIGHT] | self.bb[Piece::ROOK] | self.bb[Piece::KING]) & bit > 0
-        ) | (2 * usize::from(
-            (self.bb[Piece::KNIGHT] | self.bb[Piece::PAWN] | self.bb[Piece::QUEEN] | self.bb[Piece::KING]) & bit > 0)
-        ) | (4 * usize::from(
-            (self.bb[Piece::BISHOP] | self.bb[Piece::ROOK] | self.bb[Piece::QUEEN] | self.bb[Piece::KING]) & bit > 0)
-        )
+        self.bb.iter().skip(2).position(|pc_bb| bit & pc_bb > 0).unwrap_or(usize::MAX - 1).wrapping_add(2)
     }
 
     pub fn make(&mut self, mov: Move) -> bool {
