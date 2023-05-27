@@ -8,7 +8,7 @@ fn mvv_lva(mov: Move, pos: &Position) -> i16 {
 }
 
 #[derive(Clone, Copy, Default)]
-struct HashEntry {
+pub struct HashEntry {
     key: u16,
     best_move: u16,
     score: i16,
@@ -17,40 +17,24 @@ struct HashEntry {
 }
 
 pub struct Engine {
-    timing: Instant,
+    // search control
+    pub timing: Instant,
     pub max_time: u128,
-    tt: Vec<HashEntry>,
-    tt_age: u8,
+    pub abort: bool,
+
+    // tables
+    pub tt: Vec<HashEntry>,
+    pub tt_age: u8,
     pub htable: Box<[[[i64; 64]; 6]; 2]>,
     pub hmax: i64,
-    ktable: Box<[[Move; 2]; 96]>,
+    pub ktable: Box<[[Move; 2]; 96]>,
     pub stack: Vec<u64>,
-    nodes: u64,
-    ply: i16,
-    abort: bool,
-    best_move: Move,
-    lines: Box<[Vec<Move>; 96]>,
-}
 
-impl Default for Engine {
-    fn default() -> Self {
-        const VEC: Vec<Move> = Vec::new();
-        Self {
-            timing: Instant::now(),
-            max_time: Default::default(),
-            tt: Default::default(),
-            tt_age: Default::default(),
-            htable: Box::new([[[0; 64]; 6]; 2]),
-            hmax: 1,
-            ktable: Box::new([[Move::default(); 2]; 96]),
-            stack: Default::default(),
-            nodes: Default::default(),
-            ply: Default::default(),
-            abort: Default::default(),
-            best_move: Default::default(),
-            lines: Box::new([VEC; 96]),
-        }
-    }
+    // uci output
+    pub nodes: u64,
+    pub ply: i16,
+    pub best_move: Move,
+    pub lines: Box<[Vec<Move>; 96]>,
 }
 
 impl Engine {
