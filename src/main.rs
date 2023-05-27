@@ -9,8 +9,17 @@ const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 
 fn main() {
     println!("akimbo, created by Jamie Whiting");
-    let mut eng = Engine::default();
     let mut pos = Position::from_fen(STARTPOS);
+    const VEC: Vec<Move> = Vec::new();
+    let mut eng = Engine {
+        timing: Instant::now(), max_time: 0, abort: false,
+        tt: Vec::new(), tt_age: 0,
+        htable: Box::new([[[0; 64]; 6]; 2]), hmax: 1,
+        ktable: Box::new([[Move::default(); 2]; 96]),
+        stack: Vec::with_capacity(96),
+        nodes: 0, ply: 0, best_move: Move::default(),
+        lines: Box::new([VEC; 96]),
+    };
     eng.resize_tt(16);
     loop {
         let mut input = String::new();
