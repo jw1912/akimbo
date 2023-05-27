@@ -130,7 +130,7 @@ impl Position {
 
         // more complex moves
         match mov.flag {
-            Flag::DBL => self.enp_sq = if side == Side::WHITE {mov.to - 8} else {mov.to + 8},
+            Flag::DBL => self.enp_sq = mov.to ^ 8,
             Flag::KS | Flag::QS => {
                 let (idx, sf) = (usize::from(mov.flag == Flag::KS), 56 * side);
                 let rfr = sf + ROOK_FILES[side][idx].load(Relaxed) as usize;
@@ -141,7 +141,7 @@ impl Position {
                 self.pst +=      PST[side][Piece::ROOK][rto];
             },
             Flag::ENP => {
-                let pawn_sq = to.wrapping_add([8usize.wrapping_neg(), 8][side]);
+                let pawn_sq = to ^ 8;
                 self.toggle(side ^ 1, Piece::PAWN, 1 << pawn_sq);
                 self.hash ^= ZVALS.pcs[side ^ 1][Piece::PAWN][pawn_sq];
                 self.pst += -1 * PST[side ^ 1][Piece::PAWN][pawn_sq];
