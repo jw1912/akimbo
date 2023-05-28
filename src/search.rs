@@ -93,15 +93,6 @@ impl Engine {
         self.ktable[ply][0] = m;
     }
 
-    fn age_history(&mut self) {
-        self.hmax = 1.max(self.hmax / 64);
-        for side in self.htable.iter_mut() {
-            for pc in side.iter_mut() {
-                pc.iter_mut().for_each(|sq| *sq /= 64);
-            }
-        }
-    }
-
     fn push_history(&mut self, mov: Move, side: bool, depth: i8) {
         let entry = &mut self.htable[usize::from(side)][usize::from(mov.pc - 2)][usize::from(mov.to)];
         *entry += i64::from(depth).pow(2);
@@ -117,7 +108,8 @@ impl Engine {
 pub fn go(start: &Position, eng: &mut Engine) {
     // reset engine
     *eng.ktable = [[Move::default(); 2]; 96];
-    eng.age_history();
+    *eng.htable = [[[0; 64]; 6]; 2];
+    eng.hmax = 1;
     eng.timing = Instant::now();
     eng.nodes = 0;
     eng.ply = 0;
