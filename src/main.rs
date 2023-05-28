@@ -2,7 +2,7 @@ mod util;
 mod position;
 mod search;
 
-use crate::{position::{Move, Position}, search::{Engine, go}};
+use crate::{position::{Move, MoveList, Position}, search::{Engine, go}};
 use std::{io, process, time::Instant};
 
 const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -10,7 +10,6 @@ const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 fn main() {
     println!("akimbo, created by Jamie Whiting");
     let mut pos = Position::from_fen(STARTPOS);
-    const VEC: Vec<Move> = Vec::new();
     let mut eng = Engine {
         timing: Instant::now(), max_time: 0, abort: false,
         tt: Vec::new(), tt_age: 0,
@@ -18,7 +17,7 @@ fn main() {
         ktable: Box::new([[Move::default(); 2]; 96]),
         stack: Vec::with_capacity(96),
         nodes: 0, ply: 0, best_move: Move::default(),
-        lines: Box::new([VEC; 96]),
+        lines: Box::new([MoveList::default(); 96]),
     };
     eng.resize_tt(16);
     loop {

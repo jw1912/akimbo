@@ -37,6 +37,7 @@ pub struct Move {
     pub pc: u8,
 }
 
+#[derive(Clone, Copy)]
 pub struct MoveList {
     pub list: [Move; 252],
     pub len: usize,
