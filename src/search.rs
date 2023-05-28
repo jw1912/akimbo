@@ -1,5 +1,5 @@
 use std::{sync::atomic::{AtomicU64, Ordering::Relaxed}, time::Instant};
-use super::{util::{Bound, Flag, Score}, position::{Move, Position}};
+use super::{util::{Bound, Flag, Score}, position::{Move, MoveList, Position}};
 
 static QNODES: AtomicU64 = AtomicU64::new(0);
 
@@ -34,7 +34,7 @@ pub struct Engine {
     pub nodes: u64,
     pub ply: i16,
     pub best_move: Move,
-    pub lines: Box<[Vec<Move>; 96]>,
+    pub lines: Box<[MoveList; 96]>,
 }
 
 impl Engine {
@@ -134,7 +134,8 @@ pub fn go(start: &Position, eng: &mut Engine) {
         let t = eng.timing.elapsed().as_millis();
         let nodes = eng.nodes + QNODES.load(Relaxed);
         let nps = (1000.0 * nodes as f64 / t as f64) as u32;
-        let pv = eng.lines[0].iter().map(|mov| mov.to_uci()).collect::<String>();
+        let pv_line = &eng.lines[0];
+        let pv = pv_line.list.iter().take(pv_line.len).map(|mov| mov.to_uci()).collect::<String>();
         println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}");
     }
     eng.tt_age = 63.min(eng.tt_age + 1);
@@ -174,7 +175,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
         return 0
     }
 
-    eng.lines[eng.ply as usize].clear();
+    eng.lines[eng.ply as usize].len = 0;
     let hash = pos.hash();
 
     if eng.ply > 0 {
@@ -281,11 +282,11 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
         eval = score;
         best_move = mov;
         if pv_node {
-            let sub_line = eng.lines[eng.ply as usize].clone();
+            let sub_line = eng.lines[eng.ply as usize];
             let line = &mut eng.lines[eng.ply as usize - 1];
-            line.clear();
-            line.push(mov);
-            line.extend_from_slice(&sub_line);
+            line.len = 1 + sub_line.len;
+            line.list[0] = mov;
+            line.list[1..=sub_line.len].copy_from_slice(&sub_line.list[..sub_line.len]);
         }
 
         if score <= alpha { continue }
