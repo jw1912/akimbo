@@ -17,7 +17,7 @@ fn main() {
         ktable: Box::new([[Move::default(); 2]; 96]),
         stack: Vec::with_capacity(96),
         nodes: 0, ply: 0, best_move: Move::default(),
-        lines: Box::new([MoveList::default(); 96]),
+        pv_table: Box::new([MoveList::default(); 96]),
     };
     eng.resize_tt(16);
     loop {
