@@ -265,7 +265,7 @@ impl Position {
         for ch in p {
             if ch == '/' { row -= 1; col = 0; }
             else if ('1'..='8').contains(&ch) { col += ch.to_string().parse().unwrap_or(0) }
-            else if let Some(idx) = ['P','N','B','R','Q','K','p','n','b','r','q','k'].iter().position(|&el| el == ch) {
+            else if let Some(idx) = "PNBRQKpnbrqk".chars().position(|el| el == ch) {
                 let side = usize::from(idx > 5);
                 let (pc, sq) = (idx + 2 - 6 * side, 8 * row + col);
                 pos.toggle(side, pc, 1 << sq);
