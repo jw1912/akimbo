@@ -1,26 +1,21 @@
+<div align="center">
+
 # akimbo
 
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/JacquesRW/akimbo?style=for-the-badge)](https://github.com/JacquesRW/akimbo/releases/latest)
-[![Commits since latest release](https://img.shields.io/github/commits-since/JacquesRW/akimbo/latest?style=for-the-badge)](https://github.com/JacquesRW/akimbo/commits/)
 
-A compact UCI Chess and Chess960 (FRC and DFRC) engine written in Rust.
+</div>
+  
+A compact UCI Chess and Chess960 engine written in Rust.
 
-### Compiling
-If you have cargo installed, run `cargo build --release`, binary will be in `/target/release`.
-
-To build optimised for your specific cpu, run `cargo rustc --release -- -C target-cpu=native` instead.
-
-### Aims
-The main aim is to stay under 1000 SLOC (excluding blank lines and comments) and 1500 TLOC (including).
-
-As a result writing idiomatic Rust is not an aim of this project.
+The main aim is to stay under 1000 SLOC (excluding comments and blank lines) and 1500 TLOC (including the aforementioned).
 
 ## Stats
-|                           Version                                |     Release Date     | SLOC | TLOC | [CCRL 40/15](https://www.computerchess.org.uk/ccrl/4040/cgi/compare_engines.cgi?family=Akimbo) | [CCRL 40/2 FRC](https://www.computerchess.org.uk/ccrl/404FRC/) |
-| :---------------------------------------------------------------:|:--------------------:|:----:|:----:|:----:|:----:|
-| [0.1.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.1.1) |    8th January 2023  | 1167 | 1381 | 2469 | 2313 |
-| [0.2.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.2.0) |   10th   April 2023  |  866 | 1000 | 2524 |  n/a |
-| [0.3.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.3.0) |   16th     May 2023  |  891 | 1050 |  TBD |  TBD |
+|                           Version                                |     Release Date     | SLOC | TLOC | [CCRL 40/15](https://www.computerchess.org.uk/ccrl/4040/) | [CCRL 40/2 FRC](https://www.computerchess.org.uk/ccrl/404FRC/) |
+| :---------------------------------------------------------------:|:--------------------:|:----:|:----:|:------:|:------:|
+| [0.1.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.1.1) |    8th January 2023  | 1167 | 1381 |  2469  |  2313  |
+| [0.2.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.2.0) |   10th   April 2023  |  866 | 1000 |  2525  |   N/A  |
+| [0.3.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.3.0) |   16th     May 2023  |  891 | 1050 |   TBD  |   TBD  |
 
 ## Features
 
