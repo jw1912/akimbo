@@ -102,7 +102,7 @@ impl Engine {
 pub fn go(start: &Position, eng: &mut Engine) {
     // reset engine
     *eng.ktable = [[Move::default(); 2]; 96];
-    *eng.htable = [[[0; 64]; 6]; 2];
+    eng.htable.iter_mut().flatten().flatten().for_each(|x| *x /= 2);
     eng.timing = Instant::now();
     eng.nodes = 0;
     eng.ply = 0;
@@ -244,7 +244,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     }
 
     // stuff for going through moves
-    let (mut legal, mut eval, mut bound) = (0, -Score::MAX, Bound::UPPER);
+    let (mut legal, mut eval, mut bound, mut quiets) = (0, -Score::MAX, Bound::UPPER, MoveList::default());
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
 
@@ -255,6 +255,11 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         new.check = new.in_check();
         eng.nodes += 1;
         legal += 1;
+
+        if mov.flag < Flag::CAP {
+            quiets.list[quiets.len] = mov;
+            quiets.len += 1;
+        }
 
         // late move reductions - Viridithas values used
         let reduce = if can_lmr && !new.check && ms < Score::KILLER {
@@ -292,7 +297,11 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         // quiet cutoffs pushed to tables
         if mov.flag >= Flag::CAP || eng.abort { break }
         eng.push_killer(mov);
-        eng.push_history(mov, pos.c, depth.pow(2));
+        let bonus = (16 * depth.pow(2)).min(1200);
+        eng.push_history(mov, pos.c, bonus);
+        for &quiet in &quiets.list[..quiets.len - 1] {
+            eng.push_history(quiet, pos.c, -bonus)
+        }
 
         break
     }
