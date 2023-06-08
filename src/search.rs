@@ -3,8 +3,8 @@ use super::{util::{Bound, Flag, Score}, position::{Move, MoveList, Position}};
 
 static QNODES: AtomicU64 = AtomicU64::new(0);
 
-fn mvv_lva(mov: Move, pos: &Position) -> i16 {
-    Score::MVV_LVA * pos.get_pc(1 << mov.to) as i16 - mov.pc as i16
+fn mvv_lva(mov: Move, pos: &Position) -> i32 {
+    Score::MVV_LVA * pos.get_pc(1 << mov.to) as i32 - mov.pc as i32
 }
 
 #[derive(Clone, Copy, Default)]
@@ -32,7 +32,7 @@ pub struct Engine {
 
     // uci output
     pub nodes: u64,
-    pub ply: i16,
+    pub ply: i32,
     pub best_move: Move,
     pub pv_table: Box<[MoveList; 96]>,
 }
@@ -66,7 +66,7 @@ impl Engine {
         self.tt_age = 0;
     }
 
-    fn push_tt(&mut self, hash: u64, mov: Move, depth: i8, bound: u8, mut score: i16) {
+    fn push_tt(&mut self, hash: u64, mov: Move, depth: i32, bound: u8, mut score: i32) {
         let (key, idx) = ((hash >> 48) as u16, (hash as usize) & (self.tt.len() - 1));
         let entry = &mut self.tt[idx];
 
@@ -77,13 +77,13 @@ impl Engine {
         // replace entry
         score += if score.abs() > Score::MATE {score.signum() * self.ply} else {0};
         let best_move = u16::from(mov.from) << 6 | u16::from(mov.to) | u16::from(mov.flag) << 12;
-        *entry = HashEntry { key, best_move, score, depth, bound: (self.tt_age << 2) | bound };
+        *entry = HashEntry { key, best_move, score: score as i16, depth: depth as i8, bound: (self.tt_age << 2) | bound };
     }
 
     fn probe_tt(&self, hash: u64) -> Option<HashEntry> {
         let mut entry = self.tt[(hash as usize) & (self.tt.len() - 1)];
         if entry.key != (hash >> 48) as u16 { return None }
-        entry.score -= if entry.score.abs() > Score::MATE {entry.score.signum() * self.ply} else {0};
+        entry.score -= if entry.score.abs() > Score::MATE as i16 {entry.score.signum() * self.ply as i16} else {0};
         Some(entry)
     }
 
@@ -93,15 +93,15 @@ impl Engine {
         self.ktable[ply][0] = m;
     }
 
-    fn push_history(&mut self, mov: Move, side: bool, depth: i8) {
+    fn push_history(&mut self, mov: Move, side: bool, depth: i32) {
         let entry = &mut self.htable[usize::from(side)][usize::from(mov.pc - 2)][usize::from(mov.to)];
         *entry += i64::from(depth).pow(2);
         self.hmax = self.hmax.max(*entry);
     }
 
-    fn score_history(&self, mov: Move, side: bool) -> i16 {
+    fn score_history(&self, mov: Move, side: bool) -> i32 {
         let entry = self.htable[usize::from(side)][usize::from(mov.pc - 2)][usize::from(mov.to)];
-        ((Score::MVV_LVA as i64 * entry + self.hmax - 1) / self.hmax) as i16
+        ((Score::MVV_LVA as i64 * entry + self.hmax - 1) / self.hmax) as i32
     }
 }
 
@@ -142,7 +142,7 @@ pub fn go(start: &Position, eng: &mut Engine) {
     println!("bestmove {best}");
 }
 
-fn qs(pos: &Position, mut alpha: i16, beta: i16) -> i16 {
+fn qs(pos: &Position, mut alpha: i32, beta: i32) -> i32 {
     let mut eval = pos.eval();
     if eval >= beta { return eval }
     alpha = alpha.max(eval);
@@ -167,7 +167,7 @@ fn qs(pos: &Position, mut alpha: i16, beta: i16) -> i16 {
     eval
 }
 
-fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut depth: i8, null: bool) -> i16 {
+fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut depth: i32, null: bool) -> i32 {
     // stopping search
     if eng.abort { return 0 }
     if eng.nodes & 1023 == 0 && eng.timing.elapsed().as_millis() >= eng.max_time {
@@ -188,7 +188,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
         if alpha >= beta { return alpha }
 
         // check extensions - not on root
-        depth += i8::from(pos.check);
+        depth += i32::from(pos.check);
     }
 
     // drop into quiescence search
@@ -199,11 +199,12 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
     let mut best_move = Move::default();
     if let Some(res) = eng.probe_tt(hash) {
         best_move = Move::from_short(res.best_move, pos);
-        if !pv_node && depth <= res.depth && match res.bound & 3 {
-            Bound::LOWER => res.score >= beta,
-            Bound::UPPER => res.score <= alpha,
+        let tt_score = i32::from(res.score);
+        if !pv_node && depth <= i32::from(res.depth) && match res.bound & 3 {
+            Bound::LOWER => tt_score >= beta,
+            Bound::UPPER => tt_score <= alpha,
             _ => true,
-        } { return res.score }
+        } { return tt_score }
     }
 
     // pruning
@@ -211,10 +212,10 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
         let eval = pos.eval();
 
         // reverse futility pruning
-        if depth <= 8 && eval >= beta + 120 * i16::from(depth) { return eval }
+        if depth <= 8 && eval >= beta + 120 * depth { return eval }
 
         // razoring
-        if depth <= 2 && eval + 400 * i16::from(depth) < alpha {
+        if depth <= 2 && eval + 400 * depth < alpha {
             let qeval = qs(pos, alpha, beta);
             if qeval < alpha { return qeval }
         }
@@ -244,7 +245,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
         scores[i] = if mov == best_move { Score::MAX }
             else if mov.flag == Flag::ENP { 2 * Score::MVV_LVA }
             else if mov.flag & 4 > 0 { mvv_lva(mov, pos) }
-            else if mov.flag & 8 > 0 { Score::PROMO + i16::from(mov.flag & 7) }
+            else if mov.flag & 8 > 0 { Score::PROMO + i32::from(mov.flag & 7) }
             else if killers.contains(&mov) { Score::KILLER }
             else { eng.score_history(mov, pos.c) };
     }
@@ -264,7 +265,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
 
         // late move reductions - Viridithas values used
         let reduce = if can_lmr && !new.check && ms < Score::KILLER {
-            let lmr = (0.77 + lmr_base * (legal as f64).ln()) as i8;
+            let lmr = (0.77 + lmr_base * (legal as f64).ln()) as i32;
             if pv_node { 0.max(lmr - 1) } else { lmr }
         } else { 0 };
 
@@ -307,7 +308,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
     // end of node shenanigans
     if eng.abort { return 0 }
     if eng.ply == 0 { eng.best_move = best_move }
-    if legal == 0 { return i16::from(pos.check) * (-Score::MAX + eng.ply) }
+    if legal == 0 { return i32::from(pos.check) * (eng.ply - Score::MAX) }
     eng.push_tt(hash, best_move, depth, bound, eval);
     eval
 }

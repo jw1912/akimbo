@@ -24,7 +24,7 @@ pub struct Position {
     rights: u8,
     pub check: bool,
     hash: u64,
-    pub phase: i16,
+    pub phase: i32,
     pst: S,
     _pad: i16
 }
@@ -55,9 +55,9 @@ impl MoveList {
         self.len += 1;
     }
 
-    pub fn pick(&mut self, scores: &mut [i16; 252]) -> Option<(Move, i16)> {
+    pub fn pick(&mut self, scores: &mut [i32; 252]) -> Option<(Move, i32)> {
         if self.len == 0 { return None }
-        let (mut idx, mut best) = (0, i16::MIN);
+        let (mut idx, mut best) = (0, i32::MIN);
         for (i, &score) in scores.iter().enumerate().take(self.len) {
             if score > best {
                 best = score;
@@ -170,9 +170,9 @@ impl Position {
         self.sq_attacked(kidx, usize::from(self.c), self.bb[0] | self.bb[1])
     }
 
-    pub fn eval(&self) -> i16 {
-        let (s, p) = (self.pst, 24.min(i32::from(self.phase)));
-        SIDE[usize::from(self.c)] * ((p * s.0 as i32 + (24 - p) * s.1 as i32) / 24) as i16
+    pub fn eval(&self) -> i32 {
+        let (s, p) = (self.pst, 24.min(self.phase));
+        SIDE[usize::from(self.c)] * (p * s.0 + (24 - p) * s.1) / 24
     }
 
     pub fn movegen<const QUIETS: bool>(&self) -> MoveList {

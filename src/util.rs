@@ -15,7 +15,7 @@ pub struct ZobristVals {
 }
 
 #[derive(Clone, Copy, Default)]
-pub struct S(pub i16, pub i16);
+pub struct S(pub i32, pub i32);
 
 impl std::ops::AddAssign<S> for S {
     fn add_assign(&mut self, rhs: S) {
@@ -24,7 +24,7 @@ impl std::ops::AddAssign<S> for S {
     }
 }
 
-impl std::ops::Mul<S> for i16 {
+impl std::ops::Mul<S> for i32 {
     type Output = S;
     fn mul(self, rhs: S) -> Self::Output {
         S(self * rhs.0, self * rhs.1)
@@ -90,7 +90,7 @@ impl Attacks {
 
 // All named collections of constants
 c_enum!(u8, Bound, LOWER = 0, EXACT = 1, UPPER = 2);
-c_enum!(i16, Score, MAX = 30000, MATE = Self::MAX - 256, MVV_LVA = 2048, PROMO = 3000, KILLER = 2500);
+c_enum!(i32, Score, MAX = 30000, MATE = Self::MAX - 256, MVV_LVA = 2048, PROMO = 3000, KILLER = 2500);
 c_enum!(usize, Side, WHITE = 0, BLACK = 1);
 c_enum!(usize, Piece, EMPTY = 0, PAWN = 2, KNIGHT = 3, BISHOP = 4, ROOK = 5, QUEEN = 6, KING = 7);
 c_enum!(u8, Flag, QUIET = 0, DBL = 1, KS = 2, QS = 3, CAP = 4, ENP = 5, PROMO = 8, QPR = 11, NPC = 12, QPC = 15);
@@ -143,8 +143,8 @@ pub static ZVALS: ZobristVals = {
 };
 
 // Eval
-pub const SIDE: [i16; 2] = [1, -1];
-pub const PHASE_VALS: [i16; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
+pub const SIDE: [i32; 2] = [1, -1];
+pub const PHASE_VALS: [i32; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
 pub static PST: [[[S; 64]; 8]; 2] = [
     init!(i, 8, init!(j, 64, RAW_PST[i][j ^ 56])),
     init!(i, 8, init!(j, 64, S(-RAW_PST[i][j].0, -RAW_PST[i][j].1))),
