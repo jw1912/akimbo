@@ -25,8 +25,8 @@ pub struct Position {
     pub check: bool,
     hash: u64,
     pub phase: i16,
-    pub nulls: i16,
     pst: S,
+    _pad: i16
 }
 
 #[derive(Copy, Clone, Default, PartialEq, Eq)]

@@ -39,7 +39,7 @@ pub struct Engine {
 
 impl Engine {
     fn rep_draw(&self, pos: &Position, curr_hash: u64) -> bool {
-        if self.stack.len() < 6 || pos.nulls > 0 { return false }
+        if self.stack.len() < 6 { return false }
         for &hash in self.stack.iter().rev().take(pos.halfm as usize + 1).skip(1).step_by(2) {
             if hash == curr_hash { return true }
         }
@@ -224,7 +224,6 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i16, mut beta: i16, mut dept
             let mut new = *pos;
             let r = 3 + depth / 3;
             eng.push(hash);
-            new.nulls += 1;
             new.c = !new.c;
             new.enp_sq = 0;
             let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false);
