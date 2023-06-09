@@ -92,10 +92,9 @@ impl Engine {
         self.ktable[ply][0] = m;
     }
 
-    fn push_history(&mut self, mov: Move, side: bool, mut bonus: i32) {
+    fn push_history(&mut self, mov: Move, side: bool, bonus: i32) {
         let entry = &mut self.htable[usize::from(side)][usize::from(mov.pc - 2)][usize::from(mov.to)];
-        bonus -= *entry * bonus.abs() / Score::MVV_LVA;
-        *entry += bonus;
+        *entry += bonus - *entry * bonus.abs() / Score::MVV_LVA
     }
 }
 
@@ -300,7 +299,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         let bonus = (16 * depth.pow(2)).min(1200);
         eng.push_history(mov, pos.c, bonus);
         for &quiet in &quiets.list[..quiets.len - 1] {
-            eng.push_history(quiet, pos.c, -bonus)
+            eng.push_history(quiet, pos.c, -bonus / 2)
         }
 
         break
