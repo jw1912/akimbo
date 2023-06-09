@@ -15,6 +15,7 @@ fn main() {
         tt: Vec::new(), tt_age: 0,
         htable: Box::new([[[0; 64]; 6]; 2]),
         ktable: Box::new([[Move::default(); 2]; 96]),
+        evals: Box::new([0; 96]),
         stack: Vec::with_capacity(96),
         nodes: 0, ply: 0, best_move: Move::default(),
         pv_table: Box::new([MoveList::default(); 96]),
