@@ -27,6 +27,7 @@ pub struct Engine {
     pub tt_age: u8,
     pub htable: Box<[[[i32; 64]; 6]; 2]>,
     pub ktable: Box<[[Move; 2]; 96]>,
+    pub evals: Box<[i32; 96]>,
     pub stack: Vec<u64>,
 
     // uci output
@@ -199,12 +200,17 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         } { return tt_score }
     }
 
+    // static eval of position
+    let eval = pos.eval();
+    eng.evals[eng.ply as usize] = eval;
+
+    // improving heuristic
+    let improving = !pos.check && eng.ply > 1 && eval > eng.evals[eng.ply as usize - 2];
+
     // pruning
     if !pv_node && !pos.check && beta.abs() < Score::MATE {
-        let eval = pos.eval();
-
         // reverse futility pruning
-        if depth <= 8 && eval >= beta + 120 * depth { return eval }
+        if depth <= 8 && eval >= beta + 120 * depth / (1 + i32::from(improving)) { return eval }
 
         // razoring
         if depth <= 2 && eval + 400 * depth < alpha {
