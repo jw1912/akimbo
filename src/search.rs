@@ -25,8 +25,7 @@ pub struct Engine {
     // tables
     pub tt: Vec<HashEntry>,
     pub tt_age: u8,
-    pub htable: Box<[[[i64; 64]; 6]; 2]>,
-    pub hmax: i64,
+    pub htable: Box<[[[i32; 64]; 6]; 2]>,
     pub ktable: Box<[[Move; 2]; 96]>,
     pub stack: Vec<u64>,
 
@@ -93,23 +92,16 @@ impl Engine {
         self.ktable[ply][0] = m;
     }
 
-    fn push_history(&mut self, mov: Move, side: bool, depth: i32) {
+    fn push_history(&mut self, mov: Move, side: bool, bonus: i32) {
         let entry = &mut self.htable[usize::from(side)][usize::from(mov.pc - 2)][usize::from(mov.to)];
-        *entry += i64::from(depth).pow(2);
-        self.hmax = self.hmax.max(*entry);
-    }
-
-    fn score_history(&self, mov: Move, side: bool) -> i32 {
-        let entry = self.htable[usize::from(side)][usize::from(mov.pc - 2)][usize::from(mov.to)];
-        ((Score::MVV_LVA as i64 * entry + self.hmax - 1) / self.hmax) as i32
+        *entry += bonus - *entry * bonus.abs() / Score::MVV_LVA
     }
 }
 
 pub fn go(start: &Position, eng: &mut Engine) {
     // reset engine
     *eng.ktable = [[Move::default(); 2]; 96];
-    *eng.htable = [[[0; 64]; 6]; 2];
-    eng.hmax = 1;
+    eng.htable.iter_mut().flatten().flatten().for_each(|x| *x /= 2);
     eng.timing = Instant::now();
     eng.nodes = 0;
     eng.ply = 0;
@@ -242,16 +234,16 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let mut scores = [0; 252];
     let killers = eng.ktable[eng.ply as usize];
     for (i, &mov) in moves.list[..moves.len].iter().enumerate() {
-        scores[i] = if mov == best_move { Score::MAX }
+        scores[i] = if mov == best_move { Score::HASH }
             else if mov.flag == Flag::ENP { 2 * Score::MVV_LVA }
             else if mov.flag & 4 > 0 { mvv_lva(mov, pos) }
             else if mov.flag & 8 > 0 { Score::PROMO + i32::from(mov.flag & 7) }
             else if killers.contains(&mov) { Score::KILLER }
-            else { eng.score_history(mov, pos.c) };
+            else { eng.htable[usize::from(pos.c)][usize::from(mov.pc - 2)][usize::from(mov.to)] };
     }
 
     // stuff for going through moves
-    let (mut legal, mut eval, mut bound) = (0, -Score::MAX, Bound::UPPER);
+    let (mut legal, mut eval, mut bound, mut quiets) = (0, -Score::MAX, Bound::UPPER, MoveList::default());
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
 
@@ -262,6 +254,11 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         new.check = new.in_check();
         eng.nodes += 1;
         legal += 1;
+
+        if mov.flag < Flag::CAP {
+            quiets.list[quiets.len] = mov;
+            quiets.len += 1;
+        }
 
         // late move reductions - Viridithas values used
         let reduce = if can_lmr && !new.check && ms < Score::KILLER {
@@ -299,7 +296,11 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         // quiet cutoffs pushed to tables
         if mov.flag >= Flag::CAP || eng.abort { break }
         eng.push_killer(mov);
-        eng.push_history(mov, pos.c, depth);
+        let bonus = (16 * depth.pow(2)).min(1200);
+        eng.push_history(mov, pos.c, bonus);
+        for &quiet in &quiets.list[..quiets.len - 1] {
+            eng.push_history(quiet, pos.c, -bonus / 2)
+        }
 
         break
     }
