@@ -193,10 +193,11 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     if let Some(res) = eng.probe_tt(hash) {
         best_move = Move::from_short(res.best_move, pos);
         let tt_score = i32::from(res.score);
-        if !pv_node && depth <= i32::from(res.depth) && match res.bound & 3 {
-            Bound::LOWER => tt_score >= beta,
-            Bound::UPPER => tt_score <= alpha,
-            _ => true,
+        if !pv_node && depth <= i32::from(res.depth)
+            && match res.bound & 3 {
+                Bound::LOWER => tt_score >= beta,
+                Bound::UPPER => tt_score <= alpha,
+                _ => true,
         } { return tt_score }
     }
 
@@ -249,41 +250,56 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     }
 
     // stuff for going through moves
-    let (mut legal, mut eval, mut bound, mut quiets) = (0, -Score::MAX, Bound::UPPER, MoveList::default());
+    let (mut legal, mut eval, mut bound) = (0, -Score::MAX, Bound::UPPER);
+    let mut quiets_tried = MoveList::default();
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
 
     eng.push(hash);
     while let Some((mov, ms)) = moves.pick(&mut scores) {
         let mut new = *pos;
+
+        // skip move if not legal
         if new.make(mov) { continue }
+
+        // update stuff
         new.check = new.in_check();
         eng.nodes += 1;
         legal += 1;
-
         if mov.flag < Flag::CAP {
-            quiets.list[quiets.len] = mov;
-            quiets.len += 1;
+            quiets_tried.list[quiets_tried.len] = mov;
+            quiets_tried.len += 1;
         }
 
-        // late move reductions - Viridithas values used
+        // reductions
         let reduce = if can_lmr && !new.check && ms < Score::KILLER {
-            let lmr = (0.77 + lmr_base * (legal as f64).ln()) as i32;
-            if pv_node { 0.max(lmr - 1) } else { lmr }
+            // late move reductions - Viridithas values used
+            let mut r = (0.77 + lmr_base * (legal as f64).ln()) as i32;
+
+            // reduce pv nodes less
+            r -= i32::from(pv_node);
+
+            // don't accidentally extend
+            r.max(0)
         } else { 0 };
 
+        // pvs
         let score = if legal == 1 {
             -pvs(&new, eng, -beta, -alpha, depth - 1, false)
         } else {
             let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true);
+            // re-search if fails high
             if zw > alpha && (pv_node || reduce > 0) {
                 -pvs(&new, eng, -beta, -alpha, depth - 1, false)
             } else { zw }
         };
 
+        // new best move
         if score <= eval { continue }
         eval = score;
         best_move = mov;
+
+        // update pv line
         if pv_node {
             let sub_line = eng.pv_table[eng.ply as usize];
             let line = &mut eng.pv_table[eng.ply as usize - 1];
@@ -292,10 +308,12 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             line.list[1..=sub_line.len].copy_from_slice(&sub_line.list[..sub_line.len]);
         }
 
+        // improve alpha
         if score <= alpha { continue }
         alpha = score;
         bound = Bound::EXACT;
 
+        // beta cutoff
         if score < beta { continue }
         bound = Bound::LOWER;
 
@@ -304,7 +322,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         eng.push_killer(mov);
         let bonus = (16 * depth.pow(2)).min(1200);
         eng.push_history(mov, pos.c, bonus);
-        for &quiet in &quiets.list[..quiets.len - 1] {
+        for &quiet in &quiets_tried.list[..quiets_tried.len - 1] {
             eng.push_history(quiet, pos.c, -bonus / 2)
         }
 
