@@ -272,12 +272,15 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         }
 
         // reductions
-        let reduce = if can_lmr && !new.check && ms < Score::KILLER {
+        let reduce = if can_lmr && ms < Score::KILLER {
             // late move reductions - Viridithas values used
             let mut r = (0.77 + lmr_base * (legal as f64).ln()) as i32;
 
             // reduce pv nodes less
             r -= i32::from(pv_node);
+
+            // reduce checks less
+            r -= i32::from(new.check);
 
             // don't accidentally extend
             r.max(0)
