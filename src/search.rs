@@ -1,10 +1,10 @@
 use std::{sync::atomic::{AtomicU64, Ordering::Relaxed}, time::Instant};
-use super::{util::{Bound, Flag, Score}, position::{Move, MoveList, Position}};
+use super::{util::{Bound, Flag, MoveScore, Score}, position::{Move, MoveList, Position}};
 
 static QNODES: AtomicU64 = AtomicU64::new(0);
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
-    Score::MVV_LVA * pos.get_pc(1 << mov.to) as i32 - mov.pc as i32
+    MoveScore::HISTORY_MAX * pos.get_pc(1 << mov.to) as i32 - mov.pc as i32
 }
 
 #[derive(Clone, Copy, Default)]
@@ -38,7 +38,7 @@ pub struct Engine {
 }
 
 impl Engine {
-    fn rep_draw(&self, pos: &Position, curr_hash: u64) -> bool {
+    fn repetition(&self, pos: &Position, curr_hash: u64) -> bool {
         if self.stack.len() < 6 { return false }
         for &hash in self.stack.iter().rev().take(pos.halfm as usize + 1).skip(1).step_by(2) {
             if hash == curr_hash { return true }
@@ -95,7 +95,7 @@ impl Engine {
 
     fn push_history(&mut self, mov: Move, side: bool, bonus: i32) {
         let entry = &mut self.htable[usize::from(side)][usize::from(mov.pc - 2)][usize::from(mov.to)];
-        *entry += bonus - *entry * bonus.abs() / Score::MVV_LVA
+        *entry += bonus - *entry * bonus.abs() / MoveScore::HISTORY_MAX
     }
 }
 
@@ -173,7 +173,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
     if eng.ply > 0 {
         // draw detection
-        if pos.halfm >= 100 || pos.mat_draw() || eng.rep_draw(pos, hash) { return 0 }
+        if pos.draw() || eng.repetition(pos, hash) { return Score::DRAW }
 
         // mate distance pruning
         alpha = alpha.max(eng.ply - Score::MAX);
@@ -241,11 +241,11 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let mut scores = [0; 252];
     let killers = eng.ktable[eng.ply as usize];
     for (i, &mov) in moves.list[..moves.len].iter().enumerate() {
-        scores[i] = if mov == best_move { Score::HASH }
-            else if mov.flag == Flag::ENP { 2 * Score::MVV_LVA }
+        scores[i] = if mov == best_move { MoveScore::HASH }
+            else if mov.flag == Flag::ENP { 2 * MoveScore::HISTORY_MAX }
             else if mov.flag & 4 > 0 { mvv_lva(mov, pos) }
-            else if mov.flag & 8 > 0 { Score::PROMO + i32::from(mov.flag & 7) }
-            else if killers.contains(&mov) { Score::KILLER }
+            else if mov.flag & 8 > 0 { MoveScore::PROMO + i32::from(mov.flag & 7) }
+            else if killers.contains(&mov) { MoveScore::KILLER }
             else { eng.htable[usize::from(pos.c)][usize::from(mov.pc - 2)][usize::from(mov.to)] };
     }
 
@@ -272,7 +272,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         }
 
         // reductions
-        let reduce = if can_lmr && ms < Score::KILLER {
+        let reduce = if can_lmr && ms < MoveScore::KILLER {
             // late move reductions - Viridithas values used
             let mut r = (0.77 + lmr_base * (legal as f64).ln()) as i32;
 

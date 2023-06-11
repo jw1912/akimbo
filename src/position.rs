@@ -157,8 +157,9 @@ impl Position {
         self.sq_attacked(kidx, side, self.bb[0] | self.bb[1])
     }
 
-    pub fn mat_draw(&self) -> bool {
+    pub fn draw(&self) -> bool {
         let (ph, b) = (self.phase, self.bb[Piece::BISHOP]);
+        if self.halfm >= 100 { return true }
         ph <= 2 && self.bb[Piece::PAWN] == 0 && ((ph != 2) // no pawns left, phase <= 2
             || (b & self.bb[Side::WHITE] != b && b & self.bb[Side::BLACK] != b // one bishop each
                 && (b & 0x55AA55AA55AA55AA == b || b & 0xAA55AA55AA55AA55 == b))) // same colour bishops
