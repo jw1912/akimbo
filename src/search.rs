@@ -279,7 +279,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     }
 
     // stuff for going through moves
-    let (mut legal, mut eval, mut bound) = (0, -Score::MAX, Bound::UPPER);
+    let (mut legal, mut best_score, mut bound) = (0, -Score::MAX, Bound::UPPER);
     let mut quiets_tried = MoveList::default();
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
@@ -327,8 +327,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         };
 
         // new best move
-        if score <= eval { continue }
-        eval = score;
+        if score <= best_score { continue }
+        best_score = score;
         best_move = mov;
 
         // update pv line
@@ -366,6 +366,6 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     if eng.abort { return 0 }
     if eng.ply == 0 { eng.best_move = best_move }
     if legal == 0 { return i32::from(pos.check) * (eng.ply - Score::MAX) }
-    eng.push_tt(hash, best_move, depth, bound, eval);
-    eval
+    eng.push_tt(hash, best_move, depth, bound, best_score);
+    best_score
 }
