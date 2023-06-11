@@ -6,6 +6,5 @@ authors = ["Jamie Whiting"]
 
 [profile.release]
 panic = 'abort'
-lto = true
 codegen-units = 1
 strip = true
