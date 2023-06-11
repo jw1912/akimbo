@@ -112,11 +112,17 @@ pub fn go(start: &Position, eng: &mut Engine) {
 
     let mut best = String::new();
     let mut pos = *start;
+    let mut eval = 0;
     pos.check = pos.in_check();
 
     // iterative deepening loop
     for d in 1..=64 {
-        let eval = pvs(&pos, eng, -Score::MAX, Score::MAX, d, false);
+        if d < 7 {
+            eval = pvs(&pos, eng, -Score::MAX, Score::MAX, d, false);
+        } else {
+            eval = aspiration(&pos, eng, eval, d);
+        }
+
         if eng.abort { break }
         best = eng.best_move.to_uci();
 
@@ -133,6 +139,29 @@ pub fn go(start: &Position, eng: &mut Engine) {
     }
     eng.tt_age = 63.min(eng.tt_age + 1);
     println!("bestmove {best}");
+}
+
+fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, depth: i32) -> i32 {
+    let mut delta = 25;
+    let mut alpha = (-Score::MAX).max(score - delta);
+    let mut beta = Score::MAX.min(score + delta);
+
+    loop {
+        score = pvs(pos, eng, alpha, beta, depth, false);
+        if eng.abort { return 0 }
+
+        if score <= alpha {
+            beta = (alpha + beta) / 2;
+            alpha = (-Score::MAX).max(alpha - delta);
+        } else if score >= beta {
+            alpha = (alpha + beta) / 2;
+            beta = Score::MAX.min(beta + delta);
+        } else {
+            return score
+        }
+
+        delta *= 2;
+    }
 }
 
 fn qs(pos: &Position, mut alpha: i32, beta: i32) -> i32 {
