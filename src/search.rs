@@ -218,9 +218,11 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
     // probing hash table
     let pv_node = beta > alpha + 1;
-    let mut best_move = Move::default();
+    let mut tt_hit = false;
+    let mut tt_move = Move::default();
     if let Some(res) = eng.probe_tt(hash) {
-        best_move = Move::from_short(res.best_move, pos);
+        tt_hit = true;
+        tt_move = Move::from_short(res.best_move, pos);
         let tt_score = i32::from(res.score);
         if !pv_node && depth <= i32::from(res.depth)
             && match res.bound & 3 {
@@ -263,14 +265,14 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     }
 
     // internal iterative reduction
-    if depth >= 4 && best_move == Move::default() { depth -= 1 }
+    if depth >= 4 && !tt_hit { depth -= 1 }
 
     // generating and scoring moves
     let mut moves = pos.movegen::<true>();
     let mut scores = [0; 252];
     let killers = eng.ktable[eng.ply as usize];
     for (i, &mov) in moves.list[..moves.len].iter().enumerate() {
-        scores[i] = if mov == best_move { MoveScore::HASH }
+        scores[i] = if mov == tt_move { MoveScore::HASH }
             else if mov.flag == Flag::ENP { 2 * MoveScore::HISTORY_MAX }
             else if mov.flag & 4 > 0 { mvv_lva(mov, pos) }
             else if mov.flag & 8 > 0 { MoveScore::PROMO + i32::from(mov.flag & 7) }
@@ -279,7 +281,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     }
 
     // stuff for going through moves
-    let (mut legal, mut best_score, mut bound) = (0, -Score::MAX, Bound::UPPER);
+    let (mut legal, mut bound) = (0, Bound::UPPER);
+    let (mut best_score, mut best_move) = (-Score::MAX, tt_move);
     let mut quiets_tried = MoveList::default();
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
