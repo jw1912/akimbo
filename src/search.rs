@@ -117,11 +117,9 @@ pub fn go(start: &Position, eng: &mut Engine) {
 
     // iterative deepening loop
     for d in 1..=64 {
-        if d < 7 {
-            eval = pvs(&pos, eng, -Score::MAX, Score::MAX, d, false);
-        } else {
-            eval = aspiration(&pos, eng, eval, d);
-        }
+        eval = if d < 7 {
+            pvs(&pos, eng, -Score::MAX, Score::MAX, d, false)
+        } else { aspiration(&pos, eng, eval, d) };
 
         if eng.abort { break }
         best = eng.best_move.to_uci();
@@ -134,7 +132,7 @@ pub fn go(start: &Position, eng: &mut Engine) {
         let nodes = eng.nodes + QNODES.load(Relaxed);
         let nps = (1000.0 * nodes as f64 / t as f64) as u32;
         let pv_line = &eng.pv_table[0];
-        let pv = pv_line.list.iter().take(pv_line.len).map(|mov| mov.to_uci()).collect::<String>();
+        let pv = pv_line.list.iter().take(pv_line.len).map(|mov| format!("{} ", mov.to_uci())).collect::<String>();
         println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}");
     }
     eng.tt_age = 63.min(eng.tt_age + 1);

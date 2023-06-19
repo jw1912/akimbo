@@ -278,7 +278,10 @@ impl Position {
 
         // state
         pos.c = vec[1] == "b";
-        pos.enp_sq = if vec[3] == "-" {0} else {sq_to_idx(vec[3])};
+        pos.enp_sq = if vec[3] == "-" {0} else {
+            let chs: Vec<char> = vec[3].chars().collect();
+            8 * chs[1].to_string().parse::<u8>().unwrap() + chs[0] as u8 - 105
+        };
         pos.halfm = vec.get(4).unwrap_or(&"0").parse::<u8>().unwrap();
 
         // general castling stuff (for chess960)
@@ -333,11 +336,6 @@ fn btwn(bit1: u64, bit2: u64) -> u64 {
     (bit1.max(bit2) - min) ^ min
 }
 
-fn sq_to_idx(sq: &str) -> u8 {
-    let chs: Vec<char> = sq.chars().collect();
-    8 * chs[1].to_string().parse::<u8>().unwrap() + chs[0] as u8 - 105
-}
-
 impl Move {
     pub fn from_short(m: u16, pos: &Position) -> Self {
         let from = ((m >> 6) & 63) as u8;
@@ -351,26 +349,6 @@ impl Move {
             let sf = 56 * (self.to / 56);
             sf + ROOK_FILES[usize::from(sf > 0)][usize::from(self.flag == Flag::KS)].load(Relaxed)
         } else { self.to };
-        format!("{}{}{} ", idx_to_sq(self.from), idx_to_sq(to), promo)
-    }
-
-    pub fn from_uci(pos: &Position, m_str: &str) -> Self {
-        let (from, to, c) = (sq_to_idx(&m_str[0..2]), sq_to_idx(&m_str[2..4]), usize::from(pos.c));
-
-        if CHESS960.load(Relaxed) && pos.bb[c] & (1 << to) > 0 {
-            let side = 56 * (from / 56);
-            let (to2, flag) = if to == ROOK_FILES[c][0].load(Relaxed) + side {
-                (2 + side, Flag::QS)
-            } else { (6 + side, Flag::KS) };
-            return Move { from, to: to2, flag, pc: Piece::KING as u8};
-        }
-
-        let mut m = Move { from, to, flag: 0, pc: 0};
-        m.flag = match m_str.chars().nth(4).unwrap_or('f') {'n' => 8, 'b' => 9, 'r' => 10, 'q' => 11, _ => 0};
-        let possible_moves = pos.movegen::<true>();
-        *possible_moves.list.iter().take(possible_moves.len).find(|um|
-            m.from == um.from && m.to == um.to && (m_str.len() < 5 || m.flag == um.flag & 0b1011)
-            && !(CHESS960.load(Relaxed) && [Flag::QS, Flag::KS].contains(&um.flag))
-        ).unwrap()
+        format!("{}{}{}", idx_to_sq(self.from), idx_to_sq(to), promo)
     }
 }

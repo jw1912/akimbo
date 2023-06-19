@@ -78,7 +78,10 @@ fn main() {
                 eng.stack.clear();
                 for m in move_list {
                     eng.stack.push(pos.hash());
-                    pos.make(Move::from_uci(&pos, m));
+                    let possible_moves = pos.movegen::<true>();
+                    for mov in &possible_moves.list[..possible_moves.len] {
+                        if m == mov.to_uci() { pos.make(*mov); }
+                    }
                 }
             },
             "perft" => {
