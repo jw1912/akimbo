@@ -204,9 +204,10 @@ impl Position {
             bitloop!(attackers, from, moves.push(from, self.enp_sq, Flag::ENP, Piece::PAWN));
         }
         let (mut attackers, mut promo) = (pawns & !Rank::PEN[side], pawns & Rank::PEN[side]);
-        bitloop!(attackers, from,
-            encode::<{ Flag::CAP }>(&mut moves, Attacks::PAWN[side][from as usize] & opps, from, Piece::PAWN)
-        );
+        bitloop!(attackers, from, {
+            let mut attacks = Attacks::PAWN[side][from as usize] & opps;
+            bitloop!(attacks, to, moves.push(from, to, Flag::CAP, Piece::PAWN));
+        });
         bitloop!(promo, from, {
             let mut attacks = Attacks::PAWN[side][from as usize] & opps;
             bitloop!(attacks, to, for flag in Flag::NPC..=Flag::QPC { moves.push(from, to, flag, Piece::PAWN) });
@@ -224,8 +225,9 @@ impl Position {
                     Piece::KING   => Attacks::KING  [from as usize],
                     _ => unreachable!(),
                 };
-                encode::<{ Flag::CAP }>(&mut moves, attacks & opps, from, pc);
-                if QUIETS { encode::<{ Flag::QUIET }>(&mut moves, attacks & !occ, from, pc) }
+                let (mut caps, mut quiets) = (attacks & opps, attacks & !occ);
+                bitloop!(caps, to, moves.push(from, to, Flag::CAP, pc));
+                if QUIETS { bitloop!(quiets, to, moves.push(from, to, Flag::QUIET, pc));}
             });
         }
         moves
@@ -273,10 +275,6 @@ impl Position {
 
         pos
     }
-}
-
-fn encode<const FLAG: u8>(moves: &mut MoveList, mut attacks: u64, from: u8, pc: usize) {
-    bitloop!(attacks, to, moves.push(from, to, FLAG, pc));
 }
 
 fn shift(side: usize,bb: u64) -> u64 {
