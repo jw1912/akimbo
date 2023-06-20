@@ -38,10 +38,12 @@ pub struct Engine {
 }
 
 impl Engine {
-    fn repetition(&self, pos: &Position, curr_hash: u64) -> bool {
+    fn repetition(&self, pos: &Position, curr_hash: u64, root: bool) -> bool {
         if self.stack.len() < 6 { return false }
+        let mut reps = 1 + u8::from(root);
         for &hash in self.stack.iter().rev().take(pos.halfm as usize + 1).skip(1).step_by(2) {
-            if hash == curr_hash { return true }
+            reps -= u8::from(hash == curr_hash);
+            if reps == 0 { return true }
         }
         false
     }
@@ -200,7 +202,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
     if eng.ply > 0 {
         // draw detection
-        if pos.draw() || eng.repetition(pos, hash) { return Score::DRAW }
+        if pos.draw() || eng.repetition(pos, hash, eng.ply == 0) { return Score::DRAW }
 
         // mate distance pruning
         alpha = alpha.max(eng.ply - Score::MAX);
