@@ -24,10 +24,10 @@ impl std::ops::AddAssign<S> for S {
     }
 }
 
-impl std::ops::Mul<S> for i32 {
-    type Output = S;
-    fn mul(self, rhs: S) -> Self::Output {
-        S(self * rhs.0, self * rhs.1)
+impl std::ops::SubAssign<S> for S {
+    fn sub_assign(&mut self, rhs: S) {
+        self.0 -= rhs.0;
+        self.1 -= rhs.1;
     }
 }
 
@@ -118,6 +118,8 @@ const RANKS: [[u64; 64]; 8] = init!(f, 8, init!(i, 64, {
       EAST[f] ^ EAST[( (EAST[f] & occ) | (1<<63)).trailing_zeros() as usize]
     | WEST[f] ^ WEST[(((WEST[f] & occ) | 1).leading_zeros() ^ 63) as usize]
 }));
+pub const CASTLE_MASK: [u8; 64] = init! {idx, 64, match idx {0 => 7, 4 => 3, 7 => 11, 56 => 13, 60 => 12, 63 => 14, _ => 15}};
+pub const ROOK_MOVES: [[(u64, usize, usize); 2]; 2] = [[(9, 0, 3), (0x0900000000000000, 56, 59)], [(160, 7, 5), (0xA000000000000000, 63, 61)]];
 
 // Zobrist values
 const fn rand(mut seed: u64) -> u64 {
