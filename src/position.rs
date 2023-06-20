@@ -1,5 +1,4 @@
-use super::util::{Attacks, Flag, PHASE_VALS, Piece, PST, Rank, Rights, S, Side, SIDE, ZVALS};
-use std::sync::atomic::{AtomicU8, AtomicBool, Ordering::Relaxed};
+use super::util::*;
 
 macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
     while $bb > 0 {
@@ -8,12 +7,6 @@ macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
         $func;
     }
 }}
-
-#[allow(clippy::declare_interior_mutable_const)]
-const INIT: AtomicU8 = AtomicU8::new(0);
-static CHESS960: AtomicBool = AtomicBool::new(false);
-static CASTLE_MASK: [AtomicU8; 64] = [INIT; 64];
-static ROOK_FILES: [[AtomicU8; 2]; 2] = [[INIT; 2], [INIT; 2]];
 
 #[derive(Clone, Copy, Default)]
 pub struct Position {
@@ -102,7 +95,7 @@ impl Position {
         let side = usize::from(self.c);
 
         // update state
-        self.rights &= CASTLE_MASK[to].load(Relaxed) & CASTLE_MASK[from].load(Relaxed);
+        self.rights &= CASTLE_MASK[to] & CASTLE_MASK[from];
         self.halfm = u8::from(moved > Piece::PAWN && mov.flag != Flag::CAP) * (self.halfm + 1);
         self.enp_sq = 0;
         self.c = !self.c;
@@ -110,15 +103,15 @@ impl Position {
         // move piece
         self.toggle(side, moved, from_bb ^ to_bb);
         self.hash ^= ZVALS.pcs[side][moved][from] ^ ZVALS.pcs[side][moved][to];
-        self.pst +=      PST[side][moved][to  ];
-        self.pst += -1 * PST[side][moved][from];
+        self.pst += PST[side][moved][to];
+        self.pst -= PST[side][moved][from];
 
         // captures
         if captured != Piece::EMPTY {
             let opp = side ^ 1;
             self.toggle(opp, captured, to_bb);
             self.hash ^= ZVALS.pcs[opp][captured][to];
-            self.pst += -1 * PST[opp][captured][to];
+            self.pst -= PST[opp][captured][to];
             self.phase -= PHASE_VALS[captured];
         }
 
@@ -126,27 +119,25 @@ impl Position {
         match mov.flag {
             Flag::DBL => self.enp_sq = mov.to ^ 8,
             Flag::KS | Flag::QS => {
-                let (idx, sf) = (usize::from(mov.flag == Flag::KS), 56 * side);
-                let rfr = sf + ROOK_FILES[side][idx].load(Relaxed) as usize;
-                let rto = sf + [3, 5][idx];
-                self.toggle(side, Piece::ROOK, (1 << rfr) ^ (1 << rto));
+                let (bits, rfr, rto) = ROOK_MOVES[usize::from(mov.flag == Flag::KS)][side];
+                self.toggle(side, Piece::ROOK, bits);
                 self.hash ^= ZVALS.pcs[side][Piece::ROOK][rfr] ^ ZVALS.pcs[side][Piece::ROOK][rto];
-                self.pst += -1 * PST[side][Piece::ROOK][rfr];
-                self.pst +=      PST[side][Piece::ROOK][rto];
+                self.pst -= PST[side][Piece::ROOK][rfr];
+                self.pst += PST[side][Piece::ROOK][rto];
             },
             Flag::ENP => {
                 let pawn_sq = to ^ 8;
                 self.toggle(side ^ 1, Piece::PAWN, 1 << pawn_sq);
                 self.hash ^= ZVALS.pcs[side ^ 1][Piece::PAWN][pawn_sq];
-                self.pst += -1 * PST[side ^ 1][Piece::PAWN][pawn_sq];
+                self.pst -= PST[side ^ 1][Piece::PAWN][pawn_sq];
             },
             Flag::PROMO.. => {
                 let promo = usize::from((mov.flag & 3) + 3);
                 self.bb[Piece::PAWN] ^= to_bb;
                 self.bb[promo] ^= to_bb;
                 self.hash ^= ZVALS.pcs[side][Piece::PAWN][to] ^ ZVALS.pcs[side][promo][to];
-                self.pst += -1 * PST[side][Piece::PAWN][to];
-                self.pst +=      PST[side][promo      ][to];
+                self.pst -= PST[side][Piece::PAWN][to];
+                self.pst += PST[side][promo][to];
                 self.phase += PHASE_VALS[promo];
             }
             _ => {}
@@ -185,14 +176,12 @@ impl Position {
         if QUIETS {
             let r = self.rights;
             if r & [Rights::WHITE, Rights::BLACK][side] > 0 && !self.in_check() {
-                let kbb = self.bb[Piece::KING] & self.bb[side];
-                let ksq = kbb.trailing_zeros() as u8;
                 if self.c {
-                    if self.castle(Rights::BQS, 0, occ, kbb, 1 << 58, 1 << 59) {moves.push(ksq, 58, Flag::QS, Piece::KING)}
-                    if self.castle(Rights::BKS, 1, occ, kbb, 1 << 62, 1 << 61) {moves.push(ksq, 62, Flag::KS, Piece::KING)}
+                    if self.can_castle::<{ Side::BLACK }, 0>(occ, 59) { moves.push(60, 58, Flag::QS, Piece::KING) }
+                    if self.can_castle::<{ Side::BLACK }, 1>(occ, 61) { moves.push(60, 62, Flag::KS, Piece::KING) }
                 } else {
-                    if self.castle(Rights::WQS, 0, occ, kbb, 1 << 2, 1 << 3) {moves.push(ksq, 2, Flag::QS, Piece::KING)}
-                    if self.castle(Rights::WKS, 1, occ, kbb, 1 << 6, 1 << 5) {moves.push(ksq, 6, Flag::KS, Piece::KING)}
+                    if self.can_castle::<{ Side::WHITE }, 0>(occ,  3) { moves.push( 4,  2, Flag::QS, Piece::KING) }
+                    if self.can_castle::<{ Side::WHITE }, 1>(occ,  5) { moves.push( 4,  6, Flag::KS, Piece::KING) }
                 }
             }
 
@@ -229,8 +218,8 @@ impl Position {
             bitloop!(attackers, from, {
                 let attacks = match pc {
                     Piece::KNIGHT => Attacks::KNIGHT[from as usize],
-                    Piece::ROOK   => Attacks::rook  (from as usize, occ),
                     Piece::BISHOP => Attacks::bishop(from as usize, occ),
+                    Piece::ROOK   => Attacks::rook  (from as usize, occ),
                     Piece::QUEEN  => Attacks::bishop(from as usize, occ) | Attacks::rook(from as usize, occ),
                     Piece::KING   => Attacks::KING  [from as usize],
                     _ => unreachable!(),
@@ -242,18 +231,10 @@ impl Position {
         moves
     }
 
-    fn path(&self, side: usize, mut path: u64, occ: u64) -> bool {
-        bitloop!(path, idx, if self.sq_attacked(idx as usize, side, occ) {return false});
-        true
-    }
-
-    fn castle(&self, right: u8, ks: usize, occ: u64, kbb: u64, kto: u64, rto: u64) -> bool {
-        let side = usize::from(self.c);
-        let bit = 1 << (56 * side + usize::from(ROOK_FILES[side][ks].load(Relaxed)));
-        self.rights & right > 0
-            && (occ ^ bit) & (btwn(kbb, kto) ^ kto) == 0
-            && (occ ^ kbb) & (btwn(bit, rto) ^ rto) == 0
-            && self.path(side, btwn(kbb, kto), occ)
+    fn can_castle<const SIDE: usize, const KS: usize>(&self, occ: u64, sq: usize) -> bool {
+        self.rights & [[Rights::WQS, Rights::WKS], [Rights::BQS, Rights::BKS]][SIDE][KS] > 0
+            && occ & [[0xE, 0x60], [0xE00000000000000, 0x6000000000000000]][SIDE][KS] == 0
+            && !self.sq_attacked(sq, SIDE, occ)
     }
 
     pub fn from_fen(fen: &str) -> Self {
@@ -263,9 +244,12 @@ impl Position {
         // board
         let (mut pos, mut row, mut col) = (Self::default(), 7, 0);
         for ch in p {
-            if ch == '/' { row -= 1; col = 0; }
-            else if ('1'..='8').contains(&ch) { col += ch.to_string().parse().unwrap_or(0) }
-            else if let Some(idx) = "PNBRQKpnbrqk".chars().position(|el| el == ch) {
+            if ch == '/' {
+                row -= 1;
+                col = 0;
+            } else if ('1'..='8').contains(&ch) {
+                col += ch.to_string().parse().unwrap_or(0);
+            } else if let Some(idx) = "PNBRQKpnbrqk".chars().position(|el| el == ch) {
                 let side = usize::from(idx > 5);
                 let (pc, sq) = (idx + 2 - 6 * side, 8 * row + col);
                 pos.toggle(side, pc, 1 << sq);
@@ -283,39 +267,11 @@ impl Position {
             8 * chs[1].to_string().parse::<u8>().unwrap() + chs[0] as u8 - 105
         };
         pos.halfm = vec.get(4).unwrap_or(&"0").parse::<u8>().unwrap();
-
-        // general castling stuff (for chess960)
-        let mut king = 4;
-        CHESS960.store(false, Relaxed);
-        ROOK_FILES[0][0].store(0, Relaxed);
-        ROOK_FILES[0][1].store(7, Relaxed);
-        ROOK_FILES[1][0].store(0, Relaxed);
-        ROOK_FILES[1][1].store(7, Relaxed);
-        pos.rights = vec[2].chars().fold(0, |cr, ch| cr | match ch as u8 {
-            b'Q' => Rights::WQS, b'K' => Rights::WKS, b'q' => Rights::BQS, b'k' => Rights::BKS,
-            b'A'..=b'H' => pos.parse_castle(Side::WHITE, &mut king, ch),
-            b'a'..=b'h' => pos.parse_castle(Side::BLACK, &mut king, ch),
-            _ => 0
+        pos.rights = vec[2].chars().fold(0, |cr, ch| cr | match ch {
+            'Q' => Rights::WQS, 'K' => Rights::WKS, 'q' => Rights::BQS, 'k' => Rights::BKS, _ => 0
         });
-        for sq in &CASTLE_MASK { sq.store(15, Relaxed) }
-        CASTLE_MASK[usize::from(     ROOK_FILES[0][0].load(Relaxed))].store( 7, Relaxed);
-        CASTLE_MASK[usize::from(     ROOK_FILES[0][1].load(Relaxed))].store(11, Relaxed);
-        CASTLE_MASK[usize::from(56 + ROOK_FILES[1][0].load(Relaxed))].store(13, Relaxed);
-        CASTLE_MASK[usize::from(56 + ROOK_FILES[1][1].load(Relaxed))].store(14, Relaxed);
-        CASTLE_MASK[     king].store( 3, Relaxed);
-        CASTLE_MASK[56 + king].store(12, Relaxed);
 
         pos
-    }
-
-    fn parse_castle(&self, side: usize, king: &mut usize, ch: char) -> u8 {
-        CHESS960.store(true, Relaxed);
-        let wkc = (self.bb[side] & self.bb[Piece::KING]).trailing_zeros() as u8 & 7;
-        *king = wkc as usize;
-        let rook = ch as u8 - [b'A', b'a'][side];
-        let i = usize::from(rook > wkc);
-        ROOK_FILES[side][i].store(rook, Relaxed);
-        [[Rights::WQS, Rights::WKS], [Rights::BQS, Rights::BKS]][side][i]
     }
 }
 
@@ -331,11 +287,6 @@ fn idx_shift<const AMOUNT: u8>(side: usize, idx: u8) -> u8 {
     if side == Side::WHITE { idx + AMOUNT } else { idx - AMOUNT }
 }
 
-fn btwn(bit1: u64, bit2: u64) -> u64 {
-    let min = bit1.min(bit2);
-    (bit1.max(bit2) - min) ^ min
-}
-
 impl Move {
     pub fn from_short(m: u16, pos: &Position) -> Self {
         let from = ((m >> 6) & 63) as u8;
@@ -345,10 +296,6 @@ impl Move {
     pub fn to_uci(self) -> String {
         let idx_to_sq = |i| format!("{}{}", ((i & 7) + b'a') as char, (i / 8) + 1);
         let promo = if self.flag & 0b1000 > 0 {["n","b","r","q"][(self.flag & 0b11) as usize]} else {""};
-        let to = if CHESS960.load(Relaxed) && [Flag::QS, Flag::KS].contains(&self.flag) {
-            let sf = 56 * (self.to / 56);
-            sf + ROOK_FILES[usize::from(sf > 0)][usize::from(self.flag == Flag::KS)].load(Relaxed)
-        } else { self.to };
-        format!("{}{}{}", idx_to_sq(self.from), idx_to_sq(to), promo)
+        format!("{}{}{}", idx_to_sq(self.from), idx_to_sq(self.to), promo)
     }
 }
