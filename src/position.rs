@@ -92,21 +92,22 @@ impl Position {
 
         // passed pawn eval
         let pawns = self.bb[Piece::PAWN];
-        let mut wpasser = Self::passers(pawns & self.bb[Side::WHITE], pawns);
+        let (wp, bp) = (pawns & self.bb[Side::WHITE], pawns & self.bb[Side::BLACK]);
+        let mut wpasser = Self::passers(wp, bp);
+        let mut bpasser = Self::passers(bp.swap_bytes(), wp.swap_bytes());
         bitloop!(wpasser, sq, s += Eval::PASSER[sq as usize / 8]);
-        let mut bpasser = Self::passers((pawns & self.bb[Side::BLACK]).swap_bytes(), pawns.swap_bytes());
         bitloop!(bpasser, sq, s -= Eval::PASSER[sq as usize / 8]);
 
         Eval::SIDE[usize::from(self.c)] * (p * s.0 + (24 - p) * s.1) / 24
     }
 
-    fn passers(pawns: u64, mut opps: u64) -> u64 {
+    fn passers(boys: u64, mut opps: u64) -> u64 {
         opps >>= 8;
         opps |= opps >> 8;
         opps |= opps >> 16;
         opps |= opps >> 32;
         opps |= (opps & !File::A) >> 1 | (opps & !File::H) << 1;
-        pawns & !opps
+        boys & !opps
     }
 
     // MAKE MOVE
