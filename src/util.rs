@@ -4,7 +4,7 @@ struct Mask {
     bit: u64,
     diag: u64,
     anti: u64,
-    file: u64,
+    swap: u64,
 }
 
 pub struct ZobristVals {
@@ -69,22 +69,16 @@ impl Attacks {
 
     pub fn bishop(idx: usize, occ: u64) -> u64 {
         let m = MASKS[idx];
-        let rb = m.bit.swap_bytes();
         let (mut f1, mut f2) = (occ & m.diag, occ & m.anti);
-        let (r1, r2) = (f1.swap_bytes().wrapping_sub(rb), f2.swap_bytes().wrapping_sub(rb));
+        let (r1, r2) = (f1.swap_bytes().wrapping_sub(m.swap), f2.swap_bytes().wrapping_sub(m.swap));
         f1 = f1.wrapping_sub(m.bit);
         f2 = f2.wrapping_sub(m.bit);
         ((f1 ^ r1.swap_bytes()) & m.diag) | ((f2 ^ r2.swap_bytes()) & m.anti)
     }
 
-    pub fn rook(idx: usize, occ: u64) -> u64 {
-        let m = MASKS[idx];
-        let mut f = occ & m.file;
-        let i = idx & 7;
-        let s = idx - i;
-        let r = f.swap_bytes().wrapping_sub(m.bit.swap_bytes());
-        f = f.wrapping_sub(m.bit);
-        ((f ^ r.swap_bytes()) & m.file) | (RANKS[i][((occ >> (s + 1)) & 0x3F) as usize] << s)
+    pub fn rook(sq: usize, occ: u64) -> u64 {
+        FILE[sq][((((occ >> (sq & 7)) & File::A).wrapping_mul(DIAG) >> 57) & 0x3F) as usize]
+        | RANK[sq][((occ >> RANK_SHIFT[sq]) & 0x3F) as usize]
     }
 }
 
@@ -110,14 +104,17 @@ static MASKS: [Mask; 64] = init!(i, 64,
         bit,
         diag: bit ^ DIAGS[7 + file - rank],
         anti: bit ^ DIAGS[file + rank].swap_bytes(),
-        file: bit ^ File::A << file,
+        swap: bit.swap_bytes(),
     }
 );
-const RANKS: [[u64; 64]; 8] = init!(f, 8, init!(i, 64, {
-    let occ = (i << 1) as u64;
-      EAST[f] ^ EAST[( (EAST[f] & occ) | (1<<63)).trailing_zeros() as usize]
-    | WEST[f] ^ WEST[(((WEST[f] & occ) | 1).leading_zeros() ^ 63) as usize]
+const RANK_SHIFT: [usize; 64] = init! {sq, 64, sq - (sq & 7) + 1};
+const RANK: [[u64; 64]; 64] = init!(sq, 64, init!(i, 64, {
+    let (f, occ) = (sq & 7, (i << 1) as u64);
+    (EAST[f] ^ EAST[( (EAST[f] & occ) | (1<<63)).trailing_zeros() as usize]
+    | WEST[f] ^ WEST[(((WEST[f] & occ) | 1).leading_zeros() ^ 63) as usize]) << (sq - f)
 }));
+const FILE: [[u64; 64]; 64] = init! {sq, 64, init! {occ, 64, (RANK[7 - sq / 8][occ].wrapping_mul(DIAG) & File::H) >> (7 - (sq & 7))}};
+
 pub const CASTLE_MASK: [u8; 64] = init! {idx, 64, match idx {0 => 7, 4 => 3, 7 => 11, 56 => 13, 60 => 12, 63 => 14, _ => 15}};
 pub const ROOK_MOVES: [[(u64, usize, usize); 2]; 2] = [[(9, 0, 3), (0x0900000000000000, 56, 59)], [(160, 7, 5), (0xA000000000000000, 63, 61)]];
 
