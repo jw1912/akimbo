@@ -64,11 +64,52 @@ impl MoveList {
 }
 
 impl Position {
+    // SEARCH STUFF
+
     pub fn hash(&self) -> u64 {
         let mut hash = self.hash;
         if self.enp_sq > 0 { hash ^= ZVALS.enp[self.enp_sq as usize & 7] }
         hash ^ ZVALS.cr[usize::from(self.rights)] ^ ZVALS.c[usize::from(self.c)]
     }
+
+    pub fn draw(&self) -> bool {
+        let (ph, b) = (self.phase, self.bb[Piece::BISHOP]);
+        if self.halfm >= 100 { return true }
+        ph <= 2 && self.bb[Piece::PAWN] == 0 && ((ph != 2) // no pawns left, phase <= 2
+            || (b & self.bb[Side::WHITE] != b && b & self.bb[Side::BLACK] != b // one bishop each
+                && (b & 0x55AA55AA55AA55AA == b || b & 0xAA55AA55AA55AA55 == b))) // same colour bishops
+    }
+
+    pub fn in_check(&self) -> bool {
+        let kidx = (self.bb[Piece::KING] & self.bb[usize::from(self.c)]).trailing_zeros() as usize;
+        self.sq_attacked(kidx, usize::from(self.c), self.bb[0] | self.bb[1])
+    }
+
+     // EVALUATION
+
+    pub fn eval(&self) -> i32 {
+        let (mut s, p) = (self.pst, 24.min(self.phase));
+
+        // passed pawn eval
+        let pawns = self.bb[Piece::PAWN];
+        let mut wpasser = Self::passers(pawns & self.bb[Side::WHITE], pawns);
+        bitloop!(wpasser, sq, s += Eval::PASSER[sq as usize / 8]);
+        let mut bpasser = Self::passers((pawns & self.bb[Side::BLACK]).swap_bytes(), pawns.swap_bytes());
+        bitloop!(bpasser, sq, s -= Eval::PASSER[sq as usize / 8]);
+
+        Eval::SIDE[usize::from(self.c)] * (p * s.0 + (24 - p) * s.1) / 24
+    }
+
+    fn passers(pawns: u64, mut opps: u64) -> u64 {
+        opps >>= 8;
+        opps |= opps >> 8;
+        opps |= opps >> 16;
+        opps |= opps >> 32;
+        opps |= (opps & !File::A) >> 1 | (opps & !File::H) << 1;
+        pawns & !opps
+    }
+
+    // MAKE MOVE
 
     fn toggle(&mut self, c: usize, pc: usize, bit: u64) {
         self.bb[pc] ^= bit;
@@ -112,7 +153,7 @@ impl Position {
             self.toggle(opp, captured, to_bb);
             self.hash ^= ZVALS.pcs[opp][captured][to];
             self.pst -= PST[opp][captured][to];
-            self.phase -= PHASE_VALS[captured];
+            self.phase -= Eval::PHASE[captured];
         }
 
         // more complex moves
@@ -138,7 +179,7 @@ impl Position {
                 self.hash ^= ZVALS.pcs[side][Piece::PAWN][to] ^ ZVALS.pcs[side][promo][to];
                 self.pst -= PST[side][Piece::PAWN][to];
                 self.pst += PST[side][promo][to];
-                self.phase += PHASE_VALS[promo];
+                self.phase += Eval::PHASE[promo];
             }
             _ => {}
         }
@@ -148,23 +189,7 @@ impl Position {
         self.sq_attacked(kidx, side, self.bb[0] | self.bb[1])
     }
 
-    pub fn draw(&self) -> bool {
-        let (ph, b) = (self.phase, self.bb[Piece::BISHOP]);
-        if self.halfm >= 100 { return true }
-        ph <= 2 && self.bb[Piece::PAWN] == 0 && ((ph != 2) // no pawns left, phase <= 2
-            || (b & self.bb[Side::WHITE] != b && b & self.bb[Side::BLACK] != b // one bishop each
-                && (b & 0x55AA55AA55AA55AA == b || b & 0xAA55AA55AA55AA55 == b))) // same colour bishops
-    }
-
-    pub fn in_check(&self) -> bool {
-        let kidx = (self.bb[Piece::KING] & self.bb[usize::from(self.c)]).trailing_zeros() as usize;
-        self.sq_attacked(kidx, usize::from(self.c), self.bb[0] | self.bb[1])
-    }
-
-    pub fn eval(&self) -> i32 {
-        let (s, p) = (self.pst, 24.min(self.phase));
-        SIDE[usize::from(self.c)] * (p * s.0 + (24 - p) * s.1) / 24
-    }
+    // MOVEGEN
 
     pub fn movegen<const QUIETS: bool>(&self) -> MoveList {
         let mut moves = MoveList::default();
@@ -172,7 +197,6 @@ impl Position {
         let (boys, opps) = (self.bb[side], self.bb[side ^ 1]);
         let pawns = self.bb[Piece::PAWN] & boys;
 
-        // special quiet moves
         if QUIETS {
             let r = self.rights;
             if r & [Rights::WHITE, Rights::BLACK][side] > 0 && !self.in_check() {
@@ -185,7 +209,6 @@ impl Position {
                 }
             }
 
-            // pawn pushes
             let empty = !occ;
             let mut dbl = shift(side, shift(side, empty & Rank::DBL[side]) & empty) & pawns;
             let mut push = shift(side, empty) & pawns;
@@ -198,7 +221,6 @@ impl Position {
             bitloop!(dbl, from, moves.push(from, idx_shift::<16>(side, from), Flag::DBL, Piece::PAWN));
         }
 
-        // pawn captures
         if self.enp_sq > 0 {
             let mut attackers = Attacks::PAWN[side ^ 1][self.enp_sq as usize] & pawns;
             bitloop!(attackers, from, moves.push(from, self.enp_sq, Flag::ENP, Piece::PAWN));
@@ -213,7 +235,6 @@ impl Position {
             bitloop!(attacks, to, for flag in Flag::NPC..=Flag::QPC { moves.push(from, to, flag, Piece::PAWN) });
         });
 
-        // non-pawn moves
         for pc in Piece::KNIGHT..=Piece::KING {
             let mut attackers = boys & self.bb[pc];
             bitloop!(attackers, from, {
@@ -239,11 +260,12 @@ impl Position {
             && !self.sq_attacked(sq, SIDE, occ)
     }
 
+    // PARSING FEN
+
     pub fn from_fen(fen: &str) -> Self {
         let vec = fen.split_whitespace().collect::<Vec<&str>>();
         let p = vec[0].chars().collect::<Vec<char>>();
 
-        // board
         let (mut pos, mut row, mut col) = (Self::default(), 7, 0);
         for ch in p {
             if ch == '/' {
@@ -257,12 +279,11 @@ impl Position {
                 pos.toggle(side, pc, 1 << sq);
                 pos.hash ^= ZVALS.pcs[side][pc][sq as usize];
                 pos.pst += PST[side][pc][sq as usize];
-                pos.phase += PHASE_VALS[pc];
+                pos.phase += Eval::PHASE[pc];
                 col += 1;
             }
         }
 
-        // state
         pos.c = vec[1] == "b";
         pos.enp_sq = if vec[3] == "-" {0} else {
             let chs: Vec<char> = vec[3].chars().collect();
