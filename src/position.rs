@@ -93,10 +93,10 @@ impl Position {
         // passed pawn eval
         let pawns = self.bb[Piece::PAWN];
         let (wp, bp) = (pawns & self.bb[Side::WHITE], pawns & self.bb[Side::BLACK]);
-        let mut wpasser = Self::passers(wp, bp);
-        let mut bpasser = Self::passers(bp.swap_bytes(), wp.swap_bytes());
-        bitloop!(wpasser, sq, s += Eval::PASSER[sq as usize / 8]);
-        bitloop!(bpasser, sq, s -= Eval::PASSER[sq as usize / 8]);
+        let mut passed = Self::passers(wp, bp);
+        bitloop!(passed, sq, s += Eval::PASSER[sq as usize / 8]);
+        passed = Self::passers(bp.swap_bytes(), wp.swap_bytes());
+        bitloop!(passed, sq, s -= Eval::PASSER[sq as usize / 8]);
 
         Eval::SIDE[usize::from(self.c)] * (p * s.0 + (24 - p) * s.1) / 24
     }
