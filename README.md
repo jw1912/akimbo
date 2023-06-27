@@ -22,7 +22,8 @@ The main aim is to stay under 1000 SLOC (excluding comments and blank lines) and
 #### Evaluation
 - Tapered Midgame to Endgame
 - Piece-Square Tables
-- Passed Pawn Bonus by Rank
+- Passed Pawn Bonus, by Rank
+- Rook on Open File, by File
 
 #### Selectivity
 - Aspiration Windows
