@@ -100,9 +100,9 @@ impl Position {
 
         // rooks on open files
         let mut rook = self.bb[Piece::ROOK] & self.bb[Side::WHITE];
-        bitloop!(rook, sq, s += i32::from((File::A << (sq & 7)) & pawns == 0) * Eval::OPEN[sq as usize / 8]);
+        bitloop!(rook, sq, s += i32::from((File::A << (sq & 7)) & pawns == 0) * Eval::OPEN[usize::from(sq & 7)]);
         let mut rook = self.bb[Piece::ROOK] & self.bb[Side::BLACK];
-        bitloop!(rook, sq, s -= i32::from((File::A << (sq & 7)) & pawns == 0) * Eval::OPEN[7 - sq as usize / 8]);
+        bitloop!(rook, sq, s -= i32::from((File::A << (sq & 7)) & pawns == 0) * Eval::OPEN[usize::from(sq & 7)]);
 
         Eval::SIDE[usize::from(self.c)] * (p * s.0 + (24 - p) * s.1) / 24
     }
