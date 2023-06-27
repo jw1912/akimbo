@@ -31,6 +31,13 @@ impl std::ops::SubAssign<S> for S {
     }
 }
 
+impl std::ops::Mul<S> for i32 {
+    type Output = S;
+    fn mul(self, rhs: S) -> Self::Output {
+        S(self * rhs.0, self * rhs.1)
+    }
+}
+
 // Macros
 macro_rules! init {($i:ident, $size:expr, $($r:tt)+) => {{
     let mut $i = 0;
@@ -153,7 +160,8 @@ impl Eval {
     pub const SIDE: [i32; 2] = [1, -1];
     pub const PHASE: [i32; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
 
-    pub const PASSER: [S; 8] = [S(0, 0), S(-9, -4), S(-17, -2), S(-15, 24), S(9, 46), S(16, 86), S(30, 72), S(0, 0)];
+    pub const PASSER: [S; 7] = [S(0, 0), S(-9, -4), S(-17, -2), S(-15, 24), S(9, 46), S(16, 86), S(30, 72)];
+    pub const OPEN: [S; 8] = [S(0, 0); 8];
     const RAW_PST: [[S; 64]; 8] = [[S(0, 0); 64], [S(0, 0); 64],
         [
             S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100), S(100, 100),
