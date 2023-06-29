@@ -1,7 +1,7 @@
 use std::{sync::atomic::{AtomicU64, Ordering::Relaxed}, time::Instant};
 use super::{util::{Bound, Flag, MoveScore, Score}, position::{Move, MoveList, Position}};
 
-static QNODES: AtomicU64 = AtomicU64::new(0);
+pub static QNODES: AtomicU64 = AtomicU64::new(0);
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
     MoveScore::HISTORY_MAX * pos.get_pc(1 << mov.to) as i32 - mov.pc as i32
@@ -101,7 +101,7 @@ impl Engine {
     }
 }
 
-pub fn go(start: &Position, eng: &mut Engine) {
+pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32) {
     // reset engine
     *eng.ktable = [[Move::default(); 2]; 96];
     eng.htable.iter_mut().flatten().flatten().for_each(|x| *x /= 2);
@@ -118,7 +118,7 @@ pub fn go(start: &Position, eng: &mut Engine) {
     pos.check = pos.in_check();
 
     // iterative deepening loop
-    for d in 1..=64 {
+    for d in 1..=max_depth {
         eval = if d < 7 {
             pvs(&pos, eng, -Score::MAX, Score::MAX, d, false)
         } else { aspiration(&pos, eng, eval, d) };
@@ -127,15 +127,17 @@ pub fn go(start: &Position, eng: &mut Engine) {
         best = eng.best_move.to_uci();
 
         // UCI output
-        let score = if eval.abs() >= Score::MATE {
-            format!("score mate {}", if eval < 0 {eval.abs() - Score::MAX} else {Score::MAX - eval + 1} / 2)
-        } else {format!("score cp {eval}")};
-        let t = eng.timing.elapsed().as_millis();
-        let nodes = eng.nodes + QNODES.load(Relaxed);
-        let nps = (1000.0 * nodes as f64 / t as f64) as u32;
-        let pv_line = &eng.pv_table[0];
-        let pv = pv_line.list.iter().take(pv_line.len).map(|mov| format!("{} ", mov.to_uci())).collect::<String>();
-        println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}");
+        if report {
+            let score = if eval.abs() >= Score::MATE {
+                format!("score mate {}", if eval < 0 {eval.abs() - Score::MAX} else {Score::MAX - eval + 1} / 2)
+            } else {format!("score cp {eval}")};
+            let t = eng.timing.elapsed().as_millis();
+            let nodes = eng.nodes + QNODES.load(Relaxed);
+            let nps = (1000.0 * nodes as f64 / t as f64) as u32;
+            let pv_line = &eng.pv_table[0];
+            let pv = pv_line.list.iter().take(pv_line.len).map(|mov| format!("{} ", mov.to_uci())).collect::<String>();
+            println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}");
+        }
     }
     eng.tt_age = 63.min(eng.tt_age + 1);
     println!("bestmove {best}");
