@@ -2,13 +2,16 @@ mod util;
 mod position;
 mod search;
 
-use crate::{position::{Move, MoveList, Position}, search::{Engine, go}};
+use crate::{position::{Move, MoveList, Position}, search::{Engine, go, QNODES}};
 use std::{io, process, time::Instant};
 
+const FEN_STRING: &str = include_str!("../fens.txt");
 const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 fn main() {
     println!("akimbo, created by Jamie Whiting");
+
+    // initialise engine
     let mut pos = Position::from_fen(STARTPOS);
     let mut eng = Engine {
         timing: Instant::now(), max_time: 0, abort: false,
@@ -21,6 +24,24 @@ fn main() {
         pv_table: Box::new([MoveList::default(); 96]),
     };
     eng.resize_tt(16);
+
+    // bench for OpenBench
+    if std::env::args().nth(1).as_deref() == Some("bench") {
+        let (mut total_nodes, mut total_time) = (0, 0);
+        eng.max_time = 30000;
+        let bench_fens = FEN_STRING.split('\n').collect::<Vec<&str>>();
+        for fen in bench_fens {
+            pos = Position::from_fen(fen);
+            let timer = Instant::now();
+            go(&pos, &mut eng, false, 8);
+            total_time += timer.elapsed().as_millis();
+            total_nodes += eng.nodes + QNODES.load(std::sync::atomic::Ordering::Relaxed);
+        }
+        println!("Bench: {total_nodes} nodes {} nps", total_nodes * 1000 / (total_time as u64).max(1));
+        return;
+    }
+
+    // main uci loop
     loop {
         let mut input = String::new();
         io::stdin().read_line(&mut input).unwrap();
@@ -62,7 +83,7 @@ fn main() {
                 let (time, inc) = (times[side], incs[side]);
                 if time != 0 { alloc = time.min(time / mtg + 3 * inc / 4) }
                 eng.max_time = 10.max(alloc - 10) as u128;
-                go(&pos, &mut eng);
+                go(&pos, &mut eng, true, 64);
             },
             "position" => {
                 let (mut fen, mut move_list, mut moves) = (String::new(), Vec::new(), false);
