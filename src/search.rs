@@ -309,7 +309,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
         // is a passed pawn move?
         let passed = usize::from(mov.pc) == Piece::PAWN
-            && SPANS[usize::from(pos.c)][usize::from(mov.from)] & pos.bb[Piece::PAWN] & pos.bb[usize::from(!pos.c)] > 0;
+            && SPANS[usize::from(pos.c)][usize::from(mov.from)] & pos.bb[Piece::PAWN] & pos.bb[usize::from(!pos.c)] == 0;
 
         // reductions
         let reduce = if can_lmr && ms < MoveScore::KILLER && !passed {
