@@ -307,12 +307,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             quiets_tried.len += 1;
         }
 
-        // is a passed pawn move?
-        let passed = usize::from(mov.pc) == Piece::PAWN
-            && SPANS[usize::from(pos.c)][usize::from(mov.from)] & pos.bb[Piece::PAWN] & pos.bb[usize::from(!pos.c)] == 0;
-
         // reductions
-        let reduce = if can_lmr && ms < MoveScore::KILLER && !passed {
+        let reduce = if can_lmr && ms < MoveScore::KILLER {
             // late move reductions - Viridithas values used
             let mut r = (0.77 + lmr_base * (legal as f64).ln()) as i32;
 
@@ -321,6 +317,11 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
             // reduce checks less
             r -= i32::from(new.check);
+
+            // reduce passed pawn moves less
+            let passed = usize::from(mov.pc) == Piece::PAWN
+                && SPANS[usize::from(pos.c)][usize::from(mov.from)] & pos.bb[Piece::PAWN] & pos.bb[usize::from(!pos.c)] == 0;
+            r -= i32::from(passed);
 
             // don't accidentally extend
             r.max(0)
