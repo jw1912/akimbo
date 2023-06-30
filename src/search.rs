@@ -1,5 +1,7 @@
 use std::{sync::atomic::{AtomicU64, Ordering::Relaxed}, time::Instant};
-use super::{util::{Bound, Flag, MoveScore, Score}, position::{Move, MoveList, Position}};
+use crate::util::SPANS;
+
+use super::{util::{Bound, Flag, MoveScore, Piece, Score}, position::{Move, MoveList, Position}};
 
 pub static QNODES: AtomicU64 = AtomicU64::new(0);
 
@@ -305,8 +307,12 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             quiets_tried.len += 1;
         }
 
+        // is a passed pawn move?
+        let passed = usize::from(mov.pc) == Piece::PAWN
+            && SPANS[usize::from(pos.c)][usize::from(mov.from)] & pos.bb[Piece::PAWN] & pos.bb[usize::from(!pos.c)] > 0;
+
         // reductions
-        let reduce = if can_lmr && ms < MoveScore::KILLER {
+        let reduce = if can_lmr && ms < MoveScore::KILLER && !passed {
             // late move reductions - Viridithas values used
             let mut r = (0.77 + lmr_base * (legal as f64).ln()) as i32;
 
