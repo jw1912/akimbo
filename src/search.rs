@@ -1,7 +1,5 @@
 use std::{sync::atomic::{AtomicU64, Ordering::Relaxed}, time::Instant};
-use crate::util::SPANS;
-
-use super::{util::{Bound, Flag, MoveScore, Piece, Score}, position::{Move, MoveList, Position}};
+use super::{util::{Bound, Flag, MoveScore, Piece, Score, SPANS}, position::{Move, MoveList, Position}};
 
 pub static QNODES: AtomicU64 = AtomicU64::new(0);
 
