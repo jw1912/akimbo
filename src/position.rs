@@ -10,7 +10,7 @@ macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
 
 #[derive(Clone, Copy, Default)]
 pub struct Position {
-    bb: [u64; 8],
+    pub bb: [u64; 8],
     pub c: bool,
     pub halfm: u8,
     pub enp_sq: u8,

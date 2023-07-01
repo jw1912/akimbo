@@ -49,6 +49,7 @@ fn main() {
         match *commands.first().unwrap_or(&"oops") {
             "uci" => {
                 println!("id name akimbo {}\nid author Jamie Whiting", env!("CARGO_PKG_VERSION"));
+                println!("option name Threads type spin default 1 min 1 max 1");
                 println!("option name Hash type spin default 16 min 1 max 1024");
                 println!("option name Clear Hash type button");
                 println!("uciok");

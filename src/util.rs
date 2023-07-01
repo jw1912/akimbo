@@ -143,6 +143,14 @@ pub static ZVALS: ZobristVals = {
 };
 
 // Eval
+const FRONT_SPANS: [u64; 64] = init! {i, 64, {
+    let mut bb = (1 << i) << 8;
+    bb |= bb << 8;
+    bb |= bb << 16;
+    bb |= bb << 32;
+    bb | (bb & !File::H) << 1 | (bb & !File::A) >> 1
+}};
+pub const SPANS: [[u64; 64]; 2] = [FRONT_SPANS, init! {i, 64, FRONT_SPANS[i ^ 56].swap_bytes()}];
 pub const SIDE: [i32; 2] = [1, -1];
 pub const PHASE_VALS: [i32; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
 pub static PST: [[[S; 64]; 8]; 2] = [

@@ -1,5 +1,7 @@
 use std::{sync::atomic::{AtomicU64, Ordering::Relaxed}, time::Instant};
-use super::{util::{Bound, Flag, MoveScore, Score}, position::{Move, MoveList, Position}};
+use crate::util::SPANS;
+
+use super::{util::{Bound, Flag, MoveScore, Piece, Score}, position::{Move, MoveList, Position}};
 
 pub static QNODES: AtomicU64 = AtomicU64::new(0);
 
@@ -315,6 +317,11 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
             // reduce checks less
             r -= i32::from(new.check);
+
+            // reduce passed pawn moves less
+            let passed = usize::from(mov.pc) == Piece::PAWN
+                && SPANS[usize::from(pos.c)][usize::from(mov.from)] & pos.bb[Piece::PAWN] & pos.bb[usize::from(!pos.c)] == 0;
+            r -= i32::from(passed);
 
             // don't accidentally extend
             r.max(0)
