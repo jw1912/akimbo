@@ -112,7 +112,7 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32) {
     eng.abort = false;
     QNODES.store(0, Relaxed);
 
-    let mut best = String::new();
+    let mut best_move = Move::default();
     let mut pos = *start;
     let mut eval = 0;
     pos.check = pos.in_check();
@@ -121,10 +121,10 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32) {
     for d in 1..=max_depth {
         eval = if d < 7 {
             pvs(&pos, eng, -Score::MAX, Score::MAX, d, false)
-        } else { aspiration(&pos, eng, eval, d) };
+        } else { aspiration(&pos, eng, eval, d, &mut best_move) };
 
         if eng.abort { break }
-        best = eng.best_move.to_uci();
+        best_move = eng.best_move;
 
         // UCI output
         if report {
@@ -140,10 +140,10 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32) {
         }
     }
     eng.tt_age = 63.min(eng.tt_age + 1);
-    println!("bestmove {best}");
+    println!("bestmove {}", best_move.to_uci());
 }
 
-fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, depth: i32) -> i32 {
+fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, depth: i32, best_move: &mut Move) -> i32 {
     let mut delta = 25;
     let mut alpha = (-Score::MAX).max(score - delta);
     let mut beta = Score::MAX.min(score + delta);
@@ -158,6 +158,7 @@ fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, depth: i32) -> i
         } else if score >= beta {
             alpha = (alpha + beta) / 2;
             beta = Score::MAX.min(beta + delta);
+            *best_move = eng.best_move;
         } else {
             return score
         }
