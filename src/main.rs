@@ -44,7 +44,9 @@ fn main() {
     // main uci loop
     loop {
         let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
+        let bytes_read = io::stdin().read_line(&mut input).unwrap();
+        // got EOF, exit (for OpenBench).
+        if bytes_read == 0 { break }
         let commands = input.split_whitespace().collect::<Vec<_>>();
         match *commands.first().unwrap_or(&"oops") {
             "uci" => {
