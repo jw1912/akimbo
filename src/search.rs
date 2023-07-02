@@ -342,7 +342,6 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         // new best move
         if score <= best_score { continue }
         best_score = score;
-        best_move = mov;
 
         // update pv line
         if pv_node {
@@ -355,6 +354,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
         // improve alpha
         if score <= alpha { continue }
+        best_move = mov;
         alpha = score;
         bound = Bound::EXACT;
 
