@@ -366,7 +366,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         let bonus = (16 * depth.pow(2)).min(1200);
         eng.push_history(mov, pos.c, bonus);
         for &quiet in &quiets_tried.list[..quiets_tried.len - 1] {
-            eng.push_history(quiet, pos.c, -bonus / 2)
+            eng.push_history(quiet, pos.c, -bonus)
         }
 
         break
