@@ -222,10 +222,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     // probing hash table
     let pv_node = beta > alpha + 1;
     let mut eval = pos.eval();
-    let mut tt_hit = false;
     let mut tt_move = Move::default();
     if let Some(res) = eng.probe_tt(hash) {
-        tt_hit = true;
         tt_move = Move::from_short(res.best_move, pos);
         let tt_score = i32::from(res.score);
         if !pv_node && depth <= i32::from(res.depth)
@@ -270,7 +268,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     }
 
     // internal iterative reduction
-    if depth >= 4 && !tt_hit { depth -= 1 }
+    if depth >= 4 && tt_move == Move::default() { depth -= 1 }
 
     // generating and scoring moves
     let mut moves = pos.movegen::<true>();
