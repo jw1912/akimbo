@@ -288,11 +288,15 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let (mut legal, mut bound) = (0, Bound::UPPER);
     let (mut best_score, mut best_move) = (-Score::MAX, tt_move);
     let mut quiets_tried = MoveList::default();
+    let can_lmp = !pv_node && !pos.check && depth < 4;
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
 
     eng.push(hash);
     while let Some((mov, ms)) = moves.pick(&mut scores) {
+        // late move pruning
+        if can_lmp && best_score.abs() < Score::MATE && legal > 10 * depth { break }
+
         let mut new = *pos;
 
         // skip move if not legal
