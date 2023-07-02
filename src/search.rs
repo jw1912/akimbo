@@ -221,9 +221,10 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
     // probing hash table
     let pv_node = beta > alpha + 1;
+    let mut eval = pos.eval();
     let mut tt_hit = false;
     let mut tt_move = Move::default();
-    let eval = if let Some(res) = eng.probe_tt(hash) {
+    if let Some(res) = eng.probe_tt(hash) {
         tt_hit = true;
         tt_move = Move::from_short(res.best_move, pos);
         let tt_score = i32::from(res.score);
@@ -233,8 +234,11 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
                 Bound::UPPER => tt_score <= alpha,
                 _ => true,
         } { return tt_score }
-        tt_score
-    } else { pos.eval() };
+        if (eval <= tt_score || res.bound & 3 != Bound::LOWER)
+            && (eval >= tt_score || res.bound & 3 != Bound::UPPER) {
+                eval = tt_score;
+        }
+    }
 
     // improving heuristic
     eng.evals[eng.ply as usize] = eval;
