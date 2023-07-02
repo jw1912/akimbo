@@ -68,7 +68,7 @@ impl Engine {
         self.tt_age = 0;
     }
 
-    fn push_tt(&mut self, hash: u64, mov: Move, depth: i32, bound: u8, mut score: i32) {
+    fn push_tt(&mut self, hash: u64, mov: Move, depth: i8, bound: u8, mut score: i32) {
         let (key, idx) = ((hash >> 48) as u16, (hash as usize) & (self.tt.len() - 1));
         let entry = &mut self.tt[idx];
 
@@ -79,7 +79,7 @@ impl Engine {
         // replace entry
         score += if score.abs() > Score::MATE {score.signum() * self.ply} else {0};
         let best_move = u16::from(mov.from) << 6 | u16::from(mov.to) | u16::from(mov.flag) << 12;
-        *entry = HashEntry { key, best_move, score: score as i16, depth: depth as i8, bound: (self.tt_age << 2) | bound };
+        *entry = HashEntry { key, best_move, score: score as i16, depth, bound: (self.tt_age << 2) | bound };
     }
 
     fn probe_tt(&self, hash: u64) -> Option<HashEntry> {
@@ -174,9 +174,7 @@ fn qs(pos: &Position, mut alpha: i32, beta: i32) -> i32 {
 
     let mut caps = pos.movegen::<false>();
     let mut scores = [0; 252];
-    for (i, score) in scores.iter_mut().enumerate().take(caps.len) {
-        *score = mvv_lva(caps.list[i], pos)
-    }
+    scores.iter_mut().enumerate().take(caps.len).for_each(|(i, s)| *s = mvv_lva(caps.list[i], pos));
 
     while let Some((mov, _)) = caps.pick(&mut scores) {
         let mut new = *pos;
@@ -225,16 +223,19 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let mut tt_move = Move::default();
     if let Some(res) = eng.probe_tt(hash) {
         tt_move = Move::from_short(res.best_move, pos);
-        let tt_score = i32::from(res.score);
-        if !pv_node && depth <= i32::from(res.depth)
-            && match res.bound & 3 {
-                Bound::LOWER => tt_score >= beta,
-                Bound::UPPER => tt_score <= alpha,
-                _ => true,
-        } { return tt_score }
-        if (eval <= tt_score || res.bound & 3 != Bound::LOWER)
-            && (eval >= tt_score || res.bound & 3 != Bound::UPPER) {
-                eval = tt_score;
+        let score = i32::from(res.score);
+        let bound = res.bound & 3;
+
+        // tt cutoffs
+        if !pv_node && depth <= i32::from(res.depth) && match bound {
+            Bound::LOWER => score >= beta,
+            Bound::UPPER => score <= alpha,
+            _ => true,
+        } { return score }
+
+        // use tt score instead of static eval
+        if !((eval > score && bound == Bound::LOWER) || (eval < score && bound == Bound::UPPER)) {
+            eval = score;
         }
     }
 
@@ -274,14 +275,14 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let mut moves = pos.movegen::<true>();
     let mut scores = [0; 252];
     let killers = eng.ktable[eng.ply as usize];
-    for (i, &mov) in moves.list[..moves.len].iter().enumerate() {
+    moves.list[..moves.len].iter().enumerate().for_each(|(i, &mov)|
         scores[i] = if mov == tt_move { MoveScore::HASH }
             else if mov.flag == Flag::ENP { 2 * MoveScore::HISTORY_MAX }
             else if mov.flag & 4 > 0 { mvv_lva(mov, pos) }
             else if mov.flag & 8 > 0 { MoveScore::PROMO + i32::from(mov.flag & 7) }
             else if killers.contains(&mov) { MoveScore::KILLER }
-            else { eng.htable[usize::from(pos.c)][usize::from(mov.pc - 2)][usize::from(mov.to)] };
-    }
+            else { eng.htable[usize::from(pos.c)][usize::from(mov.pc - 2)][usize::from(mov.to)] }
+    );
 
     // stuff for going through moves
     let (mut legal, mut bound) = (0, Bound::UPPER);
@@ -377,6 +378,6 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     if eng.abort { return 0 }
     if eng.ply == 0 { eng.best_move = best_move }
     if legal == 0 { return i32::from(pos.check) * (eng.ply - Score::MAX) }
-    eng.push_tt(hash, best_move, depth, bound, best_score);
+    eng.push_tt(hash, best_move, depth as i8, bound, best_score);
     best_score
 }
