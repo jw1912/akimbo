@@ -9,6 +9,9 @@
 
 A compact UCI Chess engine written in Rust.
 
+Huge thanks to all of the members of [this OpenBench Instance](https://chess.swehosting.se/users/) who have provided support and guidance in the development
+of akimbo, as well as facilitating far faster testing than on my own.
+
 ## Aims
 
 #### Small
