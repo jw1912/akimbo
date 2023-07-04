@@ -33,7 +33,7 @@ fn main() {
         for fen in bench_fens {
             pos = Position::from_fen(fen);
             let timer = Instant::now();
-            go(&pos, &mut eng, false, 8);
+            go(&pos, &mut eng, false, 11);
             total_time += timer.elapsed().as_millis();
             total_nodes += eng.nodes + QNODES.load(std::sync::atomic::Ordering::Relaxed);
         }
