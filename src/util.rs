@@ -143,6 +143,7 @@ pub static ZVALS: ZobristVals = {
 };
 
 // Eval
+pub const SEE_VALS: [i32; 8] = [0, 0, 100, 450, 450, 650, 1250, 0];
 const FRONT_SPANS: [u64; 64] = init! {i, 64, {
     let mut bb = (1 << i) << 8;
     bb |= bb << 8;

@@ -166,6 +166,74 @@ impl Position {
         SIDE[usize::from(self.c)] * (p * s.0 + (24 - p) * s.1) / 24
     }
 
+    fn gain(&self, mov: Move) -> i32 {
+        if mov.flag == Flag::ENP { return SEE_VALS[Piece::PAWN] }
+        let mut score = SEE_VALS[self.get_pc(1 << mov.to)];
+        if mov.flag >= Flag::PROMO { score += SEE_VALS[usize::from(mov.flag & 3) + 3] - SEE_VALS[Piece::PAWN] }
+        score
+    }
+
+    fn attackers_to(&self, sq: usize, occ: u64, bishops: u64, rooks: u64) -> u64 {
+        (Attacks::KNIGHT[sq] & self.bb[Piece::KNIGHT])
+        | (Attacks::KING  [sq] & self.bb[Piece::KING  ])
+        | (Attacks::PAWN[Side::WHITE][sq] & self.bb[Piece::PAWN] & self.bb[Side::BLACK])
+        | (Attacks::PAWN[Side::BLACK][sq] & self.bb[Piece::PAWN] & self.bb[Side::WHITE])
+        | (Attacks::rook  (sq, occ) & rooks  )
+        | (Attacks::bishop(sq, occ) & bishops)
+    }
+
+    pub fn see(&self, mov: Move, threshold: i32) -> bool {
+        let sq = usize::from(mov.to);
+        let mut score = self.gain(mov) - threshold;
+
+        // early out in best case
+        if score < 0 { return false }
+
+        let mut next = usize::from(if mov.flag >= Flag::PROMO { (mov.flag & 3) + 3 } else { mov.pc });
+        score -= SEE_VALS[next];
+
+        // early out in worst case
+        if score >= 0 { return true }
+
+        // occupancy after move
+        let mut occ = (self.bb[Side::WHITE] | self.bb[Side::BLACK]) ^ (1 << mov.from) ^ (1 << sq);
+        if mov.flag == Flag::ENP { occ ^= 1 << (sq ^ 8) }
+
+        let bishops = self.bb[Piece::BISHOP] | self.bb[Piece::QUEEN];
+        let rooks   = self.bb[Piece::ROOK  ] | self.bb[Piece::QUEEN];
+        let mut attackers = self.attackers_to(sq, occ, bishops, rooks);
+        let mut us = usize::from(!self.c);
+
+        loop {
+            let our_attackers = attackers & self.bb[us];
+            if our_attackers == 0 { break }
+
+            // find next attacking piece (least valuable first)
+            for pc in Piece::PAWN..=Piece::KING {
+                let board = our_attackers & self.bb[pc];
+                if board > 0 {
+                    occ ^= board & board.wrapping_neg();
+                    next = pc;
+                    break;
+                }
+            }
+
+            // discovered attacks
+            if [Piece::PAWN, Piece::BISHOP, Piece::QUEEN].contains(&next) { attackers |= Attacks::bishop(sq, occ) & bishops}
+            if [Piece::ROOK, Piece::QUEEN].contains(&next) { attackers |= Attacks::rook(sq, occ) & rooks}
+
+            attackers &= occ;
+            score = -score - 1 - SEE_VALS[next];
+            us ^= 1;
+
+            if score >= 0 {
+                if next == Piece::KING && attackers & self.bb[us] > 0 { us ^= 1 }
+                break
+            }
+        }
+        self.c != (us == 1)
+    }
+
     pub fn movegen<const QUIETS: bool>(&self) -> MoveList {
         let mut moves = MoveList::default();
         let (side, occ) = (usize::from(self.c), self.bb[0] | self.bb[1]);
