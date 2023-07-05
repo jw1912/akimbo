@@ -225,6 +225,7 @@ impl Position {
                 break
             }
         }
+
         usize::from(self.c) != us
     }
 
