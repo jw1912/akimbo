@@ -4,7 +4,7 @@ use super::{util::{Bound, Flag, MoveScore, Piece, Score, SPANS}, position::{Move
 pub static QNODES: AtomicU64 = AtomicU64::new(0);
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
-    MoveScore::HISTORY_MAX * pos.get_pc(1 << mov.to) as i32 - mov.pc as i32
+    8 * pos.get_pc(1 << mov.to) as i32 - mov.pc as i32
 }
 
 #[derive(Clone, Copy, Default)]
@@ -280,8 +280,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let killers = eng.ktable[eng.ply as usize];
     moves.list[..moves.len].iter().enumerate().for_each(|(i, &mov)|
         scores[i] = if mov == tt_move { MoveScore::HASH }
-            else if mov.flag == Flag::ENP { 2 * MoveScore::HISTORY_MAX }
-            else if mov.flag & 4 > 0 { mvv_lva(mov, pos) }
+            else if mov.flag == Flag::ENP { MoveScore::CAPTURE + 16 }
+            else if mov.flag & 4 > 0 { MoveScore::CAPTURE * i32::from(pos.see(mov, 0)) + mvv_lva(mov, pos) }
             else if mov.flag & 8 > 0 { MoveScore::PROMO + i32::from(mov.flag & 7) }
             else if killers.contains(&mov) { MoveScore::KILLER }
             else { eng.htable[usize::from(pos.c)][usize::from(mov.pc - 2)][usize::from(mov.to)] }
@@ -306,7 +306,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             if ms < MoveScore::KILLER && legal > 2 + depth * depth { break }
 
             // static exchange eval pruning
-            if depth < 7 && mov.flag & Flag::CAP > 0 && !pos.see(mov, -90 * depth) { continue }
+            if depth < 7 && ms < MoveScore::CAPTURE && mov.flag & Flag::CAP > 0 && !pos.see(mov, -90 * depth) { continue }
         }
 
         let mut new = *pos;
