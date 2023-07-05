@@ -201,6 +201,7 @@ impl Position {
 
         let mut next = usize::from(if mov.flag >= Flag::PROMO { (mov.flag & 3) + 3 } else { mov.pc });
         score -= SEE_VALS[next];
+        if score >= 0 { return true }
 
         let mut occ = self.bb[Side::WHITE] ^ self.bb[Side::BLACK] ^ (1 << mov.from) ^ (1 << sq);
         let queens = self.bb[Piece::QUEEN];
@@ -225,7 +226,6 @@ impl Position {
                 break
             }
         }
-
         usize::from(self.c) != us
     }
 
