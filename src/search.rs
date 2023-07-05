@@ -177,6 +177,9 @@ fn qs(pos: &Position, mut alpha: i32, beta: i32) -> i32 {
     scores.iter_mut().enumerate().take(caps.len).for_each(|(i, s)| *s = mvv_lva(caps.list[i], pos));
 
     while let Some((mov, _)) = caps.pick(&mut scores) {
+        // static exchange eval pruning
+        if !pos.see(mov, 0) { continue }
+
         let mut new = *pos;
         if new.make(mov) { continue }
         QNODES.fetch_add(1, Relaxed);
@@ -302,7 +305,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             // quiet
             if ms < MoveScore::KILLER && legal > 2 + depth * depth { break }
 
-            // see pruning
+            // static exchange eval pruning
             if depth < 7 && mov.flag & Flag::CAP > 0 && !pos.see(mov, -90 * depth) { continue }
         }
 
