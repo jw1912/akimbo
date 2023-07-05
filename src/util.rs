@@ -85,7 +85,7 @@ impl Attacks {
 // All named collections of constants
 c_enum!(u8, Bound, LOWER = 0, EXACT = 1, UPPER = 2);
 c_enum!(i32, Score, MAX = 30000, MATE = Self::MAX - 256, DRAW = 0);
-c_enum!(i32, MoveScore, HASH = 3000000, HISTORY_MAX = 65536, PROMO = 70000, KILLER = 69000);
+c_enum!(i32, MoveScore, HASH = 3000000, HISTORY_MAX = 65536, PROMO = 70000, KILLER = 69000, CAPTURE = 2 * Self::HISTORY_MAX);
 c_enum!(usize, Side, WHITE = 0, BLACK = 1);
 c_enum!(usize, Piece, EMPTY = 0, PAWN = 2, KNIGHT = 3, BISHOP = 4, ROOK = 5, QUEEN = 6, KING = 7);
 c_enum!(u8, Flag, QUIET = 0, DBL = 1, KS = 2, QS = 3, CAP = 4, ENP = 5, PROMO = 8, QPR = 11, NPC = 12, QPC = 15);
