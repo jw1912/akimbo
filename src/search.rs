@@ -296,14 +296,14 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     while let Some((mov, ms)) = moves.pick(&mut scores) {
         // late move pruning
         if can_prune && best_score.abs() < Score::MATE {
-            // see pruning
-            if depth < 7 && mov.flag & Flag::CAP == Flag::CAP && !pos.see(mov, -90 * depth) { continue }
-
             // standard
             if depth < 4 && legal > 10 * depth { break }
 
             // quiet
             if ms < MoveScore::KILLER && legal > 2 + depth * depth { break }
+
+            // see pruning
+            if depth < 7 && mov.flag & Flag::CAP > 0 && !pos.see(mov, -90 * depth) { continue }
         }
 
         let mut new = *pos;
