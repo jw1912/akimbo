@@ -178,7 +178,7 @@ fn qs(pos: &Position, mut alpha: i32, beta: i32) -> i32 {
 
     while let Some((mov, _)) = caps.pick(&mut scores) {
         // static exchange eval pruning
-        if !pos.see(mov, 0) { continue }
+        if !pos.see(mov, 1) { continue }
 
         let mut new = *pos;
         if new.make(mov) { continue }
