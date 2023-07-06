@@ -297,13 +297,13 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
     eng.push(hash);
     while let Some((mov, ms)) = moves.pick(&mut scores) {
-        // late move pruning
+        // pre-move pruning
         if can_prune && best_score.abs() < Score::MATE {
-            // standard
+            // standard late move pruning
             if depth < 4 && legal > 10 * depth { break }
 
-            // quiet
-            if ms < MoveScore::KILLER && legal > 2 + depth * depth { break }
+            // quiet late move pruning
+            if ms < MoveScore::KILLER && legal > 2 + depth * depth / if improving {1} else {2} { break }
 
             // static exchange eval pruning
             let margin = if mov.flag & Flag::CAP > 0 {-90} else {-50};
