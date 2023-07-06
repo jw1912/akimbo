@@ -120,7 +120,7 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32) {
     // iterative deepening loop
     for d in 1..=max_depth {
         eval = if d < 7 {
-            pvs(&pos, eng, -Score::MAX, Score::MAX, d, false)
+            pvs(&pos, eng, -Score::MAX, Score::MAX, d, false, Move::default())
         } else { aspiration(&pos, eng, eval, d, &mut best_move) };
 
         if eng.abort { break }
@@ -149,7 +149,7 @@ fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, depth: i32, best
     let mut beta = Score::MAX.min(score + delta);
 
     loop {
-        score = pvs(pos, eng, alpha, beta, depth, false);
+        score = pvs(pos, eng, alpha, beta, depth, false, Move::default());
         if eng.abort { return 0 }
 
         if score <= alpha {
@@ -193,7 +193,7 @@ fn qs(pos: &Position, mut alpha: i32, beta: i32) -> i32 {
     eval
 }
 
-fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut depth: i32, null: bool) -> i32 {
+fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut depth: i32, null: bool, s_mov: Move) -> i32 {
     // stopping search
     if eng.abort { return 0 }
     if eng.nodes & 1023 == 0 && eng.timing.elapsed().as_millis() >= eng.max_time {
@@ -222,23 +222,27 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
     // probing hash table
     let pv_node = beta > alpha + 1;
+    let is_singular = s_mov != Move::default();
     let mut eval = pos.eval();
     let mut tt_move = Move::default();
+    let mut tt_score = -Score::MAX;
+    let mut try_singular = false;
     if let Some(res) = eng.probe_tt(hash) {
         tt_move = Move::from_short(res.best_move, pos);
-        let score = i32::from(res.score);
+        tt_score = i32::from(res.score);
         let bound = res.bound & 3;
+        try_singular = i32::from(res.depth) >= depth - 3 && bound != Bound::UPPER;
 
         // tt cutoffs
-        if !pv_node && depth <= i32::from(res.depth) && match bound {
-            Bound::LOWER => score >= beta,
-            Bound::UPPER => score <= alpha,
+        if !is_singular && !pv_node && depth <= i32::from(res.depth) && match bound {
+            Bound::LOWER => tt_score >= beta,
+            Bound::UPPER => tt_score <= alpha,
             _ => true,
-        } { return score }
+        } { return tt_score }
 
         // use tt score instead of static eval
-        if !((eval > score && bound == Bound::LOWER) || (eval < score && bound == Bound::UPPER)) {
-            eval = score;
+        if !((eval > tt_score && bound == Bound::LOWER) || (eval < tt_score && bound == Bound::UPPER)) {
+            eval = tt_score;
         }
     }
 
@@ -264,7 +268,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             eng.push(hash);
             new.c = !new.c;
             new.enp_sq = 0;
-            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false);
+            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, Move::default());
             eng.pop();
             if nw >= Score::MATE { return beta }
             if nw >= beta { return nw }
@@ -297,6 +301,9 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
     eng.push(hash);
     while let Some((mov, ms)) = moves.pick(&mut scores) {
+        // move is singular in a singular search
+        if mov == s_mov { continue }
+
         // pre-move pruning
         if can_prune && best_score.abs() < Score::MATE {
             // standard late move pruning
@@ -324,6 +331,17 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             quiets_tried.len += 1;
         }
 
+        // singular extensions
+        let mut ext = 0;
+        if eng.ply > 0 && depth >= 8 && mov == tt_move && try_singular
+            && !is_singular && tt_score.abs() < Score::MATE {
+            let s_beta = tt_score - depth * 2;
+            eng.pop();
+            let ret = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, mov);
+            eng.push(hash);
+            if ret < s_beta { ext += 1 }
+        }
+
         // reductions
         let reduce = if can_lmr && ms < MoveScore::KILLER {
             // late move reductions - Viridithas values used
@@ -346,12 +364,12 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
         // pvs
         let score = if legal == 1 {
-            -pvs(&new, eng, -beta, -alpha, depth - 1, false)
+            -pvs(&new, eng, -beta, -alpha, depth + ext - 1, false, Move::default())
         } else {
-            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true);
+            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true, Move::default());
             // re-search if fails high
             if zw > alpha && (pv_node || reduce > 0) {
-                -pvs(&new, eng, -beta, -alpha, depth - 1, false)
+                -pvs(&new, eng, -beta, -alpha, depth - 1, false, Move::default())
             } else { zw }
         };
 
