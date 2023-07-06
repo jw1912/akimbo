@@ -306,7 +306,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             if ms < MoveScore::KILLER && legal > 2 + depth * depth { break }
 
             // static exchange eval pruning
-            if depth < 7 && ms < MoveScore::CAPTURE && mov.flag & Flag::CAP > 0 && !pos.see(mov, -90 * depth) { continue }
+            let margin = if mov.flag & Flag::CAP > 0 {-90} else {-50};
+            if depth < 7 && ms < MoveScore::CAPTURE && !pos.see(mov, margin * depth) { continue }
         }
 
         let mut new = *pos;
