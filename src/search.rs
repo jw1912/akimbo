@@ -203,6 +203,9 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
     let hash = pos.hash();
 
+    // clear pv line
+    eng.pv_table[eng.ply as usize].len = 0;
+
     if eng.ply > 0 {
         // draw detection
         if pos.draw() || eng.repetition(pos, hash, eng.ply == 0) { return Score::DRAW }
@@ -218,9 +221,6 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
     // drop into quiescence search
     if depth <= 0 || eng.ply == 95 { return qs(pos, alpha, beta) }
-
-    // clear pv line
-    eng.pv_table[eng.ply as usize].len = 0;
 
     // probing hash table
     let pv_node = beta > alpha + 1;
