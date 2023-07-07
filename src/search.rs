@@ -228,7 +228,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let mut eval = pos.eval();
     let mut tt_move = Move::default();
     let mut tt_score = -Score::MAX;
-    let mut try_singular = !is_singular;
+    let mut try_singular = !is_singular && depth >= 8;
     if let Some(res) = eng.probe_tt(hash) {
         tt_move = Move::from_short(res.best_move, pos);
         tt_score = i32::from(res.score);
@@ -334,7 +334,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         }
 
         // singular extensions
-        let ext = if eng.ply > 0 && depth >= 8 && mov == tt_move && try_singular {
+        let ext = if try_singular && mov == tt_move {
             let s_beta = tt_score - depth * 2;
             eng.pop();
             let ret = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, mov);
