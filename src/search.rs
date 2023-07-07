@@ -201,7 +201,6 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         return 0
     }
 
-    eng.pv_table[eng.ply as usize].len = 0;
     let hash = pos.hash();
 
     if eng.ply > 0 {
@@ -220,18 +219,21 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     // drop into quiescence search
     if depth <= 0 || eng.ply == 96 { return qs(pos, alpha, beta) }
 
+    // clear pv line
+    eng.pv_table[eng.ply as usize].len = 0;
+
     // probing hash table
     let pv_node = beta > alpha + 1;
     let is_singular = s_mov != Move::default();
     let mut eval = pos.eval();
     let mut tt_move = Move::default();
     let mut tt_score = -Score::MAX;
-    let mut try_singular = false;
+    let mut try_singular = !is_singular;
     if let Some(res) = eng.probe_tt(hash) {
         tt_move = Move::from_short(res.best_move, pos);
         tt_score = i32::from(res.score);
         let bound = res.bound & 3;
-        try_singular = i32::from(res.depth) >= depth - 3 && bound != Bound::UPPER;
+        try_singular &= i32::from(res.depth) >= depth - 3 && bound != Bound::UPPER && tt_score.abs() < Score::MATE;
 
         // tt cutoffs
         if !is_singular && !pv_node && depth <= i32::from(res.depth) && match bound {
@@ -332,15 +334,13 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         }
 
         // singular extensions
-        let mut ext = 0;
-        if eng.ply > 0 && depth >= 8 && mov == tt_move && try_singular
-            && !is_singular && tt_score.abs() < Score::MATE {
+        let ext = if eng.ply > 0 && depth >= 8 && mov == tt_move && try_singular {
             let s_beta = tt_score - depth * 2;
             eng.pop();
             let ret = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, mov);
             eng.push(hash);
-            if ret < s_beta { ext += 1 }
-        }
+            if ret < s_beta {1} else {0}
+        } else {0};
 
         // reductions
         let reduce = if can_lmr && ms < MoveScore::KILLER {
