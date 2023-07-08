@@ -173,15 +173,6 @@ impl Position {
         score
     }
 
-    fn attackers_to(&self, sq: usize, occ: u64, bishops: u64, rooks: u64) -> u64 {
-        (Attacks::KNIGHT[sq] & self.bb[Piece::KNIGHT])
-        | (Attacks::KING  [sq] & self.bb[Piece::KING  ])
-        | (Attacks::PAWN[Side::WHITE][sq] & self.bb[Piece::PAWN] & self.bb[Side::BLACK])
-        | (Attacks::PAWN[Side::BLACK][sq] & self.bb[Piece::PAWN] & self.bb[Side::WHITE])
-        | (Attacks::rook  (sq, occ) & rooks  )
-        | (Attacks::bishop(sq, occ) & bishops)
-    }
-
     pub fn see(&self, mov: Move, threshold: i32) -> bool {
         let sq = usize::from(mov.to);
         let mut score = self.gain(mov) - threshold;
@@ -201,8 +192,14 @@ impl Position {
 
         let bishops = self.bb[Piece::BISHOP] | self.bb[Piece::QUEEN];
         let rooks   = self.bb[Piece::ROOK  ] | self.bb[Piece::QUEEN];
-        let mut attackers = self.attackers_to(sq, occ, bishops, rooks);
         let mut us = usize::from(!self.c);
+        let mut attackers =
+            (Attacks::KNIGHT[sq] & self.bb[Piece::KNIGHT])
+            | (Attacks::KING[sq] & self.bb[Piece::KING  ])
+            | (Attacks::PAWN[Side::WHITE][sq] & self.bb[Piece::PAWN] & self.bb[Side::BLACK])
+            | (Attacks::PAWN[Side::BLACK][sq] & self.bb[Piece::PAWN] & self.bb[Side::WHITE])
+            | (Attacks::rook  (sq, occ) & rooks  )
+            | (Attacks::bishop(sq, occ) & bishops);
 
         loop {
             let our_attackers = attackers & self.bb[us];

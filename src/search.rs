@@ -202,10 +202,8 @@ fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
         eval = score;
         bm = mov;
 
-        if score <= alpha { continue }
-        alpha = score;
-
         if eval >= beta { break }
+        alpha = alpha.max(eval);
     }
 
     eng.push_tt(hash, bm, 0, if eval >= beta {Bound::LOWER} else {Bound::UPPER}, eval);
@@ -243,19 +241,19 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
     // probing hash table
     let pv_node = beta > alpha + 1;
-    let is_singular = s_mov != Move::default();
+    let singular = s_mov != Move::default();
     let mut eval = pos.eval();
     let mut tt_move = Move::default();
     let mut tt_score = -Score::MAX;
-    let mut try_singular = !is_singular && depth >= 8;
+    let mut try_singular = !singular && depth >= 8;
     if let Some(res) = eng.probe_tt(hash) {
+        let bound = res.bound & 3;
         tt_move = Move::from_short(res.best_move, pos);
         tt_score = i32::from(res.score);
-        let bound = res.bound & 3;
         try_singular &= i32::from(res.depth) >= depth - 3 && bound != Bound::UPPER && tt_score.abs() < Score::MATE;
 
         // tt cutoffs
-        if !is_singular && !pv_node && depth <= i32::from(res.depth) && match bound {
+        if !singular && !pv_node && depth <= i32::from(res.depth) && match bound {
             Bound::LOWER => tt_score >= beta,
             Bound::UPPER => tt_score <= alpha,
             _ => true,
@@ -274,7 +272,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     // pruning
     if !pv_node && !pos.check && beta.abs() < Score::MATE {
         // reverse futility pruning
-        if depth <= 8 && eval >= beta + 120 * depth / (1 + i32::from(improving)) { return eval }
+        if depth <= 8 && eval >= beta + 120 * depth / if improving {2} else {1} { return eval }
 
         // razoring
         if depth <= 2 && eval + 400 * depth < alpha {
@@ -392,9 +390,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             } else { zw }
         };
 
-        // new best move
-        if score <= best_score { continue }
-        best_score = score;
+        best_score = best_score.max(score);
 
         // improve alpha
         if score <= alpha { continue }
