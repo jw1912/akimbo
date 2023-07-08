@@ -167,15 +167,27 @@ fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, depth: i32, best
     }
 }
 
-fn qs(pos: &Position, mut alpha: i32, beta: i32) -> i32 {
+fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
     let mut eval = pos.eval();
     if eval >= beta { return eval }
     alpha = alpha.max(eval);
 
+    // probe hash table for cutoff
+    let hash = pos.hash();
+    if let Some(res) = eng.probe_tt(hash) {
+        let tt_score = i32::from(res.score);
+        if match res.bound & 3 {
+            Bound::LOWER => tt_score >= beta,
+            Bound::UPPER => tt_score <= alpha,
+            _ => true,
+        } { return tt_score }
+    }
+
     let mut caps = pos.movegen::<false>();
     let mut scores = [0; 252];
-    scores.iter_mut().enumerate().take(caps.len).for_each(|(i, s)| *s = mvv_lva(caps.list[i], pos));
+    caps.list.iter().enumerate().take(caps.len).for_each(|(i, &cap)| scores[i] = mvv_lva(cap, pos));
 
+    let mut bm = Move::default();
     while let Some((mov, _)) = caps.pick(&mut scores) {
         // static exchange eval pruning
         if !pos.see(mov, 1) { continue }
@@ -184,12 +196,19 @@ fn qs(pos: &Position, mut alpha: i32, beta: i32) -> i32 {
         if new.make(mov) { continue }
         QNODES.fetch_add(1, Relaxed);
 
-        eval = eval.max(-qs(&new, -beta, -alpha));
+        let score = -qs(&new, eng, -beta, -alpha);
+
+        if score <= eval { continue }
+        eval = score;
+        bm = mov;
+
+        if score <= alpha { continue }
+        alpha = score;
 
         if eval >= beta { break }
-        alpha = alpha.max(eval);
     }
 
+    eng.push_tt(hash, bm, 0, if eval >= beta {Bound::LOWER} else {Bound::UPPER}, eval);
     eval
 }
 
@@ -220,7 +239,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     }
 
     // drop into quiescence search
-    if depth <= 0 || eng.ply == 95 { return qs(pos, alpha, beta) }
+    if depth <= 0 || eng.ply == 95 { return qs(pos, eng, alpha, beta) }
 
     // probing hash table
     let pv_node = beta > alpha + 1;
@@ -259,7 +278,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
         // razoring
         if depth <= 2 && eval + 400 * depth < alpha {
-            let qeval = qs(pos, alpha, beta);
+            let qeval = qs(pos, eng, alpha, beta);
             if qeval < alpha { return qeval }
         }
 
