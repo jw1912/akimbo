@@ -2,7 +2,7 @@ mod util;
 mod position;
 mod search;
 
-use crate::{position::{Move, MoveList, Position}, search::{Engine, go, QNODES}};
+use crate::{position::{Move, MoveList, Position}, search::{Engine, go}};
 use std::{io, process, time::Instant};
 
 const FEN_STRING: &str = include_str!("../fens.txt");
@@ -20,7 +20,7 @@ fn main() {
         ktable: Box::new([[Move::default(); 2]; 96]),
         evals: Box::new([0; 96]),
         stack: Vec::with_capacity(96),
-        nodes: 0, ply: 0, best_move: Move::default(),
+        nodes: 0, qnodes: 0, ply: 0, best_move: Move::default(),
         pv_table: Box::new([MoveList::default(); 96]),
     };
     eng.resize_tt(16);
@@ -35,7 +35,7 @@ fn main() {
             let timer = Instant::now();
             go(&pos, &mut eng, false, 11);
             total_time += timer.elapsed().as_millis();
-            total_nodes += eng.nodes + QNODES.load(std::sync::atomic::Ordering::Relaxed);
+            total_nodes += eng.nodes + eng.qnodes;
         }
         println!("Bench: {total_nodes} nodes {} nps", total_nodes * 1000 / (total_time as u64).max(1));
         return;

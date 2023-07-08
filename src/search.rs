@@ -1,7 +1,5 @@
-use std::{sync::atomic::{AtomicU64, Ordering::Relaxed}, time::Instant};
+use std::time::Instant;
 use super::{util::{Bound, Flag, MoveScore, Piece, Score, SPANS}, position::{Move, MoveList, Position}};
-
-pub static QNODES: AtomicU64 = AtomicU64::new(0);
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
     8 * pos.get_pc(1 << mov.to) as i32 - mov.pc as i32
@@ -32,6 +30,7 @@ pub struct Engine {
 
     // uci output
     pub nodes: u64,
+    pub qnodes: u64,
     pub ply: i32,
     pub best_move: Move,
     pub pv_table: Box<[MoveList; 96]>,
@@ -107,10 +106,10 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32) {
     eng.htable.iter_mut().flatten().flatten().for_each(|x| *x /= 2);
     eng.timing = Instant::now();
     eng.nodes = 0;
+    eng.qnodes = 0;
     eng.ply = 0;
     eng.best_move = Move::default();
     eng.abort = false;
-    QNODES.store(0, Relaxed);
 
     let mut best_move = Move::default();
     let mut pos = *start;
@@ -132,7 +131,7 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32) {
                 format!("score mate {}", if eval < 0 {eval.abs() - Score::MAX} else {Score::MAX - eval + 1} / 2)
             } else {format!("score cp {eval}")};
             let t = eng.timing.elapsed().as_millis();
-            let nodes = eng.nodes + QNODES.load(Relaxed);
+            let nodes = eng.nodes + eng.qnodes;
             let nps = (1000.0 * nodes as f64 / t as f64) as u32;
             let pv_line = &eng.pv_table[0];
             let pv = pv_line.list.iter().take(pv_line.len).map(|mov| format!("{} ", mov.to_uci())).collect::<String>();
@@ -194,7 +193,7 @@ fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
 
         let mut new = *pos;
         if new.make(mov) { continue }
-        QNODES.fetch_add(1, Relaxed);
+        eng.qnodes += 1;
 
         let score = -qs(&new, eng, -beta, -alpha);
 
