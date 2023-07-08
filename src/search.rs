@@ -185,9 +185,9 @@ fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
 
     let mut caps = pos.movegen::<false>();
     let mut scores = [0; 252];
-    scores.iter_mut().enumerate().take(caps.len).for_each(|(i, s)| *s = mvv_lva(caps.list[i], pos));
-    let (mut bm, mut bound) = (Move::default(), Bound::UPPER);
+    caps.list.iter().enumerate().take(caps.len).for_each(|(i, &cap)| scores[i] = mvv_lva(cap, pos));
 
+    let mut bm = Move::default();
     while let Some((mov, _)) = caps.pick(&mut scores) {
         // static exchange eval pruning
         if !pos.see(mov, 1) { continue }
@@ -205,13 +205,10 @@ fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
         if score <= alpha { continue }
         alpha = score;
 
-        if eval < beta { continue }
-        bound = Bound::LOWER;
-
-        break
+        if eval >= beta { break }
     }
 
-    eng.push_tt(hash, bm, 0, bound, eval);
+    eng.push_tt(hash, bm, 0, if eval >= beta {Bound::LOWER} else {Bound::UPPER}, eval);
     eval
 }
 
