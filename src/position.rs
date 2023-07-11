@@ -177,9 +177,6 @@ impl Position {
         let sq = usize::from(mov.to);
         let mut score = self.gain(mov) - threshold;
 
-        // early out in best case
-        if score < 0 { return false }
-
         let mut next = usize::from(if mov.flag >= Flag::PROMO { (mov.flag & 3) + 3 } else { mov.pc });
         score -= SEE_VALS[next];
 
