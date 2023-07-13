@@ -26,6 +26,7 @@ pub struct Engine {
     pub htable: Box<[[[i32; 64]; 6]; 2]>,
     pub ktable: Box<[[Move; 2]; 96]>,
     pub evals: Box<[i32; 96]>,
+    pub excluded: Box<[Move; 96]>,
     pub stack: Vec<u64>,
 
     // uci output
@@ -119,7 +120,7 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32) {
     // iterative deepening loop
     for d in 1..=max_depth {
         eval = if d < 7 {
-            pvs(&pos, eng, -Score::MAX, Score::MAX, d, false, Move::default())
+            pvs(&pos, eng, -Score::MAX, Score::MAX, d, false)
         } else { aspiration(&pos, eng, eval, d, &mut best_move) };
 
         if eng.abort { break }
@@ -148,7 +149,7 @@ fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, depth: i32, best
     let mut beta = Score::MAX.min(score + delta);
 
     loop {
-        score = pvs(pos, eng, alpha, beta, depth, false, Move::default());
+        score = pvs(pos, eng, alpha, beta, depth, false);
         if eng.abort { return 0 }
 
         if score <= alpha {
@@ -209,7 +210,7 @@ fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
     eval
 }
 
-fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut depth: i32, null: bool, s_mov: Move) -> i32 {
+fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut depth: i32, null: bool) -> i32 {
     // stopping search
     if eng.abort { return 0 }
     if eng.nodes & 1023 == 0 && eng.timing.elapsed().as_millis() >= eng.max_time {
@@ -240,6 +241,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
     // probing hash table
     let pv_node = beta > alpha + 1;
+    let s_mov = eng.excluded[eng.ply as usize];
     let singular = s_mov != Move::default();
     let mut eval = pos.eval();
     let mut tt_move = Move::default();
@@ -286,7 +288,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             eng.push(hash);
             new.c = !new.c;
             new.enp_sq = 0;
-            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, Move::default());
+            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false);
             eng.pop();
             if nw >= Score::MATE { return beta }
             if nw >= beta { return nw }
@@ -353,7 +355,9 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         let ext = if try_singular && mov == tt_move {
             let s_beta = tt_score - depth * 2;
             eng.pop();
-            let ret = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, mov);
+            eng.excluded[eng.ply as usize] = mov;
+            let ret = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false);
+            eng.excluded[eng.ply as usize] = Move::default();
             eng.push(hash);
             if ret < s_beta {1} else {0}
         } else {0};
@@ -380,12 +384,12 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
         // pvs
         let score = if legal == 1 {
-            -pvs(&new, eng, -beta, -alpha, depth + ext - 1, false, Move::default())
+            -pvs(&new, eng, -beta, -alpha, depth + ext - 1, false)
         } else {
-            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true, Move::default());
+            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true);
             // re-search if fails high
             if zw > alpha && (pv_node || reduce > 0) {
-                -pvs(&new, eng, -beta, -alpha, depth - 1, false, Move::default())
+                -pvs(&new, eng, -beta, -alpha, depth - 1, false)
             } else { zw }
         };
 
