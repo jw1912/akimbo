@@ -14,6 +14,8 @@ pub struct HashEntry {
     bound: u8,
 }
 
+type PlyInfo = ([Move; 2], i32, Move, MoveList);
+
 pub struct Engine {
     // search control
     pub timing: Instant,
@@ -24,9 +26,7 @@ pub struct Engine {
     pub tt: Vec<HashEntry>,
     pub tt_age: u8,
     pub htable: Box<[[[i32; 64]; 6]; 2]>,
-    pub ktable: Box<[[Move; 2]; 96]>,
-    pub evals: Box<[i32; 96]>,
-    pub excluded: Box<[Move; 96]>,
+    pub plied: Box<[PlyInfo; 96]>,
     pub stack: Vec<u64>,
 
     // uci output
@@ -34,7 +34,6 @@ pub struct Engine {
     pub qnodes: u64,
     pub ply: i32,
     pub best_move: Move,
-    pub pv_table: Box<[MoveList; 96]>,
 }
 
 impl Engine {
@@ -91,8 +90,8 @@ impl Engine {
 
     fn push_killer(&mut self, m: Move) {
         let ply = self.ply as usize - 1;
-        self.ktable[ply][1] = self.ktable[ply][0];
-        self.ktable[ply][0] = m;
+        self.plied[ply].0[1] = self.plied[ply].0[0];
+        self.plied[ply].0[0] = m;
     }
 
     fn push_history(&mut self, mov: Move, side: bool, bonus: i32) {
@@ -103,7 +102,7 @@ impl Engine {
 
 pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32) {
     // reset engine
-    *eng.ktable = [[Move::default(); 2]; 96];
+    eng.plied.iter_mut().for_each(|x| x.0 = Default::default());
     eng.htable.iter_mut().flatten().flatten().for_each(|x| *x /= 2);
     eng.timing = Instant::now();
     eng.nodes = 0;
@@ -134,7 +133,7 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32) {
             let t = eng.timing.elapsed().as_millis();
             let nodes = eng.nodes + eng.qnodes;
             let nps = (1000.0 * nodes as f64 / t as f64) as u32;
-            let pv_line = &eng.pv_table[0];
+            let pv_line = &eng.plied[0].3;
             let pv = pv_line.list.iter().take(pv_line.len).map(|mov| format!("{} ", mov.to_uci())).collect::<String>();
             println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}");
         }
@@ -221,7 +220,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let hash = pos.hash();
 
     // clear pv line
-    eng.pv_table[eng.ply as usize].len = 0;
+    eng.plied[eng.ply as usize].3.len = 0;
 
     if eng.ply > 0 {
         // draw detection
@@ -241,7 +240,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
     // probing hash table
     let pv_node = beta > alpha + 1;
-    let s_mov = eng.excluded[eng.ply as usize];
+    let s_mov = eng.plied[eng.ply as usize].2;
     let singular = s_mov != Move::default();
     let mut eval = pos.eval();
     let mut tt_move = Move::default();
@@ -267,8 +266,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     }
 
     // improving heuristic
-    eng.evals[eng.ply as usize] = eval;
-    let improving = eng.ply > 1 && eval > eng.evals[eng.ply as usize - 2];
+    eng.plied[eng.ply as usize].1 = eval;
+    let improving = eng.ply > 1 && eval > eng.plied[eng.ply as usize - 2].1;
 
     // pruning
     if !pv_node && !pos.check && beta.abs() < Score::MATE {
@@ -301,7 +300,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     // generating and scoring moves
     let mut moves = pos.movegen::<true>();
     let mut scores = [0; 252];
-    let killers = eng.ktable[eng.ply as usize];
+    let killers = eng.plied[eng.ply as usize].0;
     moves.list[..moves.len].iter().enumerate().for_each(|(i, &mov)|
         scores[i] = if mov == tt_move { MoveScore::HASH }
             else if mov.flag == Flag::ENP { MoveScore::CAPTURE + 16 }
@@ -355,9 +354,9 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         let ext = if try_singular && mov == tt_move {
             let s_beta = tt_score - depth * 2;
             eng.pop();
-            eng.excluded[eng.ply as usize] = mov;
+            eng.plied[eng.ply as usize].2 = mov;
             let ret = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false);
-            eng.excluded[eng.ply as usize] = Move::default();
+            eng.plied[eng.ply as usize].2 = Move::default();
             eng.push(hash);
             if ret < s_beta {1} else {0}
         } else {0};
@@ -403,8 +402,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
         // update pv line
         if pv_node {
-            let sub_line = eng.pv_table[eng.ply as usize];
-            let line = &mut eng.pv_table[eng.ply as usize - 1];
+            let sub_line = eng.plied[eng.ply as usize].3;
+            let line = &mut eng.plied[eng.ply as usize - 1].3;
             line.len = 1 + sub_line.len;
             line.list[0] = mov;
             line.list[1..=sub_line.len].copy_from_slice(&sub_line.list[..sub_line.len]);
