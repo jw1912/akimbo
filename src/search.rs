@@ -26,7 +26,7 @@ pub struct Engine {
     // tables
     pub tt: Vec<HashEntry>,
     pub tt_age: u8,
-    pub htable: Box<[[[History; 64]; 6]; 2]>,
+    pub htable: Box<[[[History; 64]; 8]; 2]>,
     pub plied: Box<[PlyInfo; 96]>,
     pub stack: Vec<u64>,
 
@@ -96,7 +96,7 @@ impl Engine {
     }
 
     fn push_history(&mut self, mov: Move, side: bool, bonus: i32) {
-        let entry = &mut self.htable[usize::from(side)][usize::from(mov.pc - 2)][usize::from(mov.to)];
+        let entry = &mut self.htable[usize::from(side)][usize::from(mov.pc)][usize::from(mov.to)];
         entry.0 += bonus - entry.0 * bonus.abs() / MoveScore::HISTORY_MAX
     }
 }
@@ -303,7 +303,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let mut scores = [0; 252];
     let killers = eng.plied[eng.ply as usize].0;
     let counter_mov = if prev != Move::default() {
-        eng.htable[usize::from(pos.c)][usize::from(prev.pc - 2)][usize::from(prev.to)].1
+        eng.htable[usize::from(pos.c)][usize::from(prev.pc)][usize::from(prev.to)].1
     } else {Move::default()};
     moves.list[..moves.len].iter().enumerate().for_each(|(i, &mov)|
         scores[i] = if mov == tt_move { MoveScore::HASH }
@@ -312,7 +312,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             else if mov.flag & 8 > 0 { MoveScore::PROMO + i32::from(mov.flag & 7) }
             else if killers.contains(&mov) { MoveScore::KILLER + 1 }
             else if mov == counter_mov { MoveScore::KILLER }
-            else { eng.htable[usize::from(pos.c)][usize::from(mov.pc - 2)][usize::from(mov.to)].0 }
+            else { eng.htable[usize::from(pos.c)][usize::from(mov.pc)][usize::from(mov.to)].0 }
     );
 
     // stuff for going through moves
@@ -426,9 +426,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         for &quiet in &quiets_tried.list[..quiets_tried.len - 1] {
             eng.push_history(quiet, pos.c, -bonus)
         }
-        if prev != Move::default() {
-            eng.htable[usize::from(pos.c)][usize::from(prev.pc - 2)][usize::from(prev.to)].1 = mov;
-        }
+        eng.htable[usize::from(pos.c)][usize::from(prev.pc)][usize::from(prev.to)].1 = mov;
 
         break
     }

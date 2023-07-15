@@ -16,7 +16,7 @@ fn main() {
     let mut eng = Engine {
         timing: Instant::now(), max_time: 0, abort: false,
         tt: Vec::new(), tt_age: 0,
-        htable: Box::new([[[Default::default(); 64]; 6]; 2]),
+        htable: Box::new([[[Default::default(); 64]; 8]; 2]),
         plied: Box::new([Default::default(); 96]),
         stack: Vec::with_capacity(96),
         nodes: 0, qnodes: 0, ply: 0, best_move: Move::default(),
@@ -58,7 +58,7 @@ fn main() {
             "ucinewgame" => {
                 pos = Position::from_fen(STARTPOS);
                 eng.clear_tt();
-                eng.htable = Box::new([[[Default::default(); 64]; 6]; 2]);
+                eng.htable = Box::new([[[Default::default(); 64]; 8]; 2]);
             },
             "setoption" => match commands[..] {
                 ["setoption", "name", "Hash", "value", x] => eng.resize_tt(x.parse().unwrap()),
