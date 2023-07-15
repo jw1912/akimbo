@@ -15,6 +15,7 @@ pub struct HashEntry {
 }
 
 type PlyInfo = ([Move; 2], i32, Move, MoveList);
+type History = (i32, Move);
 
 pub struct Engine {
     // search control
@@ -25,7 +26,7 @@ pub struct Engine {
     // tables
     pub tt: Vec<HashEntry>,
     pub tt_age: u8,
-    pub htable: Box<[[[i32; 64]; 6]; 2]>,
+    pub htable: Box<[[[History; 64]; 6]; 2]>,
     pub plied: Box<[PlyInfo; 96]>,
     pub stack: Vec<u64>,
 
@@ -96,14 +97,14 @@ impl Engine {
 
     fn push_history(&mut self, mov: Move, side: bool, bonus: i32) {
         let entry = &mut self.htable[usize::from(side)][usize::from(mov.pc - 2)][usize::from(mov.to)];
-        *entry += bonus - *entry * bonus.abs() / MoveScore::HISTORY_MAX
+        entry.0 += bonus - entry.0 * bonus.abs() / MoveScore::HISTORY_MAX
     }
 }
 
 pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32) {
     // reset engine
     eng.plied.iter_mut().for_each(|x| x.0 = Default::default());
-    eng.htable.iter_mut().flatten().flatten().for_each(|x| *x /= 2);
+    eng.htable.iter_mut().flatten().flatten().for_each(|x| *x = (x.0 / 2, Move::default()));
     eng.timing = Instant::now();
     eng.nodes = 0;
     eng.qnodes = 0;
@@ -119,8 +120,8 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32) {
     // iterative deepening loop
     for d in 1..=max_depth {
         eval = if d < 7 {
-            pvs(&pos, eng, -Score::MAX, Score::MAX, d, false)
-        } else { aspiration(&pos, eng, eval, d, &mut best_move) };
+            pvs(&pos, eng, -Score::MAX, Score::MAX, d, false, Move::default())
+        } else { aspiration(&pos, eng, eval, d, &mut best_move, Move::default()) };
 
         if eng.abort { break }
         best_move = eng.best_move;
@@ -142,13 +143,13 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32) {
     println!("bestmove {}", best_move.to_uci());
 }
 
-fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, depth: i32, best_move: &mut Move) -> i32 {
+fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, depth: i32, best_move: &mut Move, prev: Move) -> i32 {
     let mut delta = 25;
     let mut alpha = (-Score::MAX).max(score - delta);
     let mut beta = Score::MAX.min(score + delta);
 
     loop {
-        score = pvs(pos, eng, alpha, beta, depth, false);
+        score = pvs(pos, eng, alpha, beta, depth, false, prev);
         if eng.abort { return 0 }
 
         if score <= alpha {
@@ -209,7 +210,7 @@ fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
     eval
 }
 
-fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut depth: i32, null: bool) -> i32 {
+fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut depth: i32, null: bool, prev: Move) -> i32 {
     // stopping search
     if eng.abort { return 0 }
     if eng.nodes & 1023 == 0 && eng.timing.elapsed().as_millis() >= eng.max_time {
@@ -287,7 +288,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             eng.push(hash);
             new.c = !new.c;
             new.enp_sq = 0;
-            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false);
+            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, Move::default());
             eng.pop();
             if nw >= Score::MATE { return beta }
             if nw >= beta { return nw }
@@ -301,13 +302,17 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let mut moves = pos.movegen::<true>();
     let mut scores = [0; 252];
     let killers = eng.plied[eng.ply as usize].0;
+    let counter_mov = if prev != Move::default() {
+        eng.htable[usize::from(pos.c)][usize::from(prev.pc - 2)][usize::from(prev.to)].1
+    } else {Move::default()};
     moves.list[..moves.len].iter().enumerate().for_each(|(i, &mov)|
         scores[i] = if mov == tt_move { MoveScore::HASH }
             else if mov.flag == Flag::ENP { MoveScore::CAPTURE + 16 }
             else if mov.flag & 4 > 0 { MoveScore::CAPTURE * i32::from(pos.see(mov, 0)) + mvv_lva(mov, pos) }
             else if mov.flag & 8 > 0 { MoveScore::PROMO + i32::from(mov.flag & 7) }
-            else if killers.contains(&mov) { MoveScore::KILLER }
-            else { eng.htable[usize::from(pos.c)][usize::from(mov.pc - 2)][usize::from(mov.to)] }
+            else if killers.contains(&mov) { MoveScore::KILLER + 1 }
+            else if mov == counter_mov { MoveScore::KILLER }
+            else { eng.htable[usize::from(pos.c)][usize::from(mov.pc - 2)][usize::from(mov.to)].0 }
     );
 
     // stuff for going through moves
@@ -355,7 +360,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             let s_beta = tt_score - depth * 2;
             eng.pop();
             eng.plied[eng.ply as usize].2 = mov;
-            let ret = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false);
+            let ret = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, prev);
             eng.plied[eng.ply as usize].2 = Move::default();
             eng.push(hash);
             if ret < s_beta {1} else {0}
@@ -383,12 +388,12 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
         // pvs
         let score = if legal == 1 {
-            -pvs(&new, eng, -beta, -alpha, depth + ext - 1, false)
+            -pvs(&new, eng, -beta, -alpha, depth + ext - 1, false, mov)
         } else {
-            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true);
+            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true, mov);
             // re-search if fails high
             if zw > alpha && (pv_node || reduce > 0) {
-                -pvs(&new, eng, -beta, -alpha, depth - 1, false)
+                -pvs(&new, eng, -beta, -alpha, depth - 1, false, mov)
             } else { zw }
         };
 
@@ -420,6 +425,9 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         eng.push_history(mov, pos.c, bonus);
         for &quiet in &quiets_tried.list[..quiets_tried.len - 1] {
             eng.push_history(quiet, pos.c, -bonus)
+        }
+        if prev != Move::default() {
+            eng.htable[usize::from(pos.c)][usize::from(prev.pc - 2)][usize::from(prev.to)].1 = mov;
         }
 
         break
