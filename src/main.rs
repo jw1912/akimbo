@@ -31,7 +31,7 @@ fn main() {
         for fen in bench_fens {
             pos = Position::from_fen(fen);
             let timer = Instant::now();
-            go(&pos, &mut eng, false, 11);
+            go(&pos, &mut eng, false, 11, 1_000_000);
             total_time += timer.elapsed().as_millis();
             total_nodes += eng.nodes + eng.qnodes;
         }
@@ -83,8 +83,8 @@ fn main() {
                 let side = usize::from(pos.c);
                 let (time, inc) = (times[side], incs[side]);
                 if time != 0 { alloc = time.min(time / mtg + 3 * inc / 4) }
-                eng.max_time = 10.max(alloc - 10) as u128;
-                go(&pos, &mut eng, true, 64);
+                eng.max_time= (alloc * 3 / 2).clamp(1, 1.max(time - 10)) as u128;
+                go(&pos, &mut eng, true, 64, (alloc * 4 / 5) as u128);
             },
             "position" => {
                 let (mut fen, mut move_list, mut moves) = (String::new(), Vec::new(), false);

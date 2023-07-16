@@ -101,7 +101,7 @@ impl Engine {
     }
 }
 
-pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32) {
+pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft_bound: u128) {
     // reset engine
     eng.plied.iter_mut().for_each(|x| x.0 = Default::default());
     eng.htable.iter_mut().flatten().flatten().for_each(|x| *x = (x.0 / 2, Move::default()));
@@ -138,6 +138,8 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32) {
             let pv = pv_line.list.iter().take(pv_line.len).map(|mov| format!("{} ", mov.to_uci())).collect::<String>();
             println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}");
         }
+
+        if eng.timing.elapsed().as_millis() >= soft_bound { break }
     }
     eng.tt_age = 63.min(eng.tt_age + 1);
     println!("bestmove {}", best_move.to_uci());
