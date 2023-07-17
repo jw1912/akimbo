@@ -72,7 +72,7 @@ fn main() {
                     if let Some(x) = tokens.iter().position(|&y| y == cmd) { token = x }
                     else if let Ok(val) = cmd.parse::<i64>() {
                         match token {
-                            1 => alloc = val,
+                            1 => {alloc = val; mtg = 1; times = [val, val]},
                             2 | 3 => times[token - 2] = val.max(0),
                             4 => mtg = val,
                             5 | 6 => incs[token - 5] = val.max(0),
@@ -83,8 +83,8 @@ fn main() {
                 let side = usize::from(pos.c);
                 let (time, inc) = (times[side], incs[side]);
                 if time != 0 { alloc = time.min(time / mtg + 3 * inc / 4) }
-                eng.max_time= (alloc * 3 / 2).clamp(1, 1.max(time - 10)) as u128;
-                go(&pos, &mut eng, true, 64, (alloc * 4 / 5) as u128);
+                eng.max_time = (alloc * 3 / 2).clamp(1, 1.max(time - 10)) as u128;
+                go(&pos, &mut eng, true, 64, if mtg == 1 {alloc} else {alloc * 4 / 5} as u128);
             },
             "position" => {
                 let (mut fen, mut move_list, mut moves) = (String::new(), Vec::new(), false);
