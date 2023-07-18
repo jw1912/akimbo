@@ -83,8 +83,8 @@ fn main() {
                 let side = usize::from(pos.c);
                 let (time, inc) = (times[side], incs[side]);
                 if time != 0 { alloc = time.min(time / mtg + 3 * inc / 4) }
-                eng.max_time = (alloc * 3 / 2).clamp(1, 1.max(time - 10)) as u128;
-                go(&pos, &mut eng, true, 64, if mtg == 1 {alloc} else {alloc * 4 / 5} as u128);
+                eng.max_time = (alloc * 2).clamp(1, 1.max(time - 10)) as u128;
+                go(&pos, &mut eng, true, 64, if mtg == 1 {alloc} else {alloc * 6 / 10} as u128);
             },
             "position" => {
                 let (mut fen, mut move_list, mut moves) = (String::new(), Vec::new(), false);
