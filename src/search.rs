@@ -145,10 +145,11 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
     println!("bestmove {}", best_move.to_uci());
 }
 
-fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, depth: i32, best_move: &mut Move, prev: Move) -> i32 {
+fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, max_depth: i32, best_move: &mut Move, prev: Move) -> i32 {
     let mut delta = 25;
     let mut alpha = (-Score::MAX).max(score - delta);
     let mut beta = Score::MAX.min(score + delta);
+    let mut depth = max_depth;
 
     loop {
         score = pvs(pos, eng, alpha, beta, depth, false, prev);
@@ -157,9 +158,11 @@ fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, depth: i32, best
         if score <= alpha {
             beta = (alpha + beta) / 2;
             alpha = (-Score::MAX).max(alpha - delta);
+            depth = max_depth;
         } else if score >= beta {
             beta = Score::MAX.min(beta + delta);
             *best_move = eng.best_move;
+            depth -= 1;
         } else {
             return score
         }
