@@ -158,7 +158,6 @@ fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, depth: i32, best
             beta = (alpha + beta) / 2;
             alpha = (-Score::MAX).max(alpha - delta);
         } else if score >= beta {
-            alpha = (alpha + beta) / 2;
             beta = Score::MAX.min(beta + delta);
             *best_move = eng.best_move;
         } else {
