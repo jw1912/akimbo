@@ -28,6 +28,7 @@ pub struct Engine {
     pub tt_age: u8,
     pub htable: Box<[[[History; 64]; 8]; 2]>,
     pub plied: Box<[PlyInfo; 96]>,
+    pub ntable: Box<[[u64; 64]; 64]>,
     pub stack: Vec<u64>,
 
     // uci output
@@ -101,8 +102,9 @@ impl Engine {
     }
 }
 
-pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft_bound: u128) {
+pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft_bound: f64) {
     // reset engine
+    *eng.ntable = [[0; 64]; 64];
     eng.plied.iter_mut().for_each(|x| x.0 = Default::default());
     eng.htable.iter_mut().flatten().flatten().for_each(|x| *x = (x.0 / 2, Move::default()));
     eng.timing = Instant::now();
@@ -126,20 +128,22 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
         if eng.abort { break }
         best_move = eng.best_move;
 
+        let nodes = eng.nodes + eng.qnodes;
+
         // UCI output
         if report {
             let score = if eval.abs() >= Score::MATE {
                 format!("score mate {}", if eval < 0 {eval.abs() - Score::MAX} else {Score::MAX - eval + 1} / 2)
             } else {format!("score cp {eval}")};
             let t = eng.timing.elapsed().as_millis();
-            let nodes = eng.nodes + eng.qnodes;
             let nps = (1000.0 * nodes as f64 / t as f64) as u32;
             let pv_line = &eng.plied[0].3;
             let pv = pv_line.list.iter().take(pv_line.len).map(|mov| format!("{} ", mov.to_uci())).collect::<String>();
             println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}");
         }
 
-        if eng.timing.elapsed().as_millis() >= soft_bound { break }
+        let frac = eng.ntable[usize::from(best_move.from)][usize::from(best_move.to)] as f64 / nodes as f64;
+        if eng.timing.elapsed().as_millis() as f64 >= soft_bound * if d > 8 {(1.5 - frac) * 1.35} else {1.0} { break }
     }
     eng.tt_age = 63.min(eng.tt_age + 1);
     println!("bestmove {}", best_move.to_uci());
@@ -250,7 +254,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let mut eval = pos.eval();
     let mut tt_move = Move::default();
     let mut tt_score = -Score::MAX;
-    let mut try_singular = !singular && depth >= 8;
+    let mut try_singular = !singular && depth >= 8 && eng.ply > 0;
     if let Some(res) = eng.probe_tt(hash) {
         let bound = res.bound & 3;
         tt_move = Move::from_short(res.best_move, pos);
@@ -390,6 +394,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             r.max(0)
         } else { 0 };
 
+        let pre_nodes = eng.nodes + eng.qnodes;
+
         // pvs
         let score = if legal == 1 {
             -pvs(&new, eng, -beta, -alpha, depth + ext - 1, false, mov)
@@ -400,6 +406,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
                 -pvs(&new, eng, -beta, -alpha, depth - 1, false, mov)
             } else { zw }
         };
+
+        eng.ntable[usize::from(mov.from)][usize::from(mov.to)] += eng.nodes + eng.qnodes - pre_nodes;
 
         best_score = best_score.max(score);
 
