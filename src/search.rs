@@ -407,7 +407,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             } else { zw }
         };
 
-        eng.ntable[usize::from(mov.from)][usize::from(mov.to)] += eng.nodes + eng.qnodes - pre_nodes;
+        if eng.ply == 1 { eng.ntable[usize::from(mov.from)][usize::from(mov.to)] += eng.nodes + eng.qnodes - pre_nodes }
 
         best_score = best_score.max(score);
 
