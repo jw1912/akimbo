@@ -18,6 +18,7 @@ fn main() {
         tt: Vec::new(), tt_age: 0,
         htable: Box::new([[[Default::default(); 64]; 8]; 2]),
         plied: Box::new([Default::default(); 96]),
+        ntable: Box::new([[0; 64]; 64]),
         stack: Vec::with_capacity(96),
         nodes: 0, qnodes: 0, ply: 0, best_move: Move::default(),
     };
@@ -31,7 +32,7 @@ fn main() {
         for fen in bench_fens {
             pos = Position::from_fen(fen);
             let timer = Instant::now();
-            go(&pos, &mut eng, false, 11, 1_000_000);
+            go(&pos, &mut eng, false, 11, 1_000_000.0);
             total_time += timer.elapsed().as_millis();
             total_nodes += eng.nodes + eng.qnodes;
         }
@@ -84,7 +85,7 @@ fn main() {
                 let (time, inc) = (times[side], incs[side]);
                 if time != 0 { alloc = time.min(time / mtg + 3 * inc / 4) }
                 eng.max_time = (alloc * 2).clamp(1, 1.max(time - 10)) as u128;
-                go(&pos, &mut eng, true, 64, if mtg == 1 {alloc} else {alloc * 6 / 10} as u128);
+                go(&pos, &mut eng, true, 64, if mtg == 1 {alloc} else {alloc * 6 / 10} as f64);
             },
             "position" => {
                 let (mut fen, mut move_list, mut moves) = (String::new(), Vec::new(), false);
