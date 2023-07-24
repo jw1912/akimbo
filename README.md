@@ -4,6 +4,7 @@
 
 ![License](https://img.shields.io/github/license/JacquesRW/akimbo?style=for-the-badge)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/JacquesRW/akimbo?style=for-the-badge)](https://github.com/JacquesRW/akimbo/releases/latest)
+![Commits](https://img.shields.io/github/commits-since/JacquesRW/akimbo/latest?style=for-the-badge)
 
 </div>
 
