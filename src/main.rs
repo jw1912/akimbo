@@ -20,7 +20,7 @@ fn main() {
         plied: Box::new([Default::default(); 96]),
         ntable: Box::new([[0; 64]; 64]),
         stack: Vec::with_capacity(96),
-        nodes: 0, qnodes: 0, ply: 0, best_move: Move::default(),
+        nodes: 0, qnodes: 0, ply: 0, best_move: Move::default(), seldepth: 0,
     };
     eng.resize_tt(16);
 

@@ -36,6 +36,7 @@ pub struct Engine {
     pub qnodes: u64,
     pub ply: i32,
     pub best_move: Move,
+    pub seldepth: i32,
 }
 
 impl Engine {
@@ -113,6 +114,7 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
     eng.ply = 0;
     eng.best_move = Move::default();
     eng.abort = false;
+    eng.seldepth = 0;
 
     let mut best_move = Move::default();
     let mut pos = *start;
@@ -139,7 +141,7 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
             let nps = (1000.0 * nodes as f64 / t as f64) as u32;
             let pv_line = &eng.plied[0].3;
             let pv = pv_line.list.iter().take(pv_line.len).map(|mov| format!("{} ", mov.to_uci())).collect::<String>();
-            println!("info depth {d} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}");
+            println!("info depth {d} seldepth {} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}", eng.seldepth);
         }
 
         let frac = eng.ntable[usize::from(best_move.from)][usize::from(best_move.to)] as f64 / nodes as f64;
@@ -176,6 +178,7 @@ fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, max_depth: i32, 
 }
 
 fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
+    eng.seldepth = eng.seldepth.max(eng.ply);
     let mut eval = pos.eval();
     if eval >= beta { return eval }
     alpha = alpha.max(eval);
@@ -195,6 +198,7 @@ fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
     let mut scores = [0; 252];
     caps.list.iter().enumerate().take(caps.len).for_each(|(i, &cap)| scores[i] = mvv_lva(cap, pos));
 
+    eng.ply += 1;
     let mut bm = Move::default();
     while let Some((mov, _)) = caps.pick(&mut scores) {
         // static exchange eval pruning
@@ -213,6 +217,7 @@ fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
         if eval >= beta { break }
         alpha = alpha.max(eval);
     }
+    eng.ply -= 1;
 
     eng.push_tt(hash, bm, 0, if eval >= beta {Bound::LOWER} else {Bound::UPPER}, eval);
     eval
