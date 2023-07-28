@@ -335,6 +335,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let can_prune = !pv_node && !pos.check;
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
+    let fp_margin = eval + 250 + 80 * depth;
 
     eng.push(hash);
     while let Some((mov, ms)) = moves.pick(&mut scores) {
@@ -348,6 +349,9 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
             // quiet late move pruning
             if ms < MoveScore::KILLER && legal > 2 + depth * depth / if improving {1} else {2} { break }
+
+            // futility pruning
+            if depth <= 8 && ms < MoveScore::KILLER && fp_margin <= alpha { break }
 
             // static exchange eval pruning
             let margin = if mov.flag & Flag::CAP > 0 {-90} else {-50};
