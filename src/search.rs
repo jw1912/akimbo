@@ -296,7 +296,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         }
 
         // null move pruning
-        if null && depth >= 3 && pos.phase > 2 && eval >= beta {
+        if null && depth >= 3 && pos.bb[pos.c as usize] & !pos.bb[7] & !pos.bb[2] > 0 && eval >= beta {
             let mut new = *pos;
             let r = 3 + depth / 3;
             eng.push(hash);
@@ -334,7 +334,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let (mut best_score, mut best_move) = (-Score::MAX, tt_move);
     let mut quiets_tried = MoveList::default();
     let can_prune = !pv_node && !pos.check;
-    let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
+    let can_lmr = depth > 2 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
     let fp_margin = eval + 250 + 80 * depth;
 
@@ -395,13 +395,13 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             // reduce checks less
             r -= i32::from(new.check);
 
-            // reduce passed pawn moves less
+            // reduce passed pawn moves less, and if moving to 6/7th rank even less
             let passed = usize::from(mov.pc) == Piece::PAWN
                 && SPANS[usize::from(pos.c)][usize::from(mov.from)] & pos.bb[Piece::PAWN] & pos.bb[usize::from(!pos.c)] == 0;
-            r -= i32::from(passed);
+            r -= i32::from(passed) * (1 + i32::from(mov.to ^ (56 * u8::from(pos.c)) >= 40));
 
             // don't accidentally extend
-            r.max(0)
+            r.clamp(0, depth - 2)
         } else { 0 };
 
         let pre_nodes = eng.nodes + eng.qnodes;
