@@ -174,6 +174,7 @@ fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, max_depth: i32, 
         }
 
         delta *= 2;
+        if delta > 200 { delta = Score::MAX }
     }
 }
 
