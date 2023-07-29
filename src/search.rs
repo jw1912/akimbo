@@ -354,6 +354,9 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             // futility pruning
             if depth <= 8 && ms < MoveScore::KILLER && fp_margin <= alpha { break }
 
+            // history pruning
+            if depth < 3 && ms < -1024 * depth { break }
+
             // static exchange eval pruning
             let margin = if mov.flag & Flag::CAP > 0 {-90} else {-50};
             if depth < 7 && ms < MoveScore::CAPTURE && !pos.see(mov, margin * depth) { continue }
