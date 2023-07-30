@@ -282,7 +282,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
     // improving heuristic
     eng.plied[eng.ply as usize].1 = eval;
-    let improving = eng.ply > 1 && eval > eng.plied[eng.ply as usize - 2].1;
+    let improving = (eng.ply > 1 && eval > eng.plied[eng.ply as usize - 2].1)
+                    || (eng.ply > 3 && eval > eng.plied[eng.ply as usize - 4].1);
 
     // pruning
     if !pv_node && !pos.check && beta.abs() < Score::MATE {
