@@ -27,7 +27,7 @@ akimbo's evaluation consists only of a set of tapered piece-square tables, tuned
 | [0.1.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.1.1) |    8th January 2023  | 1167 |  2469  | - |
 | [0.2.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.2.0) |   10th   April 2023  |  866 |  2525  | - |
 | [0.3.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.3.0) |   16th     May 2023  |  891 |  2587  | - |
-| [0.4.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.4.0) |    4th    July 2023  |  852 | ~2700  | 2753 |
+| [0.4.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.4.0) |    4th    July 2023  |  852 |  2708  | 2758 |
 
 ## Features
 
