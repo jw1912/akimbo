@@ -124,7 +124,7 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
     // iterative deepening loop
     for d in 1..=max_depth {
         eval = if d < 7 {
-            pvs(&pos, eng, -Score::MAX, Score::MAX, d, false, Move::default())
+            pvs(&pos, eng, -Score::MAX, Score::MAX, d, Move::default())
         } else { aspiration(&pos, eng, eval, d, &mut best_move, Move::default()) };
 
         if eng.abort { break }
@@ -158,7 +158,7 @@ fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, max_depth: i32, 
     let mut depth = max_depth;
 
     loop {
-        score = pvs(pos, eng, alpha, beta, depth, false, prev);
+        score = pvs(pos, eng, alpha, beta, depth, prev);
         if eng.abort { return 0 }
 
         if score <= alpha {
@@ -223,7 +223,7 @@ fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
     eval
 }
 
-fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut depth: i32, null: bool, prev: Move) -> i32 {
+fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut depth: i32, prev: Move) -> i32 {
     // stopping search
     if eng.abort { return 0 }
     if eng.nodes & 1023 == 0 && eng.timing.elapsed().as_millis() >= eng.max_time {
@@ -295,13 +295,14 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         }
 
         // null move pruning
-        if null && depth >= 3 && pos.phase > 2 && eval >= beta {
+        if prev != Move::default() && !singular && depth >= 3
+                && pos.bb[pos.c as usize] & !pos.bb[7] & !pos.bb[2] > 0 && eval >= beta {
             let mut new = *pos;
             let r = 3 + depth / 3;
             eng.push(hash);
             new.c = !new.c;
             new.enp_sq = 0;
-            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, Move::default());
+            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, Move::default());
             eng.pop();
             if nw >= Score::MATE { return beta }
             if nw >= beta { return nw }
@@ -373,7 +374,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             let s_beta = tt_score - depth * 2;
             eng.pop();
             eng.plied[eng.ply as usize].2 = mov;
-            let ret = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, prev);
+            let ret = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, prev);
             eng.plied[eng.ply as usize].2 = Move::default();
             eng.push(hash);
             if ret < s_beta {1} else {0}
@@ -403,12 +404,12 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
         // pvs
         let score = if legal == 1 {
-            -pvs(&new, eng, -beta, -alpha, depth + ext - 1, false, mov)
+            -pvs(&new, eng, -beta, -alpha, depth + ext - 1, mov)
         } else {
-            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true, mov);
+            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, mov);
             // re-search if fails high
             if zw > alpha && (pv_node || reduce > 0) {
-                -pvs(&new, eng, -beta, -alpha, depth - 1, false, mov)
+                -pvs(&new, eng, -beta, -alpha, depth - 1, mov)
             } else { zw }
         };
 
