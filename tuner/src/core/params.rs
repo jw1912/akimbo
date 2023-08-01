@@ -15,17 +15,19 @@ impl Params {
         Self(vals)
     }
 
-    /// Outputs a table of parameters with given shape, starting from given index.
-    pub fn output_table(&self, start: usize, rows: usize, columns: usize) {
-        println!("[");
-        for i in 0..rows {
-            let s: String = self.0[start + columns * i..start + columns * (i + 1)]
-                .iter()
-                .map(|s| format!(" {},", s.fancy()))
-                .collect();
-            println!("   {s}")
+    pub fn write_to_bin(&self, output_path: &str) -> std::io::Result<()> {
+        use std::io::Write;
+        let mut file = std::fs::File::create(output_path)?;
+        let mut params = [(0i32, 0i32); NUM_PARAMS];
+        for (i, param) in self.0.iter().enumerate() {
+            params[i] = (param.0 as i32, param.1 as i32);
         }
-        println!("],");
+        unsafe {
+            file.write_all(
+                &std::mem::transmute::<[(i32, i32); NUM_PARAMS], [u8; NUM_PARAMS * 8]>(params)
+            )?;
+        }
+        Ok(())
     }
 }
 

@@ -5,7 +5,7 @@ use std::{env::args, io::stdin};
 use tuner::{Data, gd_tune};
 use crate::core::{Params, S};
 
-fn main() {
+fn main() -> std::io::Result<()> {
     let file_name = args().nth(1).unwrap_or(String::from("lichess.book"));
     // initialise data
     let mut data = Data::default();
@@ -29,10 +29,9 @@ fn main() {
     // carry out tuning
     gd_tune(&data, &mut params, 100000, 0.05, 1.);
 
-    for i in 0..6 {
-        params.output_table(i * 64, 8, 8);
-    }
+    params.write_to_bin("../../resources/new_weights.bin")?;
 
     // wait for exit
-    stdin().read_line(&mut String::new()).unwrap();
+    stdin().read_line(&mut String::new())?;
+    Ok(())
 }

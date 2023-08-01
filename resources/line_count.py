@@ -1,10 +1,10 @@
 import os
 
 sloc, tloc = 0, 0
-files = os.listdir('src')
+files = os.listdir('./akimbo/src')
 
 for file in files:
-    with open(f"./src/{file}") as f:
+    with open(f"./akimbo/src/{file}") as f:
         s, t = 0, 0
         for line in f:
             t += 1
