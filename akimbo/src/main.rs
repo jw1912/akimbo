@@ -5,7 +5,7 @@ mod search;
 use crate::{position::{Move, Position}, search::{Engine, go}};
 use std::{io, process, time::Instant};
 
-const FEN_STRING: &str = include_str!("../fens.txt");
+const FEN_STRING: &str = include_str!("../../resources/fens.txt");
 const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 fn main() {
