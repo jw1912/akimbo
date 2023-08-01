@@ -17,17 +17,15 @@ fn main() -> std::io::Result<()> {
     let mut params = Params::default();
     let vals = [100., 300., 300., 500., 900.];
     for pc in 0..5 {
-        for sq in 0..64 {
-            params[64 * pc + sq] = S::new(vals[pc as usize]);
+        for ksq in 0..64 {
+            for sq in 0..64 {
+                params[5 * 64 * ksq + 64 * pc + sq] = S::new(vals[pc as usize]);
+            }
         }
     }
 
-    let timer = std::time::Instant::now();
-    data.error(0.09, &params);
-    println!("time {}ms", timer.elapsed().as_millis());
-
     // carry out tuning
-    gd_tune(&data, &mut params, 100000, 0.05, 1.);
+    gd_tune(&data, &mut params, 5000, 0.05, 1.);
 
     params.write_to_bin("../../resources/new_weights.bin")?;
 

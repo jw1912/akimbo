@@ -1,7 +1,11 @@
 use super::{Params, S};
-use std::str::FromStr;
+use std::{str::FromStr, sync::atomic::{AtomicU64, Ordering::Relaxed}};
 
 pub const TPHASE: f64 = 24.0;
+
+#[allow(clippy::declare_interior_mutable_const)]
+const BLAH: AtomicU64 = AtomicU64::new(0);
+pub static HITS: [AtomicU64; 64] = [BLAH; 64];
 
 #[derive(Default)]
 pub struct Position {
@@ -16,9 +20,9 @@ impl FromStr for Position {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut pos = Position::default();
-        let mut pieces = [[0; 6]; 2];
         let mut row = 7;
         let mut col = 0;
+        let mut ksqs = [0, 0];
         for ch in s.chars() {
             if ch == '/' {
                 row -= 1;
@@ -31,12 +35,28 @@ impl FromStr for Position {
                 let c = idx / 6;
                 let pc = idx as u16 - 6 * c as u16;
                 let sq = 8 * row + col;
-                pos.indices[c][pos.counters[c] as usize] = pc * 64 + (sq ^ (56 * (c as u16 ^ 1)));
-                pos.counters[c] += 1;
-                pos.phase += [0., 1., 1., 2., 4., 0.][pc as usize];
-                pieces[c][pc as usize] |= 1u64 << sq;
+                let flip = 56 * c as u16;
+
+                // king?
+                if pc == 5 {
+                    ksqs[c] = sq ^ flip;
+                } else {
+                    pos.indices[c][pos.counters[c] as usize] = pc * 64 + (sq ^ flip);
+                    pos.counters[c] += 1;
+                    pos.phase += [0., 1., 1., 2., 4., 0.][pc as usize];
+                }
+
                 col += 1;
             }
+        }
+
+        for sq in ksqs {
+            HITS[usize::from(sq)].fetch_add(1, Relaxed);
+        }
+
+        for i in 0..16 {
+            pos.indices[0][i] += 5 * 64 * ksqs[0];
+            pos.indices[1][i] += 5 * 64 * ksqs[1];
         }
 
         if pos.phase > TPHASE { pos.phase = TPHASE }
