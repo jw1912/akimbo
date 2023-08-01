@@ -1,0 +1,6 @@
+[package]
+name = "akimbo"
+version = "0.4.0"
+edition = "2021"
+authors = ["Jamie Whiting"]
+
