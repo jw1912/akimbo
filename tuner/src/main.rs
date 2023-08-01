@@ -6,12 +6,19 @@ use tuner::{Data, gd_tune};
 use crate::core::{Params, S};
 
 fn main() -> std::io::Result<()> {
-    let file_name = args().nth(1).unwrap_or(String::from("lichess.book"));
+    let file_name = args().nth(1).unwrap_or(String::from("resources/lichess.book"));
     // initialise data
     let mut data = Data::default();
-    data.1 = 1;
+    data.1 = 4;
     let num = data.add_contents(&file_name);
     println!("positions {num:.0}");
+    for i in 0..8 {
+        let mut s = String::new();
+        for j in 0..8 {
+            s.push_str(&format!("{: >7}, ", crate::core::HITS[8 * (7 - i) + j].load(std::sync::atomic::Ordering::Relaxed)));
+        }
+        println!("{s}");
+    }
 
     // provide starting parameters
     let mut params = Params::default();
@@ -27,7 +34,7 @@ fn main() -> std::io::Result<()> {
     // carry out tuning
     gd_tune(&data, &mut params, 5000, 0.05, 1.);
 
-    params.write_to_bin("../../resources/new_weights.bin")?;
+    params.write_to_bin("resources/new_weights.bin")?;
 
     // wait for exit
     stdin().read_line(&mut String::new())?;

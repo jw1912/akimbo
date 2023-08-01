@@ -2,7 +2,7 @@ mod params;
 mod position;
 mod score;
 
-pub use position::{Position, sigmoid};
+pub use position::{Position, sigmoid, HITS};
 pub use score::S;
 pub use params::Params;
 

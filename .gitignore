@@ -3,3 +3,5 @@ Cargo.lock
 /.cargo
 akimbo.exe
 *.epd
+*.book
+new_weights.bin
