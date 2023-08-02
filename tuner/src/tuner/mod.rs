@@ -12,7 +12,7 @@ fn optimise_k(params: &Params, data: &Data) -> f64 {
     while dev.abs() > goal {
         let right = data.error(k + delta, params);
         let left = data.error(k - delta, params);
-        dev = (right - left) / (500. * delta);
+        dev = (right - left) / (5000. * delta);
         println!("k {k:.4} decr {left:.5} incr {right:.5}");
         k -= dev;
     }
