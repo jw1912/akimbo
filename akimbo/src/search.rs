@@ -21,6 +21,7 @@ pub struct Engine {
     // search control
     pub timing: Instant,
     pub max_time: u128,
+    pub max_nodes: u64,
     pub abort: bool,
 
     // tables
@@ -39,8 +40,22 @@ pub struct Engine {
     pub seldepth: i32,
 }
 
+impl Default for Engine {
+    fn default() -> Self {
+        Self {
+            timing: Instant::now(), max_time: 0, abort: false, max_nodes: u64::MAX,
+            tt: Vec::new(), tt_age: 0,
+            htable: Box::new([[[Default::default(); 64]; 8]; 2]),
+            plied: Box::new([Default::default(); 96]),
+            ntable: Box::new([[0; 64]; 64]),
+            stack: Vec::with_capacity(96),
+            nodes: 0, qnodes: 0, ply: 0, best_move: Move::default(), seldepth: 0,
+        }
+    }
+}
+
 impl Engine {
-    fn repetition(&self, pos: &Position, curr_hash: u64, root: bool) -> bool {
+    pub fn repetition(&self, pos: &Position, curr_hash: u64, root: bool) -> bool {
         if self.stack.len() < 6 { return false }
         let mut reps = 1 + u8::from(root);
         for &hash in self.stack.iter().rev().take(pos.halfm as usize + 1).skip(1).step_by(2) {
@@ -103,7 +118,7 @@ impl Engine {
     }
 }
 
-pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft_bound: f64) {
+pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft_bound: f64) -> Move {
     // reset engine
     *eng.ntable = [[0; 64]; 64];
     eng.plied.iter_mut().for_each(|x| x.0 = Default::default());
@@ -148,7 +163,7 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
         if eng.timing.elapsed().as_millis() as f64 >= soft_bound * if d > 8 {(1.5 - frac) * 1.35} else {1.0} { break }
     }
     eng.tt_age = 63.min(eng.tt_age + 1);
-    println!("bestmove {}", best_move.to_uci());
+    best_move
 }
 
 fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, max_depth: i32, best_move: &mut Move, prev: Move) -> i32 {
@@ -226,7 +241,7 @@ fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
 fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut depth: i32, null: bool, prev: Move) -> i32 {
     // stopping search
     if eng.abort { return 0 }
-    if eng.nodes & 1023 == 0 && eng.timing.elapsed().as_millis() >= eng.max_time {
+    if eng.nodes & 1023 == 0 && (eng.timing.elapsed().as_millis() >= eng.max_time || eng.nodes + eng.qnodes >= eng.max_nodes) {
         eng.abort = true;
         return 0
     }

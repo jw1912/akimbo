@@ -1,7 +1,7 @@
 mod core;
 mod tuner;
 
-use std::{env::args, io::stdin};
+use std::env::args;
 use tuner::{Data, gd_tune};
 use crate::core::{Params, S};
 
@@ -36,7 +36,6 @@ fn main() -> std::io::Result<()> {
 
     params.write_to_bin("resources/new_weights.bin")?;
 
-    // wait for exit
-    stdin().read_line(&mut String::new())?;
+    // exit
     Ok(())
 }

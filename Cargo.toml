@@ -2,6 +2,7 @@
 members = [
     "akimbo",
     "tuner",
+    "datagen",
 ]
 
 [profile.release]
