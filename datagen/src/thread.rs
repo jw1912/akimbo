@@ -77,7 +77,12 @@ impl ThreadData {
                 break;
             }
 
-            let result = self.run_game().unwrap();
+            let result = if let Some(res) = self.run_game() {
+                res
+            } else {
+                continue;
+            };
+
             self.write(result);
             if self.games % 20 == 0 {
                 self.show_status();
@@ -93,8 +98,8 @@ impl ThreadData {
 
         let mut position = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
-        // play 8 random moves
-        for _ in 0..8 {
+        // play 8 or 9 random moves
+        for _ in 0..(8 + (self.rng() % 2)) {
             let moves = position.movegen::<true>();
 
             let mut legals = Vec::new();
