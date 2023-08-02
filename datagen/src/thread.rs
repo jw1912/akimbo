@@ -21,14 +21,15 @@ pub struct ThreadData {
 impl ThreadData {
     pub fn show_status(&self) {
         let fps = self.fens as f64 / self.start_time.elapsed().as_secs_f64();
-        println!("id {} games {} fens {} fps {fps:.0}", self.id, self.games, self.fens);
+        let fpg = self.fens / self.games;
+        println!("id {} games {} fens {} fps {fps:.0} fpg {fpg}", self.id, self.games, self.fens);
     }
 
     pub fn new(max_nodes: u64, hash_size: usize) -> Self {
         let seed = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards")
-            .as_millis() as u64;
+            .expect("Guaranteed increasing.")
+            .as_micros() as u64 & 0xFFFF_FFFF;
 
         let mut res = Self {
             engine: Engine {
@@ -45,6 +46,8 @@ impl ThreadData {
         };
 
         res.engine.resize_tt(hash_size);
+
+        println!("id {} created", res.id);
         res
     }
 
