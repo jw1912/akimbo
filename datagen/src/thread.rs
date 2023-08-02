@@ -72,7 +72,7 @@ impl ThreadData {
     }
 
     pub fn run_datagen(&mut self, max_games: u64) {
-        for _ in 0..max_games {
+        while self.games < max_games {
             if STOP.load(Ordering::SeqCst) {
                 break;
             }
@@ -128,7 +128,10 @@ impl ThreadData {
                 result.fens.push(to_fen(&position));
             }
 
-            position.make(bm);
+            if position.make(bm) {
+                // oh no, we made an illegal move
+                return None
+            }
 
             // check for game end via check/stalemate
             if is_terminal(&position) {

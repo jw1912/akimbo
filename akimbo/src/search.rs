@@ -241,9 +241,7 @@ fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
 fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut depth: i32, null: bool, prev: Move) -> i32 {
     // stopping search
     if eng.abort { return 0 }
-    if eng.nodes & 1023 == 0 && (
-        eng.timing.elapsed().as_millis() >= eng.max_time || (eng.ply > 1 && eng.nodes + eng.qnodes >= eng.max_nodes)
-    ) {
+    if eng.nodes & 1023 == 0 && (eng.timing.elapsed().as_millis() >= eng.max_time || eng.nodes + eng.qnodes >= eng.max_nodes) {
         eng.abort = true;
         return 0
     }
