@@ -1,4 +1,4 @@
-use akimbo::{position::{Move, Position}, search::{Engine, go}};
+use akimbo::{position::Position, search::{Engine, go}};
 
 use std::{io, process, time::Instant};
 
@@ -10,15 +10,7 @@ fn main() {
 
     // initialise engine
     let mut pos = Position::from_fen(STARTPOS);
-    let mut eng = Engine {
-        timing: Instant::now(), max_time: 0, abort: false, max_nodes: u64::MAX,
-        tt: Vec::new(), tt_age: 0,
-        htable: Box::new([[[Default::default(); 64]; 8]; 2]),
-        plied: Box::new([Default::default(); 96]),
-        ntable: Box::new([[0; 64]; 64]),
-        stack: Vec::with_capacity(96),
-        nodes: 0, qnodes: 0, ply: 0, best_move: Move::default(), seldepth: 0,
-    };
+    let mut eng = Engine::default();
     eng.resize_tt(16);
 
     // bench for OpenBench

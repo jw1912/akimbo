@@ -40,8 +40,22 @@ pub struct Engine {
     pub seldepth: i32,
 }
 
+impl Default for Engine {
+    fn default() -> Self {
+        Self {
+            timing: Instant::now(), max_time: 0, abort: false, max_nodes: u64::MAX,
+            tt: Vec::new(), tt_age: 0,
+            htable: Box::new([[[Default::default(); 64]; 8]; 2]),
+            plied: Box::new([Default::default(); 96]),
+            ntable: Box::new([[0; 64]; 64]),
+            stack: Vec::with_capacity(96),
+            nodes: 0, qnodes: 0, ply: 0, best_move: Move::default(), seldepth: 0,
+        }
+    }
+}
+
 impl Engine {
-    fn repetition(&self, pos: &Position, curr_hash: u64, root: bool) -> bool {
+    pub fn repetition(&self, pos: &Position, curr_hash: u64, root: bool) -> bool {
         if self.stack.len() < 6 { return false }
         let mut reps = 1 + u8::from(root);
         for &hash in self.stack.iter().rev().take(pos.halfm as usize + 1).skip(1).step_by(2) {
