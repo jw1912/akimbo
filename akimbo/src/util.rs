@@ -24,13 +24,6 @@ impl std::ops::AddAssign<S> for S {
     }
 }
 
-impl std::ops::SubAssign<S> for S {
-    fn sub_assign(&mut self, rhs: S) {
-        self.0 -= rhs.0;
-        self.1 -= rhs.1;
-    }
-}
-
 // Macros
 macro_rules! init {($i:ident, $size:expr, $($r:tt)+) => {{
     let mut $i = 0;
@@ -154,8 +147,4 @@ const FRONT_SPANS: [u64; 64] = init! {i, 64, {
 pub const SPANS: [[u64; 64]; 2] = [FRONT_SPANS, init! {i, 64, FRONT_SPANS[i ^ 56].swap_bytes()}];
 pub const SIDE: [i32; 2] = [1, -1];
 pub const PHASE_VALS: [i32; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
-pub static PST: [[[S; 64]; 8]; 2] = [
-    init!(i, 8, init!(j, 64, RAW_PST[(i as usize).saturating_sub(2usize)][j ^ 56])),
-    init!(i, 8, init!(j, 64, S(-RAW_PST[(i as usize).saturating_sub(2usize)][j].0, -RAW_PST[(i as usize).saturating_sub(2usize)][j].1))),
-];
-const RAW_PST: [[S; 64]; 6] = unsafe { std::mem::transmute(*include_bytes!("../../resources/weights.bin")) };
+pub static PST: [[[S; 64]; 5]; 64] = unsafe { std::mem::transmute(*include_bytes!("../../resources/weights.bin")) };

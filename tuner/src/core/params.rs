@@ -1,20 +1,15 @@
 use super::{NUM_PARAMS, S};
 use std::ops::*;
 
-pub struct Params([S; NUM_PARAMS]);
+pub struct Params(Box<[S; NUM_PARAMS]>);
 
 impl Default for Params {
     fn default() -> Self {
-        Params::new([S::new(0.); NUM_PARAMS])
+        Params(Box::new([S::new(0.); NUM_PARAMS]))
     }
 }
 
 impl Params {
-    /// Constructs new Params with given values.
-    pub const fn new(vals: [S; NUM_PARAMS]) -> Self {
-        Self(vals)
-    }
-
     pub fn write_to_bin(&self, output_path: &str) -> std::io::Result<()> {
         use std::io::Write;
         let mut file = std::fs::File::create(output_path)?;

@@ -113,6 +113,7 @@ fn main() {
                 println!("perft {depth} time {} nodes {count} ({:.2} Mnps)", time / 1000, count as f64 / time as f64);
             },
             "quit" => process::exit(0),
+            "eval" => println!("eval: {}cp", pos.eval()),
             _ => {},
         }
     }
