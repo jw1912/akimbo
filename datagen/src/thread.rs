@@ -1,6 +1,6 @@
 use akimbo::{position::Position, search::{Engine, go}};
-use crate::util::{to_fen, is_capture, is_terminal};
-use std::{time::{SystemTime, UNIX_EPOCH, Instant}, io::{BufWriter, Write}, fs::File};
+use crate::{util::{to_fen, is_capture, is_terminal}, STOP};
+use std::{time::{SystemTime, UNIX_EPOCH, Instant}, io::{BufWriter, Write}, fs::File, sync::atomic::Ordering};
 
 #[derive(Default)]
 pub struct GameResult {
@@ -22,7 +22,7 @@ impl ThreadData {
     pub fn show_status(&self) {
         let fps = self.fens as f64 / self.start_time.elapsed().as_secs_f64();
         let fpg = self.fens / self.games;
-        println!("id {} games {} fens {} fps {fps:.0} fpg {fpg}", self.id, self.games, self.fens);
+        println!("thread id {} games {} fens {} fps {fps:.0} fpg {fpg}", self.id, self.games, self.fens);
     }
 
     pub fn new(max_nodes: u64, hash_size: usize) -> Self {
@@ -47,7 +47,7 @@ impl ThreadData {
 
         res.engine.resize_tt(hash_size);
 
-        println!("id {} created", res.id);
+        println!("thread id {} created", res.id);
         res
     }
 
@@ -73,6 +73,10 @@ impl ThreadData {
 
     pub fn run_datagen(&mut self, max_games: u64) {
         for _ in 0..max_games {
+            if STOP.load(Ordering::SeqCst) {
+                break;
+            }
+
             let result = self.run_game().unwrap();
             self.write(result);
             if self.games % 20 == 0 {
@@ -80,7 +84,7 @@ impl ThreadData {
             }
         }
         self.file.flush().unwrap();
-        println!("id {} finished", self.id);
+        println!("thread id {} finished", self.id);
         self.show_status();
     }
 
