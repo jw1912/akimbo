@@ -18,7 +18,6 @@ pub struct Position {
     pub check: bool,
     hash: u64,
     pub phase: i32,
-    pst: S,
 }
 
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
@@ -103,15 +102,12 @@ impl Position {
         // move piece
         self.toggle(side, moved, from_bb ^ to_bb);
         self.hash ^= ZVALS.pcs[side][moved][from] ^ ZVALS.pcs[side][moved][to];
-        self.pst += PST[side][moved][to];
-        self.pst -= PST[side][moved][from];
 
         // captures
         if captured != Piece::EMPTY {
             let opp = side ^ 1;
             self.toggle(opp, captured, to_bb);
             self.hash ^= ZVALS.pcs[opp][captured][to];
-            self.pst -= PST[opp][captured][to];
             self.phase -= PHASE_VALS[captured];
         }
 
@@ -122,22 +118,17 @@ impl Position {
                 let (bits, rfr, rto) = ROOK_MOVES[usize::from(mov.flag == Flag::KS)][side];
                 self.toggle(side, Piece::ROOK, bits);
                 self.hash ^= ZVALS.pcs[side][Piece::ROOK][rfr] ^ ZVALS.pcs[side][Piece::ROOK][rto];
-                self.pst -= PST[side][Piece::ROOK][rfr];
-                self.pst += PST[side][Piece::ROOK][rto];
             },
             Flag::ENP => {
                 let pawn_sq = to ^ 8;
                 self.toggle(side ^ 1, Piece::PAWN, 1 << pawn_sq);
                 self.hash ^= ZVALS.pcs[side ^ 1][Piece::PAWN][pawn_sq];
-                self.pst -= PST[side ^ 1][Piece::PAWN][pawn_sq];
             },
             Flag::PROMO.. => {
                 let promo = usize::from((mov.flag & 3) + 3);
                 self.bb[Piece::PAWN] ^= to_bb;
                 self.bb[promo] ^= to_bb;
                 self.hash ^= ZVALS.pcs[side][Piece::PAWN][to] ^ ZVALS.pcs[side][promo][to];
-                self.pst -= PST[side][Piece::PAWN][to];
-                self.pst += PST[side][promo][to];
                 self.phase += PHASE_VALS[promo];
             }
             _ => {}
@@ -162,7 +153,20 @@ impl Position {
     }
 
     pub fn eval(&self) -> i32 {
-        let (s, p) = (self.pst, 24.min(self.phase));
+        let p = 24.min(self.phase);
+        let mut scores = [S(0, 0), S(0, 0)];
+
+        for (side, flip) in [0, 56].iter().enumerate() {
+            let boys = self.bb[side];
+            let ksq = (boys & self.bb[Piece::KING]).trailing_zeros() as usize ^ flip;
+            for pc in Piece::PAWN..Piece::KING {
+                let mut pcs = boys & self.bb[pc];
+                bitloop!(pcs, sq, scores[side] += PST[ksq][pc - 2][usize::from(sq) ^ flip]);
+            }
+        }
+
+        let s = S(scores[0].0 - scores[1].0, scores[0].1 - scores[1].1);
+
         SIDE[usize::from(self.c)] * (p * s.0 + (24 - p) * s.1) / 24
     }
 
@@ -318,7 +322,6 @@ impl Position {
                 let (pc, sq) = (idx + 2 - 6 * side, 8 * row + col);
                 pos.toggle(side, pc, 1 << sq);
                 pos.hash ^= ZVALS.pcs[side][pc][sq as usize];
-                pos.pst += PST[side][pc][sq as usize];
                 pos.phase += PHASE_VALS[pc];
                 col += 1;
             }
