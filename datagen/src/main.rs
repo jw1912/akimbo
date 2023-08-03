@@ -2,17 +2,18 @@ mod util;
 mod thread;
 
 use thread::ThreadData;
-use std::{sync::atomic::{AtomicBool, Ordering}, thread::spawn};
+use std::{sync::atomic::{AtomicBool, Ordering}, thread::{spawn, sleep}};
 
 pub static STOP: AtomicBool = AtomicBool::new(false);
 
 fn main() {
     let mut handles = Vec::new();
     for _ in 0..4 {
+        sleep(std::time::Duration::from_millis(500));
         handles.push(
             spawn(move || {
                 let mut worker = ThreadData::new(40_000, 8);
-                worker.run_datagen(10000);
+                worker.run_datagen(20000);
             })
         );
     }
