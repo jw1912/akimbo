@@ -121,7 +121,7 @@ impl ThreadData {
 
         // play out game
         loop {
-            let bm = go(&position, &mut self.engine, false, 10, 1000.0);
+            let bm = go(&position, &mut self.engine, false, 32, 1000.0);
 
             // position is quiet, can use fen
             if !is_capture(bm) && !position.in_check() {

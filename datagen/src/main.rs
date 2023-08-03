@@ -12,8 +12,8 @@ fn main() {
         sleep(std::time::Duration::from_millis(500));
         handles.push(
             spawn(move || {
-                let mut worker = ThreadData::new(40_000, 8);
-                worker.run_datagen(20000);
+                let mut worker = ThreadData::new(80_000, 8);
+                worker.run_datagen(10000);
             })
         );
     }

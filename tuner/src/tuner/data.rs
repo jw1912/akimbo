@@ -16,7 +16,7 @@ impl Data {
         self.2
     }
 
-    pub fn add_contents(&mut self, file_name: &str) -> f64 {
+    pub fn add_contents(&mut self, file_name: &str, filter: bool) -> f64 {
         self.2 = 234232423;
         let (mut wins, mut losses, mut draws) = (0, 0, 0);
         let file = File::open(file_name).unwrap();
@@ -24,7 +24,7 @@ impl Data {
         for line in BufReader::new(file).lines().map(|ln| ln.unwrap()) {
             let res: Position = line.parse().unwrap();
             let int = (res.result * 2.0) as u64;
-            if int == 1 && self.rng() % 2 == 1 {
+            if filter && int == 1 && self.rng() % 2 == 1 {
                 continue;
             }
             writeln!(&mut used, "{}", line).unwrap();
