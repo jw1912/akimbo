@@ -1,19 +1,42 @@
 use crate::core::{Params, Position, S, sigmoid};
-use std::{fs::File, io::{BufRead, BufReader}, thread};
+use std::{fs::File, io::{BufRead, BufReader, BufWriter, Write}, thread};
 
 #[derive(Default)]
-pub struct Data(Vec<Position>, pub usize);
+pub struct Data(Vec<Position>, pub usize, pub u64);
 
 impl Data {
     pub fn num(&self) -> f64 {
         self.0.len() as f64
     }
 
+    pub fn rng(&mut self) -> u64 {
+        self.2 ^= self.2 << 13;
+        self.2 ^= self.2 >> 7;
+        self.2 ^= self.2 << 17;
+        self.2
+    }
+
     pub fn add_contents(&mut self, file_name: &str) -> f64 {
+        self.2 = 234232423;
+        let (mut wins, mut losses, mut draws) = (0, 0, 0);
         let file = File::open(file_name).unwrap();
+        let mut used = BufWriter::new(File::create("resources/used.epd").unwrap());
         for line in BufReader::new(file).lines().map(|ln| ln.unwrap()) {
-            self.0.push(line.parse().unwrap());
+            let res: Position = line.parse().unwrap();
+            let int = (res.result * 2.0) as u64;
+            if int == 1 && self.rng() % 2 == 1 {
+                continue;
+            }
+            writeln!(&mut used, "{}", line).unwrap();
+            match int {
+                2 => wins += 1,
+                0 => losses += 1,
+                1 => draws += 1,
+                _ => unreachable!(),
+            }
+            self.0.push(res);
         }
+        println!("wins {wins} losses {losses} draws {draws}");
         self.num()
     }
 
