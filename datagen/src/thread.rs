@@ -1,4 +1,4 @@
-use akimbo::{position::Position, search::{Engine, go}};
+use akimbo::{position::{Position, Move}, search::{Engine, go}};
 use crate::{util::{to_fen, is_capture, is_terminal}, STOP};
 use std::{time::{SystemTime, UNIX_EPOCH, Instant}, io::{BufWriter, Write}, fs::File, sync::atomic::Ordering};
 
@@ -53,7 +53,8 @@ impl ThreadData {
 
     pub fn write(&mut self, result: GameResult) {
         self.games += 1;
-        for fen in result.fens.iter().take(result.fens.len().saturating_sub(8)) {
+        let num_taken = result.fens.len().saturating_sub(if result.result == 0.5 {8} else {0});
+        for fen in result.fens.iter().take(num_taken) {
             writeln!(&mut self.file, "{} [{:.1}]", fen, result.result).unwrap();
             self.fens += 1;
         }
@@ -121,16 +122,22 @@ impl ThreadData {
 
         // play out game
         loop {
-            let bm = go(&position, &mut self.engine, false, 32, 1000.0);
+            let (bm, score) = go(&position, &mut self.engine, false, 32, 1000.0);
+
+            // not enough nodes to finish a depth!
+            if bm == Move::default() || position.make(bm) {
+                return None
+            }
+
+            // adjudicate large scores
+            if score > 1000 {
+                result.result = f32::from(position.c);
+                break;
+            }
 
             // position is quiet, can use fen
             if !is_capture(bm) && !position.in_check() {
                 result.fens.push(to_fen(&position));
-            }
-
-            if position.make(bm) {
-                // oh no, we made an illegal move
-                return None
             }
 
             // check for game end via check/stalemate

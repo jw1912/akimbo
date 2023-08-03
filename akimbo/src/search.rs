@@ -118,7 +118,7 @@ impl Engine {
     }
 }
 
-pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft_bound: f64) -> Move {
+pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft_bound: f64) -> (Move, i32) {
     // reset engine
     *eng.ntable = [[0; 64]; 64];
     eng.plied.iter_mut().for_each(|x| x.0 = Default::default());
@@ -133,7 +133,7 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
 
     let mut best_move = Move::default();
     let mut pos = *start;
-    let mut eval = 0;
+    let (mut eval, mut score) = (0, 0);
     pos.check = pos.in_check();
 
     // iterative deepening loop
@@ -144,6 +144,7 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
 
         if eng.abort { break }
         best_move = eng.best_move;
+        score = eval;
 
         let nodes = eng.nodes + eng.qnodes;
 
@@ -163,7 +164,7 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
         if eng.timing.elapsed().as_millis() as f64 >= soft_bound * if d > 8 {(1.5 - frac) * 1.35} else {1.0} { break }
     }
     eng.tt_age = 63.min(eng.tt_age + 1);
-    best_move
+    (best_move, score)
 }
 
 fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, max_depth: i32, best_move: &mut Move, prev: Move) -> i32 {
