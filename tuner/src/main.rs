@@ -10,7 +10,7 @@ fn main() -> std::io::Result<()> {
     // initialise data
     let mut data = Data::default();
     data.1 = 4;
-    let num = data.add_contents(&file_name);
+    let num = data.add_contents(&file_name, true);
     println!("positions {num:.0}");
     for i in 0..8 {
         let mut s = String::new();
