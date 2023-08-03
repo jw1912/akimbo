@@ -131,7 +131,7 @@ impl ThreadData {
 
             // adjudicate large scores
             if score > 1000 {
-                result.result = f32::from(!position.c);
+                result.result = f32::from(position.c);
                 break;
             }
 
