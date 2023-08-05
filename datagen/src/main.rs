@@ -17,9 +17,9 @@ const NODES_PER_GAME: u64 = 10_000;
 fn main() {
     let mut handles = Vec::new();
 
-    let book = File::open("resources/books/8moves_v3.epd").unwrap();
+    let book = File::open("resources/books/Pohl.epd").unwrap();
 
-    let book_vec = BufReader::new(book).lines().map(|ln| ln.unwrap()).collect::<Vec<String>>();
+    let book_vec = BufReader::new(book).lines().skip(80_000).map(|ln| ln.unwrap()).collect::<Vec<String>>();
 
 
     for seeds in book_vec.chunks(GAMES_PER_THREAD / 4).take(4) {
