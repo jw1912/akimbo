@@ -6,11 +6,11 @@ use tuner::{Data, gd_tune};
 use crate::core::{Params, S};
 
 fn main() -> std::io::Result<()> {
-    let file_name = args().nth(1).unwrap_or(String::from("resources/smallerboi-filtered.epd"));
+    let file_name = args().nth(1).unwrap_or(String::from("resources/maybe.epd"));
     // initialise data
     let mut data = Data::default();
     data.1 = 4;
-    let num = data.add_contents(&file_name, true);
+    let num = data.add_contents(&file_name, false);
     println!("positions {num:.0}");
     for i in 0..8 {
         let mut s = String::new();
