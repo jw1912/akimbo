@@ -32,24 +32,10 @@ impl AddAssign<S> for S {
     }
 }
 
-impl AddAssign<f64> for S {
-    fn add_assign(&mut self, rhs: f64) {
-        self.0 += rhs;
-        self.1 += rhs;
-    }
-}
-
 impl SubAssign<S> for S {
     fn sub_assign(&mut self, rhs: S) {
         self.0 -= rhs.0;
         self.1 -= rhs.1;
-    }
-}
-
-impl SubAssign<f64> for S {
-    fn sub_assign(&mut self, rhs: f64) {
-        self.0 -= rhs;
-        self.1 -= rhs;
     }
 }
 
@@ -64,13 +50,6 @@ impl Mul<S> for S {
     type Output = S;
     fn mul(self, rhs: S) -> Self::Output {
         S(self.0 * rhs.0, self.1 * rhs.1)
-    }
-}
-
-impl Div<f64> for S {
-    type Output = S;
-    fn div(self, rhs: f64) -> Self::Output {
-        Self(self.0 / rhs, self.1 / rhs)
     }
 }
 
@@ -107,11 +86,6 @@ impl S {
     #[inline]
     pub const fn new(s: f64) -> Self {
         Self(s, s)
-    }
-
-    /// Fancy string formatting.
-    pub fn fancy(&self) -> String {
-        format!("S({: >3.0},{: >4.0})", self.0, self.1)
     }
 
     pub fn sqrt(&self) -> Self {

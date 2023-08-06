@@ -48,21 +48,3 @@ impl Add<Params> for Params {
         self
     }
 }
-
-impl Sub<Params> for Params {
-    type Output = Params;
-    fn sub(mut self, rhs: Params) -> Self::Output {
-        for i in 0..NUM_PARAMS {
-            self.0[i] -= rhs.0[i];
-        }
-        self
-    }
-}
-
-impl AddAssign<Params> for Params {
-    fn add_assign(&mut self, rhs: Params) {
-        for i in 0..NUM_PARAMS {
-            self.0[i] += rhs.0[i]
-        }
-    }
-}
