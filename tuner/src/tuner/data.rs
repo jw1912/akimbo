@@ -1,4 +1,4 @@
-use crate::core::{Params, Position, S, sigmoid};
+use crate::core::{Params, Position, S, sigmoid, OFFSET};
 use std::{fs::File, io::{BufRead, BufReader, BufWriter, Write}, thread};
 
 #[derive(Default)]
@@ -73,13 +73,16 @@ fn gradients_batch(positions: &[Position], k: f64, params: &Params) -> Params {
         let sigm = sigmoid(k * pos.eval(params));
         let term = (pos.result - sigm) * (1. - sigm) * sigm;
         let phase_adj = term *  S(pos.phase, 1. - pos.phase);
+
         for i in 0..usize::from(pos.counters[0]) {
             let idx = pos.indices[0][i];
-            grad[idx] += phase_adj;
+            grad[pos.offsets[0] + idx] += phase_adj;
+            grad[OFFSET as u16 + pos.offsets[1] + idx] += phase_adj;
         }
         for i in 0..usize::from(pos.counters[1]) {
             let idx = pos.indices[1][i];
-            grad[idx] -= phase_adj;
+            grad[pos.offsets[1] + idx] -= phase_adj;
+            grad[OFFSET as u16 + pos.offsets[0] + idx] -= phase_adj;
         }
     }
     grad

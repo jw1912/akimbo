@@ -1,4 +1,4 @@
-use super::{Params, S};
+use super::{Params, S, OFFSET};
 use std::{str::FromStr, sync::atomic::{AtomicU64, Ordering::Relaxed}};
 
 pub const TPHASE: f64 = 24.0;
@@ -11,6 +11,7 @@ pub static HITS: [AtomicU64; 64] = [BLAH; 64];
 pub struct Position {
     pub indices: [[u16; 16]; 2],
     pub counters: [u8; 2],
+    pub offsets: [u16; 2],
     pub phase: f64,
     pub result: f64,
 }
@@ -22,7 +23,6 @@ impl FromStr for Position {
         let mut pos = Position::default();
         let mut row = 7;
         let mut col = 0;
-        let mut ksqs = [0, 0];
         for ch in s.chars() {
             if ch == '/' {
                 row -= 1;
@@ -39,7 +39,7 @@ impl FromStr for Position {
 
                 // king?
                 if pc == 5 {
-                    ksqs[c] = sq ^ flip;
+                    pos.offsets[c] = 5 * 64 * (sq ^ flip);
                 } else {
                     pos.indices[c][pos.counters[c] as usize] = pc * 64 + (sq ^ flip);
                     pos.counters[c] += 1;
@@ -50,13 +50,8 @@ impl FromStr for Position {
             }
         }
 
-        for sq in ksqs {
-            HITS[usize::from(sq)].fetch_add(1, Relaxed);
-        }
-
-        for i in 0..16 {
-            pos.indices[0][i] += 5 * 64 * ksqs[0];
-            pos.indices[1][i] += 5 * 64 * ksqs[1];
+        for sq in pos.offsets {
+            HITS[usize::from(sq) / (5 * 64)].fetch_add(1, Relaxed);
         }
 
         if pos.phase > TPHASE { pos.phase = TPHASE }
@@ -75,10 +70,12 @@ impl Position {
     pub fn eval(&self, params: &Params) -> f64 {
         let mut score = S::new(0.);
         for i in 0..usize::from(self.counters[0]) {
-            score += params[self.indices[0][i]];
+            let idx = self.indices[0][i];
+            score += params[self.offsets[0] + idx] + params[OFFSET as u16 + self.offsets[1] + idx];
         }
         for i in 0..usize::from(self.counters[1]) {
-            score -= params[self.indices[1][i]];
+            let idx = self.indices[1][i];
+            score -= params[self.offsets[1] + idx] + params[OFFSET as u16 + self.offsets[0] + idx];
         }
 
         self.phase * score.0 + (1. - self.phase) * score.1

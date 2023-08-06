@@ -157,11 +157,15 @@ impl Position {
         let mut scores = [S(0, 0), S(0, 0)];
 
         for (side, flip) in [0, 56].iter().enumerate() {
-            let boys = self.bb[side];
-            let ksq = (boys & self.bb[Piece::KING]).trailing_zeros() as usize ^ flip;
+            let (boys, opps) = (self.bb[side], self.bb[side ^ 1]);
+            let our_ksq = (boys & self.bb[Piece::KING]).trailing_zeros() as usize ^ flip;
+            let opp_ksq = (opps & self.bb[Piece::KING]).trailing_zeros() as usize ^ flip ^ 56;
             for pc in Piece::PAWN..Piece::KING {
                 let mut pcs = boys & self.bb[pc];
-                bitloop!(pcs, sq, scores[side] += PST[ksq][pc - 2][usize::from(sq) ^ flip]);
+                bitloop!(pcs, sq, {
+                    scores[side] += PST[0][our_ksq][pc - 2][usize::from(sq) ^ flip];
+                    scores[side] += PST[1][opp_ksq][pc - 2][usize::from(sq) ^ flip]
+                });
             }
         }
 
