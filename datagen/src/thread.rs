@@ -1,4 +1,4 @@
-use akimbo::{position::Position, search::{Engine, go}};
+use akimbo::{position::{Position, Move}, search::{Engine, go}};
 use crate::{util::{to_fen, is_capture, is_terminal}, STOP};
 use std::{time::{SystemTime, UNIX_EPOCH, Instant}, io::{BufWriter, Write}, fs::File, sync::atomic::Ordering};
 
@@ -16,6 +16,7 @@ pub struct ThreadData {
     games: u64,
     fens: u64,
     start_time: Instant,
+    pub seed_positions: Vec<String>,
 }
 
 impl ThreadData {
@@ -43,6 +44,7 @@ impl ThreadData {
             games: 0,
             fens: 0,
             start_time: Instant::now(),
+            seed_positions: Vec::new(),
         };
 
         res.engine.resize_tt(hash_size);
@@ -53,7 +55,8 @@ impl ThreadData {
 
     pub fn write(&mut self, result: GameResult) {
         self.games += 1;
-        for fen in result.fens.iter().take(result.fens.len().saturating_sub(8)) {
+        let num_taken = result.fens.len().saturating_sub(if result.result == 0.5 {8} else {0});
+        for fen in result.fens.iter().take(num_taken) {
             writeln!(&mut self.file, "{} [{:.1}]", fen, result.result).unwrap();
             self.fens += 1;
         }
@@ -72,7 +75,7 @@ impl ThreadData {
     }
 
     pub fn run_datagen(&mut self, max_games: u64) {
-        for _ in 0..max_games {
+        while self.games < max_games {
             if STOP.load(Ordering::SeqCst) {
                 break;
             }
@@ -96,39 +99,55 @@ impl ThreadData {
     pub fn run_game(&mut self) -> Option<GameResult>{
         self.reset();
 
-        let mut position = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        let mut position;
 
-        // play 8 or 9 random moves
-        for _ in 0..(8 + (self.rng() % 2)) {
-            let moves = position.movegen::<true>();
+        if let Some(fen) = self.seed_positions.get(self.games as usize) {
+            position = Position::from_fen(fen);
+        } else {
+            // use startpos
+            position = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
-            let mut legals = Vec::new();
-            for &mov in &moves.list[..moves.len] {
-                let mut new = position;
-                if !new.make(mov) {
-                    legals.push(mov);
+            // play 8 or 9 random moves
+            for _ in 0..(8 + (self.rng() % 2)) {
+                let moves = position.movegen::<true>();
+
+                let mut legals = Vec::new();
+                for &mov in &moves.list[..moves.len] {
+                    let mut new = position;
+                    if !new.make(mov) {
+                        legals.push(mov);
+                    }
                 }
-            }
 
-            if legals.is_empty() {
-                return None;
-            }
+                if legals.is_empty() {
+                    return None;
+                }
 
-            position.make(legals[self.rng() as usize % legals.len()]);
+                position.make(legals[self.rng() as usize % legals.len()]);
+            }
         }
 
         let mut result = GameResult::default();
 
         // play out game
         loop {
-            let bm = go(&position, &mut self.engine, false, 10, 1000.0);
+            let (bm, score) = go(&position, &mut self.engine, false, 32, 1000.0);
+
+            // not enough nodes to finish a depth!
+            if bm == Move::default() || position.make(bm) {
+                return None
+            }
+
+            // adjudicate large scores
+            if score > 1000 {
+                result.result = f32::from(position.c);
+                break;
+            }
 
             // position is quiet, can use fen
             if !is_capture(bm) && !position.in_check() {
                 result.fens.push(to_fen(&position));
             }
-
-            position.make(bm);
 
             // check for game end via check/stalemate
             if is_terminal(&position) {

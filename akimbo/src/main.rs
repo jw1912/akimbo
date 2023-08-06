@@ -74,7 +74,7 @@ fn main() {
                 let (time, inc) = (times[side], incs[side]);
                 if time != 0 { alloc = time.min(time / mtg + 3 * inc / 4) }
                 eng.max_time = (alloc * 2).clamp(1, 1.max(time - 10)) as u128;
-                let bm = go(&pos, &mut eng, true, 64, if mtg == 1 {alloc} else {alloc * 6 / 10} as f64);
+                let (bm, _) = go(&pos, &mut eng, true, 64, if mtg == 1 {alloc} else {alloc * 6 / 10} as f64);
                 println!("bestmove {}", bm.to_uci());
             },
             "position" => {
