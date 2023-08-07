@@ -1,5 +1,5 @@
 use crate::core::{Params, Position, S, sigmoid, OFFSET};
-use std::{fs::File, io::{BufRead, BufReader, BufWriter, Write}, thread};
+use std::{fs::File, io::{BufRead, BufReader, BufWriter, Write}, thread, time::Instant};
 
 #[derive(Default)]
 pub struct Data(Vec<Position>, pub usize, pub u64);
@@ -16,18 +16,21 @@ impl Data {
         self.2
     }
 
-    pub fn add_contents(&mut self, file_name: &str, filter: bool) -> f64 {
+    pub fn add_contents<const FILTER: bool>(&mut self, file_name: &str) {
         self.2 = 234232423;
+        let timer = Instant::now();
         let (mut wins, mut losses, mut draws) = (0, 0, 0);
         let file = File::open(file_name).unwrap();
         let mut used = BufWriter::new(File::create("resources/used.epd").unwrap());
         for line in BufReader::new(file).lines().map(|ln| ln.unwrap()) {
             let res: Position = line.parse().unwrap();
             let int = (res.result * 2.0) as u64;
-            if filter && int == 1 && self.rng() % 2 == 1 {
-                continue;
+            if FILTER {
+                if int == 1 && self.rng() % 2 == 1 {
+                    continue;
+                }
+                writeln!(&mut used, "{}", line).unwrap();
             }
-            writeln!(&mut used, "{}", line).unwrap();
             match int {
                 2 => wins += 1,
                 0 => losses += 1,
@@ -36,8 +39,10 @@ impl Data {
             }
             self.0.push(res);
         }
+        let elapsed = timer.elapsed().as_secs_f64();
+        let pps = self.num() / elapsed;
+        println!("{} positions in {elapsed:.2} seconds, {pps:.2} pos/sec", self.num());
         println!("wins {wins} losses {losses} draws {draws}");
-        self.num()
     }
 
     pub fn error(&self, k: f64, params: &Params) -> f64 {
