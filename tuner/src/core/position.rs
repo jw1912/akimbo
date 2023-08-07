@@ -1,11 +1,7 @@
 use super::{Params, S, OFFSET};
-use std::{str::FromStr, sync::atomic::{AtomicU64, Ordering::Relaxed}};
+use std::str::FromStr;
 
 pub const TPHASE: f64 = 24.0;
-
-#[allow(clippy::declare_interior_mutable_const)]
-const BLAH: AtomicU64 = AtomicU64::new(0);
-pub static HITS: [AtomicU64; 64] = [BLAH; 64];
 
 #[derive(Default)]
 pub struct Position {
@@ -48,10 +44,6 @@ impl FromStr for Position {
 
                 col += 1;
             }
-        }
-
-        for sq in pos.offsets {
-            HITS[usize::from(sq) / (5 * 64)].fetch_add(1, Relaxed);
         }
 
         if pos.phase > TPHASE { pos.phase = TPHASE }
