@@ -178,10 +178,10 @@ impl Position {
                         let pawns_on_file = (File::A << (sq & 7)) & self.bb[Piece::PAWN];
 
                         // rook on open file
-                        if pawns_on_file == 0 { scores[side] += EVAL.2[usize::from(sq & 7)] }
+                        if pawns_on_file == 0 { scores[side] += EVAL.2[idx & 7] }
 
                         // rook on semi-open file
-                        if pawns_on_file & boys == 0 { scores[side] += EVAL.3[usize::from(sq & 7)] }
+                        if pawns_on_file & boys == 0 { scores[side] += EVAL.3[idx & 7] }
                     }
                 });
             }
