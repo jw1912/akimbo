@@ -1,4 +1,4 @@
-use super::{Params, S, OFFSET};
+use super::{Params, S, OFFSET, PASSER};
 use std::str::FromStr;
 
 pub const TPHASE: f64 = 24.0;
@@ -6,6 +6,7 @@ pub const TPHASE: f64 = 24.0;
 #[derive(Default)]
 pub struct Position {
     pub indices: [[u16; 16]; 2],
+    pub passers: [u64; 2],
     pub counters: [u8; 2],
     pub offsets: [u16; 2],
     pub phase: f64,
@@ -19,6 +20,7 @@ impl FromStr for Position {
         let mut pos = Position::default();
         let mut row = 7;
         let mut col = 0;
+        let mut pawns = [0, 0];
         for ch in s.chars() {
             if ch == '/' {
                 row -= 1;
@@ -42,9 +44,17 @@ impl FromStr for Position {
                     pos.phase += [0., 1., 1., 2., 4., 0.][pc as usize];
                 }
 
+                // get pawn bitboards
+                if pc == 0 {
+                    pawns[c] |= 1 << sq;
+                }
+
                 col += 1;
             }
         }
+
+        pos.passers[0] = passers(pawns[0], pawns[1]);
+        pos.passers[1] = passers(pawns[1].swap_bytes(), pawns[0].swap_bytes());
 
         if pos.phase > TPHASE { pos.phase = TPHASE }
         pos.phase /= TPHASE;
@@ -58,6 +68,16 @@ impl FromStr for Position {
     }
 }
 
+fn passers(boys: u64, opps: u64) -> u64 {
+    use akimbo::util::File;
+    let mut spans = (!File::A & opps) >> 1 | opps | (!File::H & opps) << 1;
+    spans >>= 8;
+    spans |= spans >> 8;
+    spans |= spans >> 16;
+    spans |= spans >> 32;
+    boys & !spans
+}
+
 impl Position {
     pub fn eval(&self, params: &Params) -> f64 {
         let mut score = S::new(0.);
@@ -68,6 +88,19 @@ impl Position {
         for i in 0..usize::from(self.counters[1]) {
             let idx = self.indices[1][i];
             score -= params[self.offsets[1] + idx] + params[OFFSET as u16 + self.offsets[0] + idx];
+        }
+
+        let mut p = self.passers[0];
+        while p > 0 {
+            let sq = p.trailing_zeros() as u16;
+            p &= p - 1;
+            score += params[PASSER as u16 + sq];
+        }
+        p = self.passers[1];
+        while p > 0 {
+            let sq = p.trailing_zeros() as u16;
+            p &= p - 1;
+            score -= params[PASSER as u16 + sq];
         }
 
         self.phase * score.0 + (1. - self.phase) * score.1

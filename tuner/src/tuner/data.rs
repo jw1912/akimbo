@@ -1,4 +1,4 @@
-use crate::core::{Params, Position, S, sigmoid, OFFSET};
+use crate::core::{Params, Position, S, sigmoid, OFFSET, PASSER};
 use std::{fs::File, io::{BufRead, BufReader, BufWriter, Write}, thread, time::Instant};
 
 #[derive(Default)]
@@ -89,6 +89,20 @@ fn gradients_batch(positions: &[Position], k: f64, params: &Params) -> Params {
             grad[pos.offsets[1] + idx] -= phase_adj;
             grad[OFFSET as u16 + pos.offsets[0] + idx] -= phase_adj;
         }
+
+        let mut p = pos.passers[0];
+        while p > 0 {
+            let sq = p.trailing_zeros() as u16;
+            p &= p - 1;
+            grad[PASSER as u16 + sq] += phase_adj;
+        }
+        p = pos.passers[1];
+        while p > 0 {
+            let sq = p.trailing_zeros() as u16;
+            p &= p - 1;
+            grad[PASSER as u16 + sq] -= phase_adj;
+        }
+
     }
     grad
 }

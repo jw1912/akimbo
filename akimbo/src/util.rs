@@ -147,4 +147,6 @@ const FRONT_SPANS: [u64; 64] = init! {i, 64, {
 pub const SPANS: [[u64; 64]; 2] = [FRONT_SPANS, init! {i, 64, FRONT_SPANS[i ^ 56].swap_bytes()}];
 pub const SIDE: [i32; 2] = [1, -1];
 pub const PHASE_VALS: [i32; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
-pub static PST: [[[[S; 64]; 5]; 64]; 2] = unsafe { std::mem::transmute(*include_bytes!("../../resources/weights.bin")) };
+
+pub struct Eval(pub [[[[S; 64]; 5]; 64]; 2], pub [S; 64]);
+pub static EVAL: Eval= unsafe { std::mem::transmute(*include_bytes!("../../resources/weights.bin")) };
