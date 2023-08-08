@@ -8,4 +8,6 @@ pub use params::Params;
 
 pub const OFFSET: usize = 5 * 64 * 64;
 pub const PASSER: usize = 2 * OFFSET;
-pub const NUM_PARAMS: usize = PASSER + 64;
+pub const OPEN: usize = PASSER + 64;
+pub const SEMI: usize = OPEN + 8;
+pub const NUM_PARAMS: usize = SEMI + 8;
