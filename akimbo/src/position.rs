@@ -166,7 +166,14 @@ impl Position {
                     let idx = usize::from(sq) ^ flip;
                     scores[side] += EVAL.0[0][our_ksq][pc - 2][idx];
                     scores[side] += EVAL.0[1][opp_ksq][pc - 2][idx];
+                    // passed pawn
                     if pc == Piece::PAWN && self.is_passer(sq, side) { scores[side] += EVAL.1[idx] }
+                    else if pc == Piece::ROOK {
+                        // rook on open file
+                        if (File::A << (sq & 7)) & self.bb[Piece::PAWN] == 0 { scores[side] += EVAL.2[usize::from(sq & 7)] }
+                        // rook on semi-open file
+                        if (File::A << (sq & 7)) & self.bb[Piece::PAWN] & boys == 0 { scores[side] += EVAL.3[usize::from(sq & 7)] }
+                    }
                 });
             }
         }

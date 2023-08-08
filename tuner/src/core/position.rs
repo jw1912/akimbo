@@ -1,3 +1,5 @@
+use crate::{bitloop, core::{OPEN, SEMI}};
+
 use super::{Params, S, OFFSET, PASSER};
 use std::str::FromStr;
 
@@ -7,6 +9,8 @@ pub const TPHASE: f64 = 24.0;
 pub struct Position {
     pub indices: [[u16; 16]; 2],
     pub passers: [u64; 2],
+    pub opens: [u64; 2],
+    pub semis: [u64; 2],
     pub counters: [u8; 2],
     pub offsets: [u16; 2],
     pub phase: f64,
@@ -21,6 +25,7 @@ impl FromStr for Position {
         let mut row = 7;
         let mut col = 0;
         let mut pawns = [0, 0];
+        let mut rooks = [0, 0];
         for ch in s.chars() {
             if ch == '/' {
                 row -= 1;
@@ -44,9 +49,11 @@ impl FromStr for Position {
                     pos.phase += [0., 1., 1., 2., 4., 0.][pc as usize];
                 }
 
-                // get pawn bitboards
+                // get necessary bitboards
                 if pc == 0 {
                     pawns[c] |= 1 << sq;
+                } else if pc == 3 {
+                    rooks[c] |= 1 << sq;
                 }
 
                 col += 1;
@@ -55,6 +62,13 @@ impl FromStr for Position {
 
         pos.passers[0] = passers(pawns[0], pawns[1]);
         pos.passers[1] = passers(pawns[1].swap_bytes(), pawns[0].swap_bytes());
+
+        let wopen = !full_spans(pawns[0]);
+        let bopen = !full_spans(pawns[1]);
+        pos.opens[0] = rooks[0] & wopen & bopen;
+        pos.opens[1] = rooks[1] & wopen & bopen;
+        pos.semis[0] = rooks[0] & wopen;
+        pos.semis[1] = rooks[1] & bopen;
 
         if pos.phase > TPHASE { pos.phase = TPHASE }
         pos.phase /= TPHASE;
@@ -78,6 +92,16 @@ fn passers(boys: u64, opps: u64) -> u64 {
     boys & !spans
 }
 
+fn full_spans(mut bb: u64) -> u64 {
+    bb |= bb >> 8;
+    bb |= bb >> 16;
+    bb |= bb >> 32;
+    bb |= bb << 8;
+    bb |= bb << 16;
+    bb |= bb << 32;
+    bb
+}
+
 impl Position {
     pub fn eval(&self, params: &Params) -> f64 {
         let mut score = S::new(0.);
@@ -90,18 +114,12 @@ impl Position {
             score -= params[self.offsets[1] + idx] + params[OFFSET as u16 + self.offsets[0] + idx];
         }
 
-        let mut p = self.passers[0];
-        while p > 0 {
-            let sq = p.trailing_zeros() as u16;
-            p &= p - 1;
-            score += params[PASSER as u16 + sq];
-        }
-        p = self.passers[1];
-        while p > 0 {
-            let sq = p.trailing_zeros() as u16;
-            p &= p - 1;
-            score -= params[PASSER as u16 + sq];
-        }
+        bitloop!(self.passers[0], sq, score += params[PASSER as u16 + sq]);
+        bitloop!(self.passers[1], sq, score -= params[PASSER as u16 + sq]);
+        bitloop!(self.opens[0], sq, score += params[OPEN as u16 + (sq & 7)]);
+        bitloop!(self.opens[1], sq, score -= params[OPEN as u16 + (sq & 7)]);
+        bitloop!(self.semis[0], sq, score += params[SEMI as u16 + (sq & 7)]);
+        bitloop!(self.semis[1], sq, score -= params[SEMI as u16 + (sq & 7)]);
 
         self.phase * score.0 + (1. - self.phase) * score.1
     }
