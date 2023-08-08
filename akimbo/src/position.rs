@@ -169,10 +169,11 @@ impl Position {
                     // passed pawn
                     if pc == Piece::PAWN && self.is_passer(sq, side) { scores[side] += EVAL.1[idx] }
                     else if pc == Piece::ROOK {
+                        let pawns_on_file = (File::A << (sq & 7)) & self.bb[Piece::PAWN];
                         // rook on open file
-                        if (File::A << (sq & 7)) & self.bb[Piece::PAWN] == 0 { scores[side] += EVAL.2[usize::from(sq & 7)] }
+                        if pawns_on_file == 0 { scores[side] += EVAL.2[usize::from(sq & 7)] }
                         // rook on semi-open file
-                        if (File::A << (sq & 7)) & self.bb[Piece::PAWN] & boys == 0 { scores[side] += EVAL.3[usize::from(sq & 7)] }
+                        if pawns_on_file & boys == 0 { scores[side] += EVAL.3[usize::from(sq & 7)] }
                     }
                 });
             }
