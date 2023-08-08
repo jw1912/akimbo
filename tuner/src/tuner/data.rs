@@ -96,6 +96,8 @@ fn gradients_batch(positions: &[Position], k: f64, params: &Params) -> Params {
         bitloop!(pos.opens[1], sq, grad[OPEN as u16 + (sq & 7)] -= phase_adj);
         bitloop!(pos.semis[0], sq, grad[SEMI as u16 + (sq & 7)] += phase_adj);
         bitloop!(pos.semis[1], sq, grad[SEMI as u16 + (sq & 7)] -= phase_adj);
+        bitloop!(pos.blocked[0], sq, grad[BLOCKED as u16 + (sq / 8)] += phase_adj);
+        bitloop!(pos.blocked[1], sq, grad[BLOCKED as u16 + (sq / 8)] -= phase_adj);
     }
     grad
 }

@@ -155,6 +155,7 @@ impl Position {
     pub fn eval(&self) -> i32 {
         let p = 24.min(self.phase);
         let mut scores = [S(0, 0), S(0, 0)];
+        let occ = self.bb[0] | self.bb[1];
 
         for (side, flip) in [0, 56].iter().enumerate() {
             let (boys, opps) = (self.bb[side], self.bb[side ^ 1]);
@@ -167,11 +168,18 @@ impl Position {
                     scores[side] += EVAL.0[0][our_ksq][pc - 2][idx];
                     scores[side] += EVAL.0[1][opp_ksq][pc - 2][idx];
                     // passed pawn
-                    if pc == Piece::PAWN && self.is_passer(sq, side) { scores[side] += EVAL.1[idx] }
-                    else if pc == Piece::ROOK {
+                    if pc == Piece::PAWN && self.is_passer(sq, side) {
+                        scores[side] += EVAL.1[idx];
+
+                        // passed pawn is blocked
+                        let forward = sq.wrapping_add([8, 8u8.wrapping_neg()][side]);
+                        if (1 << forward) & occ > 0 { scores[side] += EVAL.4[idx / 8] }
+                    } else if pc == Piece::ROOK {
                         let pawns_on_file = (File::A << (sq & 7)) & self.bb[Piece::PAWN];
+
                         // rook on open file
                         if pawns_on_file == 0 { scores[side] += EVAL.2[usize::from(sq & 7)] }
+
                         // rook on semi-open file
                         if pawns_on_file & boys == 0 { scores[side] += EVAL.3[usize::from(sq & 7)] }
                     }
