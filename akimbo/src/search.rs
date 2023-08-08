@@ -1,5 +1,5 @@
 use std::time::Instant;
-use super::{util::{Bound, Flag, MoveScore, Piece, Score, SPANS}, position::{Move, MoveList, Position}};
+use super::{util::{Bound, Flag, MoveScore, Piece, Score}, position::{Move, MoveList, Position}};
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
     8 * pos.get_pc(1 << mov.to) as i32 - mov.pc as i32
@@ -407,8 +407,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             r -= i32::from(new.check);
 
             // reduce passed pawn moves less
-            let passed = usize::from(mov.pc) == Piece::PAWN
-                && SPANS[usize::from(pos.c)][usize::from(mov.from)] & pos.bb[Piece::PAWN] & pos.bb[usize::from(!pos.c)] == 0;
+            let passed = usize::from(mov.pc) == Piece::PAWN && pos.is_passer(mov.from, usize::from(pos.c));
             r -= i32::from(passed);
 
             // don't accidentally extend

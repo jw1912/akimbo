@@ -163,8 +163,10 @@ impl Position {
             for pc in Piece::PAWN..Piece::KING {
                 let mut pcs = boys & self.bb[pc];
                 bitloop!(pcs, sq, {
-                    scores[side] += PST[0][our_ksq][pc - 2][usize::from(sq) ^ flip];
-                    scores[side] += PST[1][opp_ksq][pc - 2][usize::from(sq) ^ flip]
+                    let idx = usize::from(sq) ^ flip;
+                    scores[side] += EVAL.0[0][our_ksq][pc - 2][idx];
+                    scores[side] += EVAL.0[1][opp_ksq][pc - 2][idx];
+                    if pc == Piece::PAWN && self.is_passer(sq, side) { scores[side] += EVAL.1[idx] }
                 });
             }
         }
@@ -172,6 +174,10 @@ impl Position {
         let s = S(scores[0].0 - scores[1].0, scores[0].1 - scores[1].1);
 
         SIDE[usize::from(self.c)] * (p * s.0 + (24 - p) * s.1) / 24
+    }
+
+    pub fn is_passer(&self, sq: u8, side: usize) -> bool {
+        SPANS[side][usize::from(sq)] & self.bb[Piece::PAWN] & self.bb[side ^ 1] == 0
     }
 
     fn gain(&self, mov: Move) -> i32 {
