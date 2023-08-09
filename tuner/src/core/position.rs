@@ -1,4 +1,4 @@
-use crate::{bitloop, core::{OPEN, SEMI}};
+use crate::{bitloop, core::*};
 
 use super::{Params, S, OFFSET, PASSER};
 use std::str::FromStr;
@@ -9,6 +9,7 @@ pub const TPHASE: f64 = 24.0;
 pub struct Position {
     pub indices: [[u16; 16]; 2],
     pub passers: [u64; 2],
+    pub blocked: [u64; 2],
     pub opens: [u64; 2],
     pub semis: [u64; 2],
     pub counters: [u8; 2],
@@ -26,6 +27,7 @@ impl FromStr for Position {
         let mut col = 0;
         let mut pawns = [0, 0];
         let mut rooks = [0, 0];
+        let mut occ = 0;
         for ch in s.chars() {
             if ch == '/' {
                 row -= 1;
@@ -49,11 +51,14 @@ impl FromStr for Position {
                     pos.phase += [0., 1., 1., 2., 4., 0.][pc as usize];
                 }
 
+                let bb = 1 << sq;
+                occ |= bb;
+
                 // get necessary bitboards
                 if pc == 0 {
-                    pawns[c] |= 1 << sq;
+                    pawns[c] |= bb;
                 } else if pc == 3 {
-                    rooks[c] |= 1 << sq;
+                    rooks[c] |= bb;
                 }
 
                 col += 1;
@@ -61,7 +66,10 @@ impl FromStr for Position {
         }
 
         pos.passers[0] = passers(pawns[0], pawns[1]);
+        pos.blocked[0] = pos.passers[0] & (occ >> 8);
+
         pos.passers[1] = passers(pawns[1].swap_bytes(), pawns[0].swap_bytes());
+        pos.blocked[1] = pos.passers[1] & (occ.swap_bytes() >> 8);
 
         let wopen = !full_spans(pawns[0]);
         let bopen = !full_spans(pawns[1]);
@@ -120,6 +128,8 @@ impl Position {
         bitloop!(self.opens[1], sq, score -= params[OPEN as u16 + (sq & 7)]);
         bitloop!(self.semis[0], sq, score += params[SEMI as u16 + (sq & 7)]);
         bitloop!(self.semis[1], sq, score -= params[SEMI as u16 + (sq & 7)]);
+        bitloop!(self.blocked[0], sq, score += params[BLOCKED as u16 + (sq / 8)]);
+        bitloop!(self.blocked[1], sq, score -= params[BLOCKED as u16 + (sq / 8)]);
 
         self.phase * score.0 + (1. - self.phase) * score.1
     }
