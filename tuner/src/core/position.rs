@@ -115,13 +115,16 @@ impl FromStr for Position {
         // mobility
         const MOBILITY: [usize; 4] = [M_KNIGHT, M_BISHOP, M_ROOK, M_QUEEN];
         for (side, pieces) in bitboards.iter().enumerate() {
+            let bocc = occ ^ pieces[2] ^ pieces[4];
+            let rocc = occ ^ pieces[3] ^ pieces[4];
+            let qocc = occ ^ pieces[2] ^ pieces[3] ^ pieces[4];
             for (pc, &pcs) in pieces.iter().skip(1).take(4).enumerate() {
                 bitloop!(pcs, sq, {
                     let mut attacks = match pc {
                         0 => Attacks::KNIGHT[sq as usize],
-                        1 => Attacks::bishop(sq as usize, occ),
-                        2 => Attacks::rook(sq as usize, occ),
-                        3 => Attacks::rook(sq as usize, occ) | Attacks::bishop(sq as usize, occ),
+                        1 => Attacks::bishop(sq as usize, bocc),
+                        2 => Attacks::rook(sq as usize, rocc),
+                        3 => Attacks::rook(sq as usize, qocc) | Attacks::bishop(sq as usize, qocc),
                         _ => unreachable!(),
                     };
                     attacks &= !patt[side ^ 1];

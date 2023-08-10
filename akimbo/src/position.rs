@@ -165,6 +165,8 @@ impl Position {
             let our_ksq = (boys & self.bb[Piece::KING]).trailing_zeros() as usize ^ flip;
             let opp_ksq = (opps & self.bb[Piece::KING]).trailing_zeros() as usize ^ flip ^ 56;
             let safe = !patts[side ^ 1];
+            let (fb, fr, fq) = (boys & self.bb[Piece::BISHOP], boys & self.bb[Piece::ROOK], boys & self.bb[Piece::QUEEN]);
+            let (bocc, rocc, qocc) = (occ ^ fb ^ fq, occ ^ fr ^ fq, occ ^ fb ^ fr ^ fq);
             for pc in Piece::PAWN..Piece::KING {
                 let mut pcs = boys & self.bb[pc];
                 bitloop!(pcs, sq, {
@@ -181,7 +183,7 @@ impl Position {
                             if (1 << forward) & occ > 0 { scores[side] += EVAL.blocked[idx / 8] }
                         },
                         Piece::KNIGHT => scores[side] += EVAL.knight[(Attacks::KNIGHT[usize::from(sq)] & safe).count_ones() as usize],
-                        Piece::BISHOP => scores[side] += EVAL.bishop[(Attacks::bishop(usize::from(sq), occ) & safe).count_ones() as usize],
+                        Piece::BISHOP => scores[side] += EVAL.bishop[(Attacks::bishop(usize::from(sq), bocc) & safe).count_ones() as usize],
                         Piece::ROOK => {
                             let pawns_on_file = (File::A << (sq & 7)) & self.bb[Piece::PAWN];
 
@@ -190,10 +192,10 @@ impl Position {
 
                             // rook on semi-open file
                             if pawns_on_file & boys == 0 { scores[side] += EVAL.semi[idx & 7] }
-                            scores[side] += EVAL.rook[(Attacks::rook(usize::from(sq), occ) & safe).count_ones() as usize];
+                            scores[side] += EVAL.rook[(Attacks::rook(usize::from(sq), rocc) & safe).count_ones() as usize];
                         },
                         Piece::QUEEN => {
-                            let attacks = Attacks::rook(usize::from(sq), occ) | Attacks::bishop(usize::from(sq), occ);
+                            let attacks = Attacks::rook(usize::from(sq), qocc) | Attacks::bishop(usize::from(sq), qocc);
                             scores[side] += EVAL.queen[(attacks & safe).count_ones() as usize];
                         },
                         _ => {}
