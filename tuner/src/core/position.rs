@@ -166,6 +166,19 @@ fn full_spans(mut bb: u64) -> u64 {
 
 impl Position {
     pub fn eval(&self, params: &Params) -> f64 {
+        let score = self.eval_internal(params);
+        self.phase * score.0 + (1. - self.phase) * score.1
+    }
+
+    #[cfg(test)]
+    pub fn debug_eval(&self, params: &Params) -> i32 {
+        let s = self.eval_internal(params);
+        let p = (self.phase * TPHASE) as i32;
+        const P: i32 = TPHASE as i32;
+        (p * s.0 as i32 + (P - p) * s.1 as i32) / P
+    }
+
+    fn eval_internal(&self, params: &Params) -> S {
         let mut score = S::new(0.);
         for i in 0..usize::from(self.counters[0]) {
             let idx = self.indices[0][i];
@@ -184,7 +197,7 @@ impl Position {
             score -= params[idx];
         }
 
-        self.phase * score.0 + (1. - self.phase) * score.1
+        score
     }
 
     pub fn err(&self, k: f64, params: &Params) -> f64 {
@@ -195,4 +208,30 @@ impl Position {
 #[inline]
 pub fn sigmoid(x: f64) -> f64 {
     1.0 / (1.0 + f64::exp(-x))
+}
+
+#[cfg(test)]
+mod test {
+    use crate::core::{NUM_PARAMS, Position, Params, S};
+
+    #[test]
+    fn eval() {
+        const FEN_STRING: &str = include_str!("../../../resources/fens.txt");
+        let bench_fens = FEN_STRING.split('\n').collect::<Vec<&str>>();
+        let raw_params: [(i32, i32); NUM_PARAMS] = unsafe { std::mem::transmute(*include_bytes!("../../../resources/weights.bin")) };
+        let mut score = 0;
+
+        let mut params = Params::default();
+
+        for (i, param) in raw_params.iter().enumerate() {
+            params[i as u16] = S(f64::from(param.0), f64::from(param.1));
+        }
+
+        for fen in bench_fens {
+            let pos: Position = fen.parse().unwrap();
+            score += pos.debug_eval(&params);
+        }
+
+        println!("Summed eval: {score}")
+    }
 }
