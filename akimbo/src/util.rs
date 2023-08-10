@@ -153,11 +153,9 @@ pub struct Eval {
     // king-relative psts
     pub psts: [[[[S; 64]; 5]; 64]; 2],
     // passed pawns
-    pub passers: [S; 64],
+    pub passers: [S; 64], pub blocked: [S; 8],
     // (semi-)open rooks
     pub open: [S; 8], pub semi: [S; 8],
-    // blocked passed pawns
-    pub blocked: [S; 8],
     // mobility
     pub knight: [S; 9], pub bishop: [S; 14], pub rook: [S; 15], pub queen: [S; 28],
 }
