@@ -157,7 +157,7 @@ impl Position {
         let mut scores = [S(0, 0), S(0, 0)];
         let occ = self.bb[0] | self.bb[1];
         let wp = self.bb[Side::WHITE] & self.bb[Piece::PAWN];
-        let bp = self.bb[Side::WHITE] & self.bb[Piece::PAWN];
+        let bp = self.bb[Side::BLACK] & self.bb[Piece::PAWN];
         let patts = [(wp & !File::A) << 7 | (wp & !File::H) << 9, (bp & !File::A) >> 9 | (bp & !File::H) >> 7];
 
         for (side, flip) in [0, 56].iter().enumerate() {
