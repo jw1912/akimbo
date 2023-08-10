@@ -1,4 +1,4 @@
-use akimbo::{position::Position, search::{Engine, go}};
+use akimbo::{position::Position, search::{Engine, go}, util::SIDE};
 
 use std::{io, process, time::Instant};
 
@@ -16,15 +16,18 @@ fn main() {
     // bench for OpenBench
     if std::env::args().nth(1).as_deref() == Some("bench") {
         let (mut total_nodes, mut total_time) = (0, 0);
+        let mut eval = 0i32;
         eng.max_time = 30000;
         let bench_fens = FEN_STRING.split('\n').collect::<Vec<&str>>();
         for fen in bench_fens {
             pos = Position::from_fen(fen);
+            eval = eval.wrapping_add(SIDE[usize::from(pos.c)] * pos.eval());
             let timer = Instant::now();
             go(&pos, &mut eng, false, 11, 1_000_000.0);
             total_time += timer.elapsed().as_millis();
             total_nodes += eng.nodes + eng.qnodes;
         }
+        println!("Summed Eval: {eval}");
         println!("Bench: {total_nodes} nodes {} nps", total_nodes * 1000 / (total_time as u64).max(1));
         return;
     }
