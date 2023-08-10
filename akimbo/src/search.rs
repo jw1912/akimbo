@@ -302,7 +302,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     // pruning
     if !pv_node && !pos.check && beta.abs() < Score::MATE {
         // reverse futility pruning
-        if depth <= 8 && eval >= beta + 120 * depth / if improving {2} else {1} { return eval }
+        if depth <= 8 && eval >= beta + 80 * depth / if improving {2} else {1} { return eval }
 
         // razoring
         if depth <= 2 && eval + 400 * depth < alpha {
