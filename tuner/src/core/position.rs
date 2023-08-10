@@ -7,10 +7,10 @@ pub const NUM_PARAMS: usize = M_QUEEN + 28;
 
 pub const OFFSET: usize = 5 * 64 * 64;
 const PASSER: usize = 2 * OFFSET;
-const OPEN: usize = PASSER + 64;
+const BLOCKED: usize = PASSER + 64;
+const OPEN: usize = BLOCKED + 8;
 const SEMI: usize = OPEN + 8;
-const BLOCKED: usize = SEMI + 8;
-const M_KNIGHT: usize = BLOCKED + 8;
+const M_KNIGHT: usize = SEMI + 8;
 const M_BISHOP: usize = M_KNIGHT + 9;
 const M_ROOK: usize = M_BISHOP + 14;
 const M_QUEEN: usize = M_ROOK + 15;
