@@ -192,6 +192,7 @@ impl Position {
 
                             // rook on semi-open file
                             if pawns_on_file & boys == 0 { scores[side] += EVAL.semi[idx & 7] }
+
                             scores[side] += EVAL.rook[(Attacks::rook(usize::from(sq), rocc) & safe).count_ones() as usize];
                         },
                         Piece::QUEEN => {
