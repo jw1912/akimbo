@@ -5,16 +5,6 @@ use std::env::args;
 use tuner::{Data, gd_tune};
 use crate::core::{Params, S};
 
-#[macro_export]
-macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
-    let mut bb = $bb;
-    while bb > 0 {
-        let $sq = bb.trailing_zeros() as u16;
-        bb &= bb - 1;
-        $func;
-    }
-}}
-
 fn main() -> std::io::Result<()> {
     let file_name = args().nth(1).unwrap_or(String::from("resources/wha.epd"));
 

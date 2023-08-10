@@ -1,17 +1,21 @@
-use crate::{bitloop, core::*};
-
-use super::{Params, S, OFFSET, PASSER};
+use super::*;
 use std::str::FromStr;
+
+macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
+    let mut bb = $bb;
+    while bb > 0 {
+        let $sq = bb.trailing_zeros() as u16;
+        bb &= bb - 1;
+        $func;
+    }
+}}
 
 pub const TPHASE: f64 = 24.0;
 
 #[derive(Default)]
 pub struct Position {
     pub indices: [[u16; 16]; 2],
-    pub passers: [u64; 2],
-    pub blocked: [u64; 2],
-    pub opens: [u64; 2],
-    pub semis: [u64; 2],
+    pub active: [Vec<u16>; 2],
     pub counters: [u8; 2],
     pub offsets: [u16; 2],
     pub phase: f64,
@@ -65,18 +69,32 @@ impl FromStr for Position {
             }
         }
 
-        pos.passers[0] = passers(pawns[0], pawns[1]);
-        pos.blocked[0] = pos.passers[0] & (occ >> 8);
+        // passed pawns
+        let wpass = passers(pawns[0], pawns[1]);
+        let bpass = passers(pawns[1].swap_bytes(), pawns[0].swap_bytes());
+        bitloop!(wpass, sq, pos.active[0].push(PASSER as u16 + sq));
+        bitloop!(bpass, sq, pos.active[1].push(PASSER as u16 + sq));
 
-        pos.passers[1] = passers(pawns[1].swap_bytes(), pawns[0].swap_bytes());
-        pos.blocked[1] = pos.passers[1] & (occ.swap_bytes() >> 8);
+        // blocked passed pawns
+        let wblock = wpass & (occ >> 8);
+        let bblock = bpass & (occ.swap_bytes() >> 8);
+        bitloop!(wblock, sq, pos.active[0].push(BLOCKED as u16 + (sq / 8)));
+        bitloop!(bblock, sq, pos.active[1].push(BLOCKED as u16 + (sq / 8)));
 
         let wopen = !full_spans(pawns[0]);
         let bopen = !full_spans(pawns[1]);
-        pos.opens[0] = rooks[0] & wopen & bopen;
-        pos.opens[1] = rooks[1] & wopen & bopen;
-        pos.semis[0] = rooks[0] & wopen;
-        pos.semis[1] = rooks[1] & bopen;
+
+        // open rooks
+        let wopens = rooks[0] & wopen & bopen;
+        let bopens = rooks[1] & wopen & bopen;
+        bitloop!(wopens, sq, pos.active[0].push(OPEN as u16 + (sq % 8)));
+        bitloop!(bopens, sq, pos.active[1].push(OPEN as u16 + (sq % 8)));
+
+        // semi-open rooks
+        let wsemis = rooks[0] & wopen;
+        let bsemis = rooks[1] & bopen;
+        bitloop!(wsemis, sq, pos.active[0].push(SEMI as u16 + (sq % 8)));
+        bitloop!(bsemis, sq, pos.active[1].push(SEMI as u16 + (sq % 8)));
 
         if pos.phase > TPHASE { pos.phase = TPHASE }
         pos.phase /= TPHASE;
@@ -122,14 +140,13 @@ impl Position {
             score -= params[self.offsets[1] + idx] + params[OFFSET as u16 + self.offsets[0] + idx];
         }
 
-        bitloop!(self.passers[0], sq, score += params[PASSER as u16 + sq]);
-        bitloop!(self.passers[1], sq, score -= params[PASSER as u16 + sq]);
-        bitloop!(self.opens[0], sq, score += params[OPEN as u16 + (sq & 7)]);
-        bitloop!(self.opens[1], sq, score -= params[OPEN as u16 + (sq & 7)]);
-        bitloop!(self.semis[0], sq, score += params[SEMI as u16 + (sq & 7)]);
-        bitloop!(self.semis[1], sq, score -= params[SEMI as u16 + (sq & 7)]);
-        bitloop!(self.blocked[0], sq, score += params[BLOCKED as u16 + (sq / 8)]);
-        bitloop!(self.blocked[1], sq, score -= params[BLOCKED as u16 + (sq / 8)]);
+        for &idx in &self.active[0] {
+            score += params[idx];
+        }
+
+        for &idx in &self.active[1] {
+            score -= params[idx];
+        }
 
         self.phase * score.0 + (1. - self.phase) * score.1
     }
