@@ -10,7 +10,7 @@ fn main() -> std::io::Result<()> {
 
     // initialise data
     let mut data = Data::default();
-    data.1 = 4;
+    data.1 = 6;
     data.add_contents::<false>(&file_name);
 
     // provide starting parameters

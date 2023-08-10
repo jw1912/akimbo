@@ -14,7 +14,7 @@ pub struct ZobristVals {
     pub c: [u64; 2],
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub struct S(pub i32, pub i32);
 
 impl std::ops::AddAssign<S> for S {
@@ -149,5 +149,16 @@ pub const SIDE: [i32; 2] = [1, -1];
 pub const PHASE_VALS: [i32; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
 
 #[repr(C)]
-pub struct Eval(pub [[[[S; 64]; 5]; 64]; 2], pub [S; 64], pub [S; 8], pub [S; 8], pub [S; 8]);
+pub struct Eval {
+    // king-relative psts
+    pub psts: [[[[S; 64]; 5]; 64]; 2],
+    // passed pawns
+    pub passers: [S; 64],
+    // (semi-)open rooks
+    pub open: [S; 8], pub semi: [S; 8],
+    // blocked passed pawns
+    pub blocked: [S; 8],
+    // mobility
+    pub knight: [S; 9], pub bishop: [S; 14], pub rook: [S; 15], pub queen: [S; 28],
+}
 pub static EVAL: Eval= unsafe { std::mem::transmute(*include_bytes!("../../resources/weights.bin")) };

@@ -1,4 +1,4 @@
-use crate::core::*;
+use crate::core::{Params, OFFSET, Position, S, sigmoid};
 use std::{fs::File, io::{BufRead, BufReader, BufWriter, Write}, thread, time::Instant};
 
 #[derive(Default)]

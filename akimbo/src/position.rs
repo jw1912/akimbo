@@ -156,32 +156,50 @@ impl Position {
         let p = 24.min(self.phase);
         let mut scores = [S(0, 0), S(0, 0)];
         let occ = self.bb[0] | self.bb[1];
+        let wp = self.bb[Side::WHITE] & self.bb[Piece::PAWN];
+        let bp = self.bb[Side::BLACK] & self.bb[Piece::PAWN];
+        let patts = [(wp & !File::A) << 7 | (wp & !File::H) << 9, (bp & !File::A) >> 9 | (bp & !File::H) >> 7];
 
         for (side, flip) in [0, 56].iter().enumerate() {
             let (boys, opps) = (self.bb[side], self.bb[side ^ 1]);
             let our_ksq = (boys & self.bb[Piece::KING]).trailing_zeros() as usize ^ flip;
             let opp_ksq = (opps & self.bb[Piece::KING]).trailing_zeros() as usize ^ flip ^ 56;
+            let safe = !patts[side ^ 1];
+            let (fb, fr, fq) = (boys & self.bb[Piece::BISHOP], boys & self.bb[Piece::ROOK], boys & self.bb[Piece::QUEEN]);
+            let (bocc, rocc, qocc) = (occ ^ fb ^ fq, occ ^ fr ^ fq, occ ^ fb ^ fr ^ fq);
             for pc in Piece::PAWN..Piece::KING {
                 let mut pcs = boys & self.bb[pc];
                 bitloop!(pcs, sq, {
                     let idx = usize::from(sq) ^ flip;
-                    scores[side] += EVAL.0[0][our_ksq][pc - 2][idx];
-                    scores[side] += EVAL.0[1][opp_ksq][pc - 2][idx];
-                    // passed pawn
-                    if pc == Piece::PAWN && self.is_passer(sq, side) {
-                        scores[side] += EVAL.1[idx];
+                    scores[side] += EVAL.psts[0][our_ksq][pc - 2][idx];
+                    scores[side] += EVAL.psts[1][opp_ksq][pc - 2][idx];
 
-                        // passed pawn is blocked
-                        let forward = sq.wrapping_add([8, 8u8.wrapping_neg()][side]);
-                        if (1 << forward) & occ > 0 { scores[side] += EVAL.4[idx / 8] }
-                    } else if pc == Piece::ROOK {
-                        let pawns_on_file = (File::A << (sq & 7)) & self.bb[Piece::PAWN];
+                    match pc {
+                        Piece::PAWN => if self.is_passer(sq, side) {
+                            scores[side] += EVAL.passers[idx];
 
-                        // rook on open file
-                        if pawns_on_file == 0 { scores[side] += EVAL.2[idx & 7] }
+                            // passed pawn is blocked
+                            let forward = sq.wrapping_add([8, 8u8.wrapping_neg()][side]);
+                            if (1 << forward) & occ > 0 { scores[side] += EVAL.blocked[idx / 8] }
+                        },
+                        Piece::KNIGHT => scores[side] += EVAL.knight[(Attacks::KNIGHT[usize::from(sq)] & safe).count_ones() as usize],
+                        Piece::BISHOP => scores[side] += EVAL.bishop[(Attacks::bishop(usize::from(sq), bocc) & safe).count_ones() as usize],
+                        Piece::ROOK => {
+                            let pawns_on_file = (File::A << (sq & 7)) & self.bb[Piece::PAWN];
 
-                        // rook on semi-open file
-                        if pawns_on_file & boys == 0 { scores[side] += EVAL.3[idx & 7] }
+                            // rook on open file
+                            if pawns_on_file == 0 { scores[side] += EVAL.open[idx & 7] }
+
+                            // rook on semi-open file
+                            if pawns_on_file & boys == 0 { scores[side] += EVAL.semi[idx & 7] }
+
+                            scores[side] += EVAL.rook[(Attacks::rook(usize::from(sq), rocc) & safe).count_ones() as usize];
+                        },
+                        Piece::QUEEN => {
+                            let attacks = Attacks::rook(usize::from(sq), qocc) | Attacks::bishop(usize::from(sq), qocc);
+                            scores[side] += EVAL.queen[(attacks & safe).count_ones() as usize];
+                        },
+                        _ => {}
                     }
                 });
             }

@@ -18,4 +18,3 @@ for file in files:
 
 print(f"sloc: {sloc}")
 print(f"tloc: {tloc}")
-
