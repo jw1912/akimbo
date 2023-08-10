@@ -359,10 +359,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
         // pre-move pruning
         if can_prune && best_score.abs() < Score::MATE {
-            // standard late move pruning
-            if depth < 4 && legal > 10 * depth { break }
-
-            // quiet late move pruning
+            // late move pruning
             if ms < MoveScore::KILLER && legal > 2 + depth * depth / if improving {1} else {2} { break }
 
             // static exchange eval pruning
@@ -407,8 +404,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             r -= i32::from(new.check);
 
             // reduce passed pawn moves less
-            let passed = usize::from(mov.pc) == Piece::PAWN && pos.is_passer(mov.from, usize::from(pos.c));
-            r -= i32::from(passed);
+            r -= i32::from(usize::from(mov.pc) == Piece::PAWN && pos.is_passer(mov.from, usize::from(pos.c)));
 
             // don't accidentally extend
             r.max(0)
