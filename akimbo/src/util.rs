@@ -145,6 +145,7 @@ const FRONT_SPANS: [u64; 64] = init! {i, 64, {
     bb | (bb & !File::H) << 1 | (bb & !File::A) >> 1
 }};
 pub const SPANS: [[u64; 64]; 2] = [FRONT_SPANS, init! {i, 64, FRONT_SPANS[i ^ 56].swap_bytes()}];
+pub const RAILS: [u64; 8] = init! {i, 8, (if i > 0 {File::A << (i - 1)} else {0}) | (if i < 7 {File::A << (i + 1)} else {0})};
 pub const SIDE: [i32; 2] = [1, -1];
 pub const PHASE_VALS: [i32; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
 
@@ -158,5 +159,7 @@ pub struct Eval {
     pub open: [S; 8], pub semi: [S; 8],
     // mobility
     pub knight: [S; 9], pub bishop: [S; 14], pub rook: [S; 15], pub queen: [S; 28],
+    // isolated pawns
+    pub isolated: [S; 8],
 }
 pub static EVAL: Eval= unsafe { std::mem::transmute(*include_bytes!("../../resources/weights.bin")) };
