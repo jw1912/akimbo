@@ -158,13 +158,14 @@ impl Position {
         let occ = self.bb[0] | self.bb[1];
         let wp = self.bb[Side::WHITE] & self.bb[Piece::PAWN];
         let bp = self.bb[Side::BLACK] & self.bb[Piece::PAWN];
+        let pawns = [wp, bp];
         let patts = [(wp & !File::A) << 7 | (wp & !File::H) << 9, (bp & !File::A) >> 9 | (bp & !File::H) >> 7];
 
         for (side, flip) in [0, 56].iter().enumerate() {
             let (boys, opps) = (self.bb[side], self.bb[side ^ 1]);
             let our_ksq = (boys & self.bb[Piece::KING]).trailing_zeros() as usize ^ flip;
             let opp_ksq = (opps & self.bb[Piece::KING]).trailing_zeros() as usize ^ flip ^ 56;
-            let safe = !patts[side ^ 1];
+            let (safe, our_pawns) = (!patts[side ^ 1], pawns[side]);
             let (fb, fr, fq) = (boys & self.bb[Piece::BISHOP], boys & self.bb[Piece::ROOK], boys & self.bb[Piece::QUEEN]);
             let (bocc, rocc, qocc) = (occ ^ fb ^ fq, occ ^ fr ^ fq, occ ^ fb ^ fr ^ fq);
             for pc in Piece::PAWN..Piece::KING {
@@ -175,12 +176,16 @@ impl Position {
                     scores[side] += EVAL.psts[1][opp_ksq][pc - 2][idx];
 
                     match pc {
-                        Piece::PAWN => if self.is_passer(sq, side) {
-                            scores[side] += EVAL.passers[idx];
+                        Piece::PAWN => {
+                            if self.is_passer(sq, side) {
+                                scores[side] += EVAL.passers[idx];
 
-                            // passed pawn is blocked
-                            let forward = sq.wrapping_add([8, 8u8.wrapping_neg()][side]);
-                            if (1 << forward) & occ > 0 { scores[side] += EVAL.blocked[idx / 8] }
+                                // passed pawn is blocked
+                                let forward = 1 << sq.wrapping_add([8, 8u8.wrapping_neg()][side]);
+                                if forward & occ > 0 { scores[side] += EVAL.blocked[idx / 8] }
+                            }
+                            let file = usize::from(sq & 7);
+                            if RAILS[file] & our_pawns == 0 { scores[side] += EVAL.isolated[file] }
                         },
                         Piece::KNIGHT => scores[side] += EVAL.knight[(Attacks::KNIGHT[usize::from(sq)] & safe).count_ones() as usize],
                         Piece::BISHOP => scores[side] += EVAL.bishop[(Attacks::bishop(usize::from(sq), bocc) & safe).count_ones() as usize],

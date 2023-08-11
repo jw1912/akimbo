@@ -3,7 +3,7 @@ use akimbo::util::{Attacks, File};
 use super::*;
 use std::str::FromStr;
 
-pub const NUM_PARAMS: usize = M_QUEEN + 28;
+pub const NUM_PARAMS: usize = ISOLATED + 8;
 
 pub const OFFSET: usize = 5 * 64 * 64;
 const PASSER: usize = 2 * OFFSET;
@@ -14,6 +14,7 @@ const M_KNIGHT: usize = SEMI + 8;
 const M_BISHOP: usize = M_KNIGHT + 9;
 const M_ROOK: usize = M_BISHOP + 14;
 const M_QUEEN: usize = M_ROOK + 15;
+const ISOLATED: usize = M_QUEEN + 28;
 
 macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
     let mut bb = $bb;
@@ -132,6 +133,14 @@ impl FromStr for Position {
                 });
             }
         }
+
+        // isolated pawns
+        let wnbr = ((wp & !File::A) >> 1) | ((wp & !File::H) << 1);
+        let bnbr = ((bp & !File::A) >> 1) | ((bp & !File::H) << 1);
+        let wiso = wp & !full_spans(wnbr);
+        let biso = bp & !full_spans(bnbr);
+        bitloop!(wiso, sq, pos.active[0].push(ISOLATED as u16 + (sq & 7)));
+        bitloop!(biso, sq, pos.active[1].push(ISOLATED as u16 + (sq & 7)));
 
         if pos.phase > TPHASE { pos.phase = TPHASE }
         pos.phase /= TPHASE;
