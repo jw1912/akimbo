@@ -25,11 +25,15 @@ of akimbo, as well as facilitating far faster testing than on my own.
 | [0.3.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.3.0) |   16th     May 2023  |  891 |  2587  |  -   |
 | [0.4.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.4.0) |    4th    July 2023  |  852 |  2724  | 2760 |
 | [0.4.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.4.1) |    4th  August 2023  |  948 |   -    | TBD  |
+| [0.5.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.5.0) |   12th  August 2023  |  940 |  TBD   | TBD  |
 
 ## Features
 
 #### Evaluation
-- Tapered Piece-Square Tables
+- King Relative Piece-Square Tables
+- Passed, Isolated, Blocked Pawns
+- Rooks on (Semi-)Open Files
+- Mobility
 
 #### Selectivity
 - Aspiration Windows
