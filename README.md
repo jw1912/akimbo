@@ -23,9 +23,9 @@ of akimbo, as well as facilitating far faster testing than on my own.
 | [0.1.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.1.1) |    8th January 2023  | 1167 |  2469  |  -   |     First Release      |
 | [0.2.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.2.0) |   10th   April 2023  |  866 |  2525  |  -   |          N/A           |
 | [0.3.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.3.0) |   16th     May 2023  |  891 |  2587  |  -   |          N/A           |
-| [0.4.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.4.0) |    4th    July 2023  |  852 |  2724  | 2760 |          N/A           |
-| [0.4.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.4.1) |    4th  August 2023  |  948 |   -    | TBD  | Final PST-only Release |
-| [0.5.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.5.0) |   12th  August 2023  |  940 |  TBD   | TBD  |   Fully-Fledged HCE    |
+| [0.4.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.4.0) |    4th    July 2023  |  852 |  2724  | 2762 |          N/A           |
+| [0.4.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.4.1) |    4th  August 2023  |  948 |   -    | 2867 | Final PST-only Release |
+| [0.5.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.5.0) |   13th  August 2023  |  940 |  TBD   | TBD  |        Better HCE      |
 
 ## Features
 
