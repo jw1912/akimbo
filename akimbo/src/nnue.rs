@@ -3,7 +3,7 @@ use crate::{position::Position, util::SIDE};
 const INPUT: usize = 768;
 const HIDDEN: usize = 16;
 
-const SCALE: i32 = 65536;
+const SCALE: i32 = 400;
 const QA: i32 = 255;
 const QB: i32 = 64;
 const QAB: i32 = QA * QB;
@@ -16,7 +16,7 @@ struct NNUEParams {
     output_bias: i16,
 }
 
-static NNUE: NNUEParams = unsafe {std::mem::transmute(*include_bytes!("../../resources/maiden-100.bin"))};
+static NNUE: NNUEParams = unsafe {std::mem::transmute(*include_bytes!("../../resources/maiden.bin"))};
 
 #[derive(Clone, Copy)]
 struct Accumulator([i16; HIDDEN]);
@@ -44,12 +44,10 @@ pub fn eval(pos: &Position) -> i32 {
         }
     }
 
-    let mut sum = 0;
+    let mut sum = i32::from(NNUE.output_bias);
     for (&i, &w) in acc.0.iter().zip(&NNUE.output_weights) {
-        sum += i32::from(i.clamp(-255, 255)) * i32::from(w);
+        sum += i32::from(i.max(0)) * i32::from(w);
     }
 
-    let flatten = sum / QA;
-
-    SIDE[usize::from(pos.c)] * (flatten + i32::from(NNUE.output_bias)) * SCALE / QAB
+    SIDE[usize::from(pos.c)] * sum * SCALE / QAB
 }
