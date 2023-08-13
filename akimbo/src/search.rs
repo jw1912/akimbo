@@ -1,5 +1,5 @@
 use std::time::Instant;
-use super::{util::{Bound, Flag, MoveScore, Piece, Score}, position::{Move, MoveList, Position}};
+use super::{util::{Bound, Flag, MoveScore, Piece, Score}, position::{Move, MoveList, Position}, nnue};
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
     8 * pos.get_pc(1 << mov.to) as i32 - mov.pc as i32
@@ -195,7 +195,7 @@ fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, max_depth: i32, 
 
 fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
     eng.seldepth = eng.seldepth.max(eng.ply);
-    let mut eval = pos.eval();
+    let mut eval = nnue::eval(pos);
     if eval >= beta { return eval }
     alpha = alpha.max(eval);
 
@@ -272,7 +272,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let pv_node = beta > alpha + 1;
     let s_mov = eng.plied[eng.ply as usize].2;
     let singular = s_mov != Move::default();
-    let mut eval = pos.eval();
+    let mut eval = nnue::eval(pos);
     let mut tt_move = Move::default();
     let mut tt_score = -Score::MAX;
     let mut try_singular = !singular && depth >= 8 && eng.ply > 0;

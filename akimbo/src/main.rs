@@ -1,4 +1,4 @@
-use akimbo::{position::Position, search::{Engine, go}, util::SIDE};
+use akimbo::{position::Position, search::{Engine, go}, util::SIDE, nnue};
 
 use std::{io, process, time::Instant};
 
@@ -21,7 +21,7 @@ fn main() {
         let bench_fens = FEN_STRING.split('\n').collect::<Vec<&str>>();
         for fen in bench_fens {
             pos = Position::from_fen(fen);
-            eval = eval.wrapping_add(SIDE[usize::from(pos.c)] * pos.eval());
+            eval = eval.wrapping_add(SIDE[usize::from(pos.c)] * nnue::eval(&pos));
             let timer = Instant::now();
             go(&pos, &mut eng, false, 11, 1_000_000.0);
             total_time += timer.elapsed().as_millis();
@@ -106,7 +106,7 @@ fn main() {
                 println!("perft {depth} time {} nodes {count} ({:.2} Mnps)", time / 1000, count as f64 / time as f64);
             },
             "quit" => process::exit(0),
-            "eval" => println!("eval: {}cp", pos.eval()),
+            "eval" => println!("eval: {}cp", nnue::eval(&pos)),
             _ => {},
         }
     }
