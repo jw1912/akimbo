@@ -1,7 +1,7 @@
 use crate::{position::Position, util::SIDE};
 
 const INPUT: usize = 768;
-const HIDDEN: usize = 16;
+const HIDDEN: usize = 32;
 
 #[repr(C)]
 struct NNUEParams {
@@ -11,7 +11,7 @@ struct NNUEParams {
     output_bias: i16,
 }
 
-static NNUE: NNUEParams = unsafe {std::mem::transmute(*include_bytes!("../../resources/maiden.bin"))};
+static NNUE: NNUEParams = unsafe {std::mem::transmute(*include_bytes!("../../resources/net1-120.bin"))};
 
 #[derive(Clone, Copy)]
 struct Accumulator([i16; HIDDEN]);
