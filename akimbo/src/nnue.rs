@@ -11,7 +11,7 @@ struct NNUEParams {
     output_bias: i16,
 }
 
-static NNUE: NNUEParams = unsafe {std::mem::transmute(*include_bytes!("../../resources/net1-120.bin"))};
+static NNUE: NNUEParams = unsafe {std::mem::transmute(*include_bytes!("../../resources/net2-100.bin"))};
 
 #[derive(Clone, Copy)]
 struct Accumulator([i16; HIDDEN]);
