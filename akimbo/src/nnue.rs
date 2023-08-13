@@ -3,11 +3,6 @@ use crate::{position::Position, util::SIDE};
 const INPUT: usize = 768;
 const HIDDEN: usize = 16;
 
-const SCALE: i32 = 400;
-const QA: i32 = 255;
-const QB: i32 = 64;
-const QAB: i32 = QA * QB;
-
 #[repr(C)]
 struct NNUEParams {
     feature_weights: [i16; INPUT * HIDDEN],
@@ -49,5 +44,5 @@ pub fn eval(pos: &Position) -> i32 {
         sum += i32::from(i.max(0)) * i32::from(w);
     }
 
-    SIDE[usize::from(pos.c)] * sum * SCALE / QAB
+    SIDE[usize::from(pos.c)] * sum * 400 / 16320
 }
