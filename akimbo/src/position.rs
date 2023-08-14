@@ -81,7 +81,7 @@ impl Position {
         let bit = 1 << sq;
         let start = (384 * side + 64 * pc + sq - 128) * HIDDEN;
 
-        // toggle bitboars
+        // toggle bitboards
         self.bb[pc] ^= bit;
         self.bb[side] ^= bit;
 
@@ -187,23 +187,18 @@ impl Position {
 
     pub fn see(&self, mov: Move, threshold: i32) -> bool {
         let sq = usize::from(mov.to);
-        let mut score = self.gain(mov) - threshold;
-
         let mut next = usize::from(if mov.flag >= Flag::PROMO { (mov.flag & 3) + 3 } else { mov.pc });
-        score -= SEE_VALS[next];
+        let mut score = self.gain(mov) - threshold - SEE_VALS[next];
 
-        // early out in worst case
         if score >= 0 { return true }
 
-        // occupancy after move
         let mut occ = (self.bb[Side::WHITE] | self.bb[Side::BLACK]) ^ (1 << mov.from) ^ (1 << sq);
         if mov.flag == Flag::ENP { occ ^= 1 << (sq ^ 8) }
 
         let bishops = self.bb[Piece::BISHOP] | self.bb[Piece::QUEEN];
         let rooks   = self.bb[Piece::ROOK  ] | self.bb[Piece::QUEEN];
         let mut us = usize::from(!self.c);
-        let mut attackers =
-            (Attacks::KNIGHT[sq] & self.bb[Piece::KNIGHT])
+        let mut attackers = (Attacks::KNIGHT[sq] & self.bb[Piece::KNIGHT])
             | (Attacks::KING[sq] & self.bb[Piece::KING  ])
             | (Attacks::PAWN[Side::WHITE][sq] & self.bb[Piece::PAWN] & self.bb[Side::BLACK])
             | (Attacks::PAWN[Side::BLACK][sq] & self.bb[Piece::PAWN] & self.bb[Side::WHITE])
@@ -214,7 +209,6 @@ impl Position {
             let our_attackers = attackers & self.bb[us];
             if our_attackers == 0 { break }
 
-            // find next attacking piece (least valuable first)
             for pc in Piece::PAWN..=Piece::KING {
                 let board = our_attackers & self.bb[pc];
                 if board > 0 {
@@ -224,7 +218,6 @@ impl Position {
                 }
             }
 
-            // discovered attacks
             if [Piece::PAWN, Piece::BISHOP, Piece::QUEEN].contains(&next) { attackers |= Attacks::bishop(sq, occ) & bishops}
             if [Piece::ROOK, Piece::QUEEN].contains(&next) { attackers |= Attacks::rook(sq, occ) & rooks}
 
