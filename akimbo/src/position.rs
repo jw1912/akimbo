@@ -8,6 +8,13 @@ macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
     }
 }}
 
+
+const HIDDEN: usize = 32;
+
+#[repr(C)]
+struct Eval([i16; 768 * HIDDEN], [i16; HIDDEN], [i16; HIDDEN], i16);
+static NNUE: Eval = unsafe {std::mem::transmute(*include_bytes!("../../resources/net2-100.bin"))};
+
 #[derive(Clone, Copy, Default)]
 pub struct Position {
     pub bb: [u64; 8],
@@ -18,6 +25,7 @@ pub struct Position {
     pub check: bool,
     hash: u64,
     pub phase: i32,
+    acc: [i16; 32],
 }
 
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
@@ -74,6 +82,13 @@ impl Position {
         self.bb[c] ^= bit;
     }
 
+    fn nnue_toggle<const ADD: bool>(&mut self, side: usize, pc: usize, sq: usize) {
+        let start = (384 * side + 64 * pc + sq - 128) * HIDDEN;
+        for (i, d) in self.acc.iter_mut().zip(&NNUE.0[start..start + HIDDEN]) {
+            if ADD { *i += *d } else { *i -= *d }
+        }
+    }
+
     fn sq_attacked(&self, sq: usize, side: usize, occ: u64) -> bool {
         ( (Attacks::KNIGHT[sq] & self.bb[Piece::KNIGHT])
         | (Attacks::KING  [sq] & self.bb[Piece::KING  ])
@@ -102,6 +117,8 @@ impl Position {
         // move piece
         self.toggle(side, moved, from_bb ^ to_bb);
         self.hash ^= ZVALS.pcs[side][moved][from] ^ ZVALS.pcs[side][moved][to];
+        self.nnue_toggle::<false>(side, moved, from);
+        self.nnue_toggle::<true>(side, moved, to);
 
         // captures
         if captured != Piece::EMPTY {
@@ -109,6 +126,7 @@ impl Position {
             self.toggle(opp, captured, to_bb);
             self.hash ^= ZVALS.pcs[opp][captured][to];
             self.phase -= PHASE_VALS[captured];
+            self.nnue_toggle::<false>(opp, captured, to);
         }
 
         // more complex moves
@@ -118,11 +136,14 @@ impl Position {
                 let (bits, rfr, rto) = ROOK_MOVES[usize::from(mov.flag == Flag::KS)][side];
                 self.toggle(side, Piece::ROOK, bits);
                 self.hash ^= ZVALS.pcs[side][Piece::ROOK][rfr] ^ ZVALS.pcs[side][Piece::ROOK][rto];
+                self.nnue_toggle::<false>(side, Piece::ROOK, rfr);
+                self.nnue_toggle::<true>(side, Piece::ROOK, rto);
             },
             Flag::ENP => {
                 let pawn_sq = to ^ 8;
                 self.toggle(side ^ 1, Piece::PAWN, 1 << pawn_sq);
                 self.hash ^= ZVALS.pcs[side ^ 1][Piece::PAWN][pawn_sq];
+                self.nnue_toggle::<false>(side ^ 1, Piece::PAWN, pawn_sq);
             },
             Flag::PROMO.. => {
                 let promo = usize::from((mov.flag & 3) + 3);
@@ -130,6 +151,8 @@ impl Position {
                 self.bb[promo] ^= to_bb;
                 self.hash ^= ZVALS.pcs[side][Piece::PAWN][to] ^ ZVALS.pcs[side][promo][to];
                 self.phase += PHASE_VALS[promo];
+                self.nnue_toggle::<false>(side, Piece::PAWN, to);
+                self.nnue_toggle::<true>(side, promo, to);
             }
             _ => {}
         }
@@ -137,6 +160,15 @@ impl Position {
         // validating move
         let kidx = (self.bb[Piece::KING] & self.bb[side]).trailing_zeros() as usize;
         self.sq_attacked(kidx, side, self.bb[0] | self.bb[1])
+    }
+
+    pub fn eval(&self) -> i32 {
+        let mut sum = i32::from(NNUE.3);
+        for (&i, &w) in self.acc.iter().zip(&NNUE.2) {
+            sum += i32::from(i.max(0)) * i32::from(w);
+        }
+
+        SIDE[usize::from(self.c)] * sum * 400 / 16320
     }
 
     pub fn draw(&self) -> bool {
@@ -296,7 +328,9 @@ impl Position {
         let p = vec[0].chars().collect::<Vec<char>>();
 
         // board
-        let (mut pos, mut row, mut col) = (Self::default(), 7, 0);
+        let (mut pos, mut row, mut col) = (Self::default(), 7i16, 0i16);
+        pos.acc = NNUE.1;
+
         for ch in p {
             if ch == '/' {
                 row -= 1;
@@ -307,6 +341,7 @@ impl Position {
                 let side = usize::from(idx > 5);
                 let (pc, sq) = (idx + 2 - 6 * side, 8 * row + col);
                 pos.toggle(side, pc, 1 << sq);
+                pos.nnue_toggle::<true>(side, pc, sq as usize);
                 pos.hash ^= ZVALS.pcs[side][pc][sq as usize];
                 pos.phase += PHASE_VALS[pc];
                 col += 1;
