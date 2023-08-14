@@ -109,7 +109,7 @@ const RANK: [[u64; 64]; 64] = init!(sq, 64, init!(i, 64, {
 const FILE: [[u64; 64]; 64] = init! {sq, 64, init! {occ, 64, (RANK[7 - sq / 8][occ].wrapping_mul(DIAG) & File::H) >> (7 - (sq & 7))}};
 
 pub const CASTLE_MASK: [u8; 64] = init! {idx, 64, match idx {0 => 7, 4 => 3, 7 => 11, 56 => 13, 60 => 12, 63 => 14, _ => 15}};
-pub const ROOK_MOVES: [[(u64, usize, usize); 2]; 2] = [[(9, 0, 3), (0x0900000000000000, 56, 59)], [(160, 7, 5), (0xA000000000000000, 63, 61)]];
+pub const ROOK_MOVES: [[(usize, usize); 2]; 2] = [[(0, 3), (56, 59)], [(7, 5), (63, 61)]];
 
 // Zobrist values
 const fn rand(mut seed: u64) -> u64 {
