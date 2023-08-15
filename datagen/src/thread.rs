@@ -139,14 +139,14 @@ impl ThreadData {
             }
 
             // adjudicate large scores
-            if score > 1000 {
-                result.result = f32::from(position.c);
+            if score.abs() > 1000 {
+                result.result = f32::from(if score > 0 {position.c} else {!position.c});
                 break;
             }
 
             // position is quiet, can use fen
             if !is_capture(bm) && !position.in_check() {
-                result.fens.push(to_fen(&position));
+                result.fens.push(to_fen(&position, score));
             }
 
             // check for game end via check/stalemate

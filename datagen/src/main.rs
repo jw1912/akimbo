@@ -9,16 +9,17 @@ use std::{
 
 pub static STOP: AtomicBool = AtomicBool::new(false);
 
-const GAMES_PER_THREAD: usize = 10_000;
-const NODES_PER_GAME: u64 = 40_000;
+const GAMES_PER_THREAD: usize = 40_000;
+const NODES_PER_MOVE: u64 = 5_000;
+const THREADS: usize = 4;
 
 fn main() {
     let mut handles = Vec::new();
 
-    for _ in 0..4 {
+    for _ in 0..THREADS {
         handles.push(
             spawn(move || {
-                let mut worker = ThreadData::new(NODES_PER_GAME, 8);
+                let mut worker = ThreadData::new(NODES_PER_MOVE, 8);
                 worker.run_datagen(GAMES_PER_THREAD as u64);
             })
         );
