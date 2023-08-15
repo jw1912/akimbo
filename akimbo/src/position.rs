@@ -8,12 +8,11 @@ macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
     }
 }}
 
-
 const HIDDEN: usize = 32;
 
 #[repr(C)]
-struct Eval([i16; 768 * HIDDEN], [i16; HIDDEN], [i16; HIDDEN], i16);
-static NNUE: Eval = unsafe {std::mem::transmute(*include_bytes!("../../resources/net2-100.bin"))};
+struct Eval([i16; 768 * HIDDEN], [i16; HIDDEN], [i16; 2 * HIDDEN], i16);
+static NNUE: Eval = unsafe {std::mem::transmute(*include_bytes!("../../resources/net.bin"))};
 
 #[derive(Clone, Copy, Default)]
 pub struct Position {
@@ -25,7 +24,7 @@ pub struct Position {
     pub check: bool,
     hash: u64,
     pub phase: i32,
-    acc: [i16; 32],
+    acc: [[i16; HIDDEN]; 2],
 }
 
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
@@ -79,7 +78,6 @@ impl Position {
 
     fn toggle<const ADD: bool>(&mut self, side: usize, pc: usize, sq: usize) {
         let bit = 1 << sq;
-        let start = (384 * side + 64 * pc + sq - 128) * HIDDEN;
 
         // toggle bitboards
         self.bb[pc] ^= bit;
@@ -88,8 +86,14 @@ impl Position {
         // update hash
         self.hash ^= ZVALS.pcs[side][pc][sq];
 
-        // update accumulator
-        for (i, d) in self.acc.iter_mut().zip(&NNUE.0[start..start + HIDDEN]) {
+        // update accumulators
+        let start = (384 * side + 64 * pc + sq - 128) * HIDDEN;
+        for (i, d) in self.acc[0].iter_mut().zip(&NNUE.0[start..start + HIDDEN]) {
+            if ADD { *i += *d } else { *i -= *d }
+        }
+
+        let start = (384 * (side ^ 1) + 64 * pc + (sq ^ 56) - 128) * HIDDEN;
+        for (i, d) in self.acc[1].iter_mut().zip(&NNUE.0[start..start + HIDDEN]) {
             if ADD { *i += *d } else { *i -= *d }
         }
     }
@@ -154,11 +158,15 @@ impl Position {
 
     pub fn eval(&self) -> i32 {
         let mut sum = i32::from(NNUE.3);
-        for (&i, &w) in self.acc.iter().zip(&NNUE.2) {
+        let (boys, opps) = (&self.acc[usize::from(self.c)], &self.acc[usize::from(!self.c)]);
+        for (&i, &w) in boys.iter().zip(&NNUE.2[..HIDDEN]) {
+            sum += i32::from(i.max(0)) * i32::from(w);
+        }
+        for (&i, &w) in opps.iter().zip(&NNUE.2[HIDDEN..]) {
             sum += i32::from(i.max(0)) * i32::from(w);
         }
 
-        SIDE[usize::from(self.c)] * sum * 400 / 16320
+        sum * 400 / 16320
     }
 
     pub fn draw(&self) -> bool {
@@ -312,7 +320,7 @@ impl Position {
 
         // board
         let (mut pos, mut row, mut col) = (Self::default(), 7i16, 0i16);
-        pos.acc = NNUE.1;
+        pos.acc = [NNUE.1; 2];
 
         for ch in p {
             if ch == '/' {
