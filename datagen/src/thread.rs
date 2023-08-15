@@ -146,7 +146,7 @@ impl ThreadData {
 
             // position is quiet, can use fen
             if !is_capture(bm) && !position.in_check() {
-                result.fens.push(to_fen(&position));
+                result.fens.push(to_fen(&position, score));
             }
 
             // check for game end via check/stalemate

@@ -4,7 +4,7 @@ pub fn is_capture(mov: Move) -> bool {
     mov.flag & 4 > 0
 }
 
-pub fn to_fen(pos: &Position) -> String {
+pub fn to_fen(pos: &Position, score: i32) -> String {
     const PIECES: [char; 12] = ['P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k'];
     let mut fen = String::new();
 
@@ -38,6 +38,7 @@ pub fn to_fen(pos: &Position) -> String {
     fen.push(' ');
     fen.push(['w', 'b'][usize::from(pos.c)]);
     fen.push_str(" - - 0 1");
+    fen.push_str(&format!(" {}", if pos.c {-score} else {score}));
 
     fen
 }
@@ -61,6 +62,6 @@ mod test {
     #[test]
     fn to_fen_test() {
         let pos = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        assert_eq!(to_fen(&pos), "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1");
+        assert_eq!(to_fen(&pos, pos.eval()), "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1 6");
     }
 }
