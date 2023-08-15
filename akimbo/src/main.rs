@@ -23,7 +23,7 @@ fn main() {
             pos = Position::from_fen(fen);
             eval = eval.wrapping_add(SIDE[usize::from(pos.c)] * pos.eval());
             let timer = Instant::now();
-            go(&pos, &mut eng, false, 11, 1_000_000.0);
+            go(&pos, &mut eng, false, 11, 1_000_000.0, u64::MAX);
             total_time += timer.elapsed().as_millis();
             total_nodes += eng.nodes + eng.qnodes;
         }
@@ -77,7 +77,7 @@ fn main() {
                 let (time, inc) = (times[side], incs[side]);
                 if time != 0 { alloc = time.min(time / mtg + 3 * inc / 4) }
                 eng.max_time = (alloc * 2).clamp(1, 1.max(time - 10)) as u128;
-                let (bm, _) = go(&pos, &mut eng, true, 64, if mtg == 1 {alloc} else {alloc * 6 / 10} as f64);
+                let (bm, _) = go(&pos, &mut eng, true, 64, if mtg == 1 {alloc} else {alloc * 6 / 10} as f64, u64::MAX);
                 println!("bestmove {}", bm.to_uci());
             },
             "position" => {

@@ -118,7 +118,7 @@ impl Engine {
     }
 }
 
-pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft_bound: f64) -> (Move, i32) {
+pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft_bound: f64, soft_nodes: u64) -> (Move, i32) {
     // reset engine
     *eng.ntable = [[0; 64]; 64];
     eng.plied.iter_mut().for_each(|x| x.0 = Default::default());
@@ -138,6 +138,8 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
 
     // iterative deepening loop
     for d in 1..=max_depth {
+        if eng.nodes + eng.qnodes > soft_nodes { break }
+
         eval = if d < 7 {
             pvs(&pos, eng, -Score::MAX, Score::MAX, d, false, Move::default())
         } else { aspiration(&pos, eng, eval, d, &mut best_move, Move::default()) };
