@@ -1,7 +1,6 @@
 [workspace]
 members = [
     "akimbo",
-    "tuner",
     "datagen",
 ]
 

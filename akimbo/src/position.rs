@@ -8,6 +8,12 @@ macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
     }
 }}
 
+const HIDDEN: usize = 32;
+
+#[repr(C)]
+struct Eval([i16; 768 * HIDDEN], [i16; HIDDEN], [i16; 2 * HIDDEN], i16);
+static NNUE: Eval = unsafe {std::mem::transmute(*include_bytes!("../../resources/net.bin"))};
+
 #[derive(Clone, Copy, Default)]
 pub struct Position {
     pub bb: [u64; 8],
@@ -18,6 +24,7 @@ pub struct Position {
     pub check: bool,
     hash: u64,
     pub phase: i32,
+    acc: [[i16; HIDDEN]; 2],
 }
 
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
@@ -69,9 +76,26 @@ impl Position {
         hash ^ ZVALS.cr[usize::from(self.rights)] ^ ZVALS.c[usize::from(self.c)]
     }
 
-    fn toggle(&mut self, c: usize, pc: usize, bit: u64) {
+    fn toggle<const ADD: bool>(&mut self, side: usize, pc: usize, sq: usize) {
+        let bit = 1 << sq;
+
+        // toggle bitboards
         self.bb[pc] ^= bit;
-        self.bb[c] ^= bit;
+        self.bb[side] ^= bit;
+
+        // update hash
+        self.hash ^= ZVALS.pcs[side][pc][sq];
+
+        // update accumulators
+        let start = (384 * side + 64 * pc + sq - 128) * HIDDEN;
+        for (i, d) in self.acc[0].iter_mut().zip(&NNUE.0[start..start + HIDDEN]) {
+            if ADD { *i += *d } else { *i -= *d }
+        }
+
+        let start = (384 * (side ^ 1) + 64 * pc + (sq ^ 56) - 128) * HIDDEN;
+        for (i, d) in self.acc[1].iter_mut().zip(&NNUE.0[start..start + HIDDEN]) {
+            if ADD { *i += *d } else { *i -= *d }
+        }
     }
 
     fn sq_attacked(&self, sq: usize, side: usize, occ: u64) -> bool {
@@ -88,9 +112,9 @@ impl Position {
     }
 
     pub fn make(&mut self, mov: Move) -> bool {
-        let (from_bb, to_bb, moved) = (1 << mov.from, 1 << mov.to, usize::from(mov.pc));
+        let moved = usize::from(mov.pc);
         let (to, from) = (usize::from(mov.to), usize::from(mov.from));
-        let captured = if mov.flag & Flag::CAP == 0 { Piece::EMPTY } else { self.get_pc(to_bb) };
+        let captured = if mov.flag & Flag::CAP == 0 { Piece::EMPTY } else { self.get_pc(1 << to) };
         let side = usize::from(self.c);
 
         // update state
@@ -100,14 +124,12 @@ impl Position {
         self.c = !self.c;
 
         // move piece
-        self.toggle(side, moved, from_bb ^ to_bb);
-        self.hash ^= ZVALS.pcs[side][moved][from] ^ ZVALS.pcs[side][moved][to];
+        self.toggle::<false>(side, moved, from);
+        self.toggle::<true>(side, moved, to);
 
         // captures
         if captured != Piece::EMPTY {
-            let opp = side ^ 1;
-            self.toggle(opp, captured, to_bb);
-            self.hash ^= ZVALS.pcs[opp][captured][to];
+            self.toggle::<false>(side ^ 1, captured, to);
             self.phase -= PHASE_VALS[captured];
         }
 
@@ -115,21 +137,16 @@ impl Position {
         match mov.flag {
             Flag::DBL => self.enp_sq = mov.to ^ 8,
             Flag::KS | Flag::QS => {
-                let (bits, rfr, rto) = ROOK_MOVES[usize::from(mov.flag == Flag::KS)][side];
-                self.toggle(side, Piece::ROOK, bits);
-                self.hash ^= ZVALS.pcs[side][Piece::ROOK][rfr] ^ ZVALS.pcs[side][Piece::ROOK][rto];
+                let (rfr, rto) = ROOK_MOVES[usize::from(mov.flag == Flag::KS)][side];
+                self.toggle::<false>(side, Piece::ROOK, rfr);
+                self.toggle::<true>(side, Piece::ROOK, rto);
             },
-            Flag::ENP => {
-                let pawn_sq = to ^ 8;
-                self.toggle(side ^ 1, Piece::PAWN, 1 << pawn_sq);
-                self.hash ^= ZVALS.pcs[side ^ 1][Piece::PAWN][pawn_sq];
-            },
+            Flag::ENP => self.toggle::<false>(side ^ 1, Piece::PAWN, to ^ 8),
             Flag::PROMO.. => {
                 let promo = usize::from((mov.flag & 3) + 3);
-                self.bb[Piece::PAWN] ^= to_bb;
-                self.bb[promo] ^= to_bb;
-                self.hash ^= ZVALS.pcs[side][Piece::PAWN][to] ^ ZVALS.pcs[side][promo][to];
                 self.phase += PHASE_VALS[promo];
+                self.toggle::<false>(side, Piece::PAWN, to);
+                self.toggle::<true>(side, promo, to);
             }
             _ => {}
         }
@@ -137,6 +154,19 @@ impl Position {
         // validating move
         let kidx = (self.bb[Piece::KING] & self.bb[side]).trailing_zeros() as usize;
         self.sq_attacked(kidx, side, self.bb[0] | self.bb[1])
+    }
+
+    pub fn eval(&self) -> i32 {
+        let mut sum = i32::from(NNUE.3);
+        let (boys, opps) = (&self.acc[usize::from(self.c)], &self.acc[usize::from(!self.c)]);
+        for (&i, &w) in boys.iter().zip(&NNUE.2[..HIDDEN]) {
+            sum += i32::from(i.max(0)) * i32::from(w);
+        }
+        for (&i, &w) in opps.iter().zip(&NNUE.2[HIDDEN..]) {
+            sum += i32::from(i.max(0)) * i32::from(w);
+        }
+
+        sum * 400 / 16320
     }
 
     pub fn draw(&self) -> bool {
@@ -152,69 +182,6 @@ impl Position {
         self.sq_attacked(kidx, usize::from(self.c), self.bb[0] | self.bb[1])
     }
 
-    pub fn eval(&self) -> i32 {
-        let p = 24.min(self.phase);
-        let mut scores = [S(0, 0), S(0, 0)];
-        let occ = self.bb[0] | self.bb[1];
-        let wp = self.bb[Side::WHITE] & self.bb[Piece::PAWN];
-        let bp = self.bb[Side::BLACK] & self.bb[Piece::PAWN];
-        let pawns = [wp, bp];
-        let patts = [(wp & !File::A) << 7 | (wp & !File::H) << 9, (bp & !File::A) >> 9 | (bp & !File::H) >> 7];
-
-        for (side, flip) in [0, 56].iter().enumerate() {
-            let (boys, opps) = (self.bb[side], self.bb[side ^ 1]);
-            let our_ksq = (boys & self.bb[Piece::KING]).trailing_zeros() as usize ^ flip;
-            let opp_ksq = (opps & self.bb[Piece::KING]).trailing_zeros() as usize ^ flip ^ 56;
-            let (safe, our_pawns) = (!patts[side ^ 1], pawns[side]);
-            let (fb, fr, fq) = (boys & self.bb[Piece::BISHOP], boys & self.bb[Piece::ROOK], boys & self.bb[Piece::QUEEN]);
-            let (bocc, rocc, qocc) = (occ ^ fb ^ fq, occ ^ fr ^ fq, occ ^ fb ^ fr ^ fq);
-            for pc in Piece::PAWN..Piece::KING {
-                let mut pcs = boys & self.bb[pc];
-                bitloop!(pcs, sq, {
-                    let idx = usize::from(sq) ^ flip;
-                    scores[side] += EVAL.psts[0][our_ksq][pc - 2][idx];
-                    scores[side] += EVAL.psts[1][opp_ksq][pc - 2][idx];
-
-                    match pc {
-                        Piece::PAWN => {
-                            if self.is_passer(sq, side) {
-                                scores[side] += EVAL.passers[idx];
-
-                                // passed pawn is blocked
-                                let forward = 1 << sq.wrapping_add([8, 8u8.wrapping_neg()][side]);
-                                if forward & occ > 0 { scores[side] += EVAL.blocked[idx / 8] }
-                            }
-                            let file = usize::from(sq & 7);
-                            if RAILS[file] & our_pawns == 0 { scores[side] += EVAL.isolated[file] }
-                        },
-                        Piece::KNIGHT => scores[side] += EVAL.knight[(Attacks::KNIGHT[usize::from(sq)] & safe).count_ones() as usize],
-                        Piece::BISHOP => scores[side] += EVAL.bishop[(Attacks::bishop(usize::from(sq), bocc) & safe).count_ones() as usize],
-                        Piece::ROOK => {
-                            let pawns_on_file = (File::A << (sq & 7)) & self.bb[Piece::PAWN];
-
-                            // rook on open file
-                            if pawns_on_file == 0 { scores[side] += EVAL.open[idx & 7] }
-
-                            // rook on semi-open file
-                            if pawns_on_file & boys == 0 { scores[side] += EVAL.semi[idx & 7] }
-
-                            scores[side] += EVAL.rook[(Attacks::rook(usize::from(sq), rocc) & safe).count_ones() as usize];
-                        },
-                        Piece::QUEEN => {
-                            let attacks = Attacks::rook(usize::from(sq), qocc) | Attacks::bishop(usize::from(sq), qocc);
-                            scores[side] += EVAL.queen[(attacks & safe).count_ones() as usize];
-                        },
-                        _ => {}
-                    }
-                });
-            }
-        }
-
-        let s = S(scores[0].0 - scores[1].0, scores[0].1 - scores[1].1);
-
-        SIDE[usize::from(self.c)] * (p * s.0 + (24 - p) * s.1) / 24
-    }
-
     pub fn is_passer(&self, sq: u8, side: usize) -> bool {
         SPANS[side][usize::from(sq)] & self.bb[Piece::PAWN] & self.bb[side ^ 1] == 0
     }
@@ -228,23 +195,18 @@ impl Position {
 
     pub fn see(&self, mov: Move, threshold: i32) -> bool {
         let sq = usize::from(mov.to);
-        let mut score = self.gain(mov) - threshold;
-
         let mut next = usize::from(if mov.flag >= Flag::PROMO { (mov.flag & 3) + 3 } else { mov.pc });
-        score -= SEE_VALS[next];
+        let mut score = self.gain(mov) - threshold - SEE_VALS[next];
 
-        // early out in worst case
         if score >= 0 { return true }
 
-        // occupancy after move
         let mut occ = (self.bb[Side::WHITE] | self.bb[Side::BLACK]) ^ (1 << mov.from) ^ (1 << sq);
         if mov.flag == Flag::ENP { occ ^= 1 << (sq ^ 8) }
 
         let bishops = self.bb[Piece::BISHOP] | self.bb[Piece::QUEEN];
         let rooks   = self.bb[Piece::ROOK  ] | self.bb[Piece::QUEEN];
         let mut us = usize::from(!self.c);
-        let mut attackers =
-            (Attacks::KNIGHT[sq] & self.bb[Piece::KNIGHT])
+        let mut attackers = (Attacks::KNIGHT[sq] & self.bb[Piece::KNIGHT])
             | (Attacks::KING[sq] & self.bb[Piece::KING  ])
             | (Attacks::PAWN[Side::WHITE][sq] & self.bb[Piece::PAWN] & self.bb[Side::BLACK])
             | (Attacks::PAWN[Side::BLACK][sq] & self.bb[Piece::PAWN] & self.bb[Side::WHITE])
@@ -255,7 +217,6 @@ impl Position {
             let our_attackers = attackers & self.bb[us];
             if our_attackers == 0 { break }
 
-            // find next attacking piece (least valuable first)
             for pc in Piece::PAWN..=Piece::KING {
                 let board = our_attackers & self.bb[pc];
                 if board > 0 {
@@ -265,7 +226,6 @@ impl Position {
                 }
             }
 
-            // discovered attacks
             if [Piece::PAWN, Piece::BISHOP, Piece::QUEEN].contains(&next) { attackers |= Attacks::bishop(sq, occ) & bishops}
             if [Piece::ROOK, Piece::QUEEN].contains(&next) { attackers |= Attacks::rook(sq, occ) & rooks}
 
@@ -359,7 +319,9 @@ impl Position {
         let p = vec[0].chars().collect::<Vec<char>>();
 
         // board
-        let (mut pos, mut row, mut col) = (Self::default(), 7, 0);
+        let (mut pos, mut row, mut col) = (Self::default(), 7i16, 0i16);
+        pos.acc = [NNUE.1; 2];
+
         for ch in p {
             if ch == '/' {
                 row -= 1;
@@ -369,8 +331,7 @@ impl Position {
             } else if let Some(idx) = "PNBRQKpnbrqk".chars().position(|el| el == ch) {
                 let side = usize::from(idx > 5);
                 let (pc, sq) = (idx + 2 - 6 * side, 8 * row + col);
-                pos.toggle(side, pc, 1 << sq);
-                pos.hash ^= ZVALS.pcs[side][pc][sq as usize];
+                pos.toggle::<true>(side, pc, sq as usize);
                 pos.phase += PHASE_VALS[pc];
                 col += 1;
             }
