@@ -158,7 +158,6 @@ impl Position {
 
     pub fn eval(&self) -> i32 {
         let mut sum = i32::from(NNUE.3);
-        println!("{sum}");
         let (boys, opps) = (&self.acc[usize::from(self.c)], &self.acc[usize::from(!self.c)]);
         for (&i, &w) in boys.iter().zip(&NNUE.2[..HIDDEN]) {
             sum += i32::from(i.max(0)) * i32::from(w);
