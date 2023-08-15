@@ -16,7 +16,7 @@ pub struct ThreadData {
     games: u64,
     fens: u64,
     start_time: Instant,
-    pub seed_positions: Vec<String>,
+    nodes_per_move: u64,
 }
 
 impl ThreadData {
@@ -26,7 +26,7 @@ impl ThreadData {
         println!("thread id {} games {} fens {} fps {fps:.0} fpg {fpg}", self.id, self.games, self.fens);
     }
 
-    pub fn new(max_nodes: u64, hash_size: usize) -> Self {
+    pub fn new(nodes_per_move: u64, hash_size: usize) -> Self {
         let seed = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Guaranteed increasing.")
@@ -34,7 +34,7 @@ impl ThreadData {
 
         let mut res = Self {
             engine: Engine {
-                max_nodes,
+                max_nodes: 1_000_000,
                 max_time: 10000,
                 ..Default::default()
             },
@@ -44,7 +44,7 @@ impl ThreadData {
             games: 0,
             fens: 0,
             start_time: Instant::now(),
-            seed_positions: Vec::new(),
+            nodes_per_move,
         };
 
         res.engine.resize_tt(hash_size);
@@ -101,37 +101,31 @@ impl ThreadData {
 
         let mut position;
 
-        if let Some(fen) = self.seed_positions.get(self.games as usize) {
-            position = Position::from_fen(fen);
-        } else {
-            // use startpos
-            position = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        position = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
-            // play 8 or 9 random moves
-            for _ in 0..(8 + (self.rng() % 2)) {
-                let moves = position.movegen::<true>();
-
-                let mut legals = Vec::new();
-                for &mov in &moves.list[..moves.len] {
-                    let mut new = position;
-                    if !new.make(mov) {
-                        legals.push(mov);
-                    }
+        // play 8 or 9 random moves
+        for _ in 0..(8 + (self.rng() % 2)) {
+            let moves = position.movegen::<true>();
+            let mut legals = Vec::new();
+            for &mov in &moves.list[..moves.len] {
+                let mut new = position;
+                if !new.make(mov) {
+                    legals.push(mov);
                 }
-
-                if legals.is_empty() {
-                    return None;
-                }
-
-                position.make(legals[self.rng() as usize % legals.len()]);
             }
+
+            if legals.is_empty() {
+                return None;
+            }
+
+            position.make(legals[self.rng() as usize % legals.len()]);
         }
 
         let mut result = GameResult::default();
 
         // play out game
         loop {
-            let (bm, score) = go(&position, &mut self.engine, false, 32, 1000.0);
+            let (bm, score) = go(&position, &mut self.engine, false, 32, 1000.0, self.nodes_per_move);
 
             // not enough nodes to finish a depth!
             if bm == Move::default() || position.make(bm) {
