@@ -11,13 +11,15 @@
 A compact UCI Chess engine written in Rust.
 
 akimbo has a hard upper limit of 1000 lines of code, excluding blank lines and comments. Stats for each version are included below.
-This only applies to the actual engine, tuning and datagen are not counted (as I could just stick them in a different repo).
+This only applies to the actual engine, datagen code is not counted (as I could just stick it in a different repo).
 
 Huge thanks to all of the members of [this OpenBench Instance](https://chess.swehosting.se/users/) who have provided support and guidance in the development
 of akimbo, as well as facilitating far faster testing than on my own.
 
 
 ## Stats
+<div align="center">
+
 |                           Version                                |     Release Date     | SLOC | [CCRL 40/15](https://www.computerchess.org.uk/ccrl/4040/) | [CCRL Blitz](http://ccrl.chessdom.com/ccrl/404/cgi/compare_engines.cgi?class=Single-CPU+engines&only_best_in_class=on&num_best_in_class=1&print=Rating+list&profile_step=50&profile_numbers=1&print=Results+table&print=LOS+table&table_size=100&ct_from_elo=0&ct_to_elo=10000&match_length=30&cross_tables_for_best_versions_only=1&sort_tables=by+rating&diag=0&reference_list=None&recalibrate=no) | Notes |
 | :---------------------------------------------------------------:|:--------------------:|:----:|:------:|:----:|:----------------------:|
 | [0.1.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.1.1) |    8th January 2023  | 1167 |  2469  |  -   |     First Release      |
@@ -27,13 +29,19 @@ of akimbo, as well as facilitating far faster testing than on my own.
 | [0.4.1](https://github.com/JacquesRW/akimbo/releases/tag/v0.4.1) |    4th  August 2023  |  948 |   -    | 2867 | Final PST-only Release |
 | [0.5.0](https://github.com/JacquesRW/akimbo/releases/tag/v0.5.0) |   13th  August 2023  |  940 |  TBD   | TBD  |        Better HCE      |
 
-## Features
+</div>
 
-#### Evaluation
-- King Relative Piece-Square Tables
-- Passed, Isolated, Blocked Pawns
-- Rooks on (Semi-)Open Files
-- Mobility
+## Evaluation
+
+akimbo's evaluation currently consists of a `768 -> 32x2 -> 1` neural network.
+
+All data used is self-generated, starting from material values when akimbo still had an HCE and iteratively generating data and tuning to
+produce higher quality datasets. The final HCE dataset was then used to train akimbo's first network and further data has been generated
+since.
+
+Additionally, akimbo uses its own trainer written in rust, [bullet](https://github.com/JacquesRW/bullet).
+
+## Search Features
 
 #### Selectivity
 - Aspiration Windows
