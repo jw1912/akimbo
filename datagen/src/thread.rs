@@ -71,7 +71,7 @@ impl ThreadData {
 
     pub fn reset(&mut self) {
         self.engine.clear_tt();
-        self.engine.htable = Box::new([[[Default::default(); 64]; 8]; 2]);
+        self.engine.htable = Box::new([[[(0, Move::NULL); 64]; 8]; 2]);
     }
 
     pub fn run_datagen(&mut self, max_games: u64) {
@@ -128,7 +128,7 @@ impl ThreadData {
             let (bm, score) = go(&position, &mut self.engine, false, 32, 1000.0, self.nodes_per_move);
 
             // not enough nodes to finish a depth!
-            if bm == Move::default() || position.make(bm) {
+            if bm == Move::NULL || position.make(bm) {
                 return None
             }
 

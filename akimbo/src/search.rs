@@ -45,11 +45,11 @@ impl Default for Engine {
         Self {
             timing: Instant::now(), max_time: 0, abort: false, max_nodes: u64::MAX,
             tt: Vec::new(), tt_age: 0,
-            htable: Box::new([[[Default::default(); 64]; 8]; 2]),
-            plied: Box::new([Default::default(); 96]),
+            htable: Box::new([[[(0, Move::NULL); 64]; 8]; 2]),
+            plied: Box::new([([Move::NULL; 2], 0, Move::NULL, MoveList::ZEROED); 96]),
             ntable: Box::new([[0; 64]; 64]),
             stack: Vec::with_capacity(96),
-            nodes: 0, qnodes: 0, ply: 0, best_move: Move::default(), seldepth: 0,
+            nodes: 0, qnodes: 0, ply: 0, best_move: Move::NULL, seldepth: 0,
         }
     }
 }
@@ -121,17 +121,17 @@ impl Engine {
 pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft_bound: f64, soft_nodes: u64) -> (Move, i32) {
     // reset engine
     *eng.ntable = [[0; 64]; 64];
-    eng.plied.iter_mut().for_each(|x| x.0 = Default::default());
-    eng.htable.iter_mut().flatten().flatten().for_each(|x| *x = (x.0 / 2, Move::default()));
+    eng.plied.iter_mut().for_each(|x| x.0 = [Move::NULL; 2]);
+    eng.htable.iter_mut().flatten().flatten().for_each(|x| *x = (x.0 / 2, Move::NULL));
     eng.timing = Instant::now();
     eng.nodes = 0;
     eng.qnodes = 0;
     eng.ply = 0;
-    eng.best_move = Move::default();
+    eng.best_move = Move::NULL;
     eng.abort = false;
     eng.seldepth = 0;
 
-    let mut best_move = Move::default();
+    let mut best_move = Move::NULL;
     let mut pos = *start;
     let (mut eval, mut score) = (0, 0);
     pos.check = pos.in_check();
@@ -141,8 +141,8 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
         if eng.nodes + eng.qnodes > soft_nodes { break }
 
         eval = if d < 7 {
-            pvs(&pos, eng, -Score::MAX, Score::MAX, d, false, Move::default())
-        } else { aspiration(&pos, eng, eval, d, &mut best_move, Move::default()) };
+            pvs(&pos, eng, -Score::MAX, Score::MAX, d, false, Move::NULL)
+        } else { aspiration(&pos, eng, eval, d, &mut best_move, Move::NULL) };
 
         if eng.abort { break }
         best_move = eng.best_move;
@@ -217,7 +217,7 @@ fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
     caps.list.iter().enumerate().take(caps.len).for_each(|(i, &cap)| scores[i] = mvv_lva(cap, pos));
 
     eng.ply += 1;
-    let mut bm = Move::default();
+    let mut bm = Move::NULL;
     while let Some((mov, _)) = caps.pick(&mut scores) {
         // static exchange eval pruning
         if !pos.see(mov, 1) { continue }
@@ -273,9 +273,9 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     // probing hash table
     let pv_node = beta > alpha + 1;
     let s_mov = eng.plied[eng.ply as usize].2;
-    let singular = s_mov != Move::default();
+    let singular = s_mov != Move::NULL;
     let mut eval = pos.eval();
-    let mut tt_move = Move::default();
+    let mut tt_move = Move::NULL;
     let mut tt_score = -Score::MAX;
     let mut try_singular = !singular && depth >= 8 && eng.ply > 0;
     if let Some(res) = eng.probe_tt(hash) {
@@ -302,7 +302,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let improving = eng.ply > 1 && eval > eng.plied[eng.ply as usize - 2].1;
 
     // pruning
-    if !pv_node && !pos.check && beta.abs() < Score::MATE {
+    let can_prune = !pv_node && !pos.check;
+    if can_prune && beta.abs() < Score::MATE {
         // reverse futility pruning
         if depth <= 8 && eval >= beta + 80 * depth / if improving {2} else {1} { return eval }
 
@@ -319,7 +320,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             eng.push(hash);
             new.c = !new.c;
             new.enp_sq = 0;
-            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, Move::default());
+            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, Move::NULL);
             eng.pop();
             if nw >= Score::MATE { return beta }
             if nw >= beta { return nw }
@@ -327,15 +328,15 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     }
 
     // internal iterative reduction
-    if depth >= 4 && tt_move == Move::default() { depth -= 1 }
+    if depth >= 4 && tt_move == Move::NULL { depth -= 1 }
 
     // generating and scoring moves
     let mut moves = pos.movegen::<true>();
     let mut scores = [0; 252];
     let killers = eng.plied[eng.ply as usize].0;
-    let counter_mov = if prev != Move::default() {
+    let counter_mov = if prev != Move::NULL {
         eng.htable[usize::from(pos.c)][usize::from(prev.pc)][usize::from(prev.to)].1
-    } else {Move::default()};
+    } else {Move::NULL};
     moves.list[..moves.len].iter().enumerate().for_each(|(i, &mov)|
         scores[i] = if mov == tt_move { MoveScore::HASH }
             else if mov.flag == Flag::ENP { MoveScore::CAPTURE + 16 }
@@ -349,8 +350,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     // stuff for going through moves
     let (mut legal, mut bound) = (0, Bound::UPPER);
     let (mut best_score, mut best_move) = (-Score::MAX, tt_move);
-    let mut quiets_tried = MoveList::default();
-    let can_prune = !pv_node && !pos.check;
+    let mut quiets_tried = MoveList::ZEROED;
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
 
@@ -389,7 +389,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             eng.pop();
             eng.plied[eng.ply as usize].2 = mov;
             let ret = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, prev);
-            eng.plied[eng.ply as usize].2 = Move::default();
+            eng.plied[eng.ply as usize].2 = Move::NULL;
             eng.push(hash);
             if ret < s_beta {1} else {0}
         } else {0};
@@ -419,7 +419,6 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             -pvs(&new, eng, -beta, -alpha, depth + ext - 1, false, mov)
         } else {
             let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true, mov);
-            // re-search if fails high
             if zw > alpha && (pv_node || reduce > 0) {
                 -pvs(&new, eng, -beta, -alpha, depth - 1, false, mov)
             } else { zw }

@@ -27,7 +27,7 @@ pub struct Position {
     acc: [[i16; HIDDEN]; 2],
 }
 
-#[derive(Copy, Clone, Default, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Move {
     pub from: u8,
     pub to: u8,
@@ -41,13 +41,9 @@ pub struct MoveList {
     pub len: usize,
 }
 
-impl Default for MoveList {
-    fn default() -> Self {
-        Self { list: [Move::default(); 252], len: 0 }
-    }
-}
-
 impl MoveList {
+    pub const ZEROED: Self = Self { list: [Move::NULL; 252], len: 0 };
+
     fn push(&mut self, from: u8, to: u8, flag: u8, mpc: usize) {
         self.list[self.len] = Move { from, to, flag, pc: mpc as u8 };
         self.len += 1;
@@ -242,7 +238,7 @@ impl Position {
     }
 
     pub fn movegen<const QUIETS: bool>(&self) -> MoveList {
-        let mut moves = MoveList::default();
+        let mut moves = MoveList::ZEROED;
         let (side, occ) = (usize::from(self.c), self.bb[0] | self.bb[1]);
         let (boys, opps) = (self.bb[side], self.bb[side ^ 1]);
         let pawns = self.bb[Piece::PAWN] & boys;
@@ -361,6 +357,8 @@ fn idx_shift<const AMOUNT: u8>(side: usize, idx: u8) -> u8 {
 }
 
 impl Move {
+    pub const NULL: Self = Self { from: 0, to: 0, flag: 0, pc: 0 };
+
     pub fn from_short(m: u16, pos: &Position) -> Self {
         let from = ((m >> 6) & 63) as u8;
         Self { from, to: (m & 63) as u8, flag: (m >> 12) as u8, pc: pos.get_pc(1 << from) as u8 }

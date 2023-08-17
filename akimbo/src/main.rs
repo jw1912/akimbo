@@ -1,4 +1,4 @@
-use akimbo::{position::Position, search::{Engine, go}, util::SIDE};
+use akimbo::{position::{Position, Move}, search::{Engine, go}, util::SIDE};
 
 use std::{io, process, time::Instant};
 
@@ -51,7 +51,7 @@ fn main() {
             "ucinewgame" => {
                 pos = Position::from_fen(STARTPOS);
                 eng.clear_tt();
-                eng.htable = Box::new([[[Default::default(); 64]; 8]; 2]);
+                eng.htable = Box::new([[[(0, Move::NULL); 64]; 8]; 2]);
             },
             "setoption" => match commands[..] {
                 ["setoption", "name", "Hash", "value", x] => eng.resize_tt(x.parse().unwrap()),
