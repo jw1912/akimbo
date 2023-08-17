@@ -59,25 +59,26 @@ fn main() {
                 _ => {}
             },
             "go" => {
-                let (mut token, mut times, mut mtg, mut alloc, mut incs) = (0, [0, 0], 25, 1000, [0, 0]);
-                let tokens = ["go", "movetime", "wtime", "btime", "movestogo", "winc", "binc"];
+                let (mut token, mut times, mut mtg, mut alloc, mut incs, mut depth) = (0, [0, 0], 25, 1_000_000, [0, 0], 64);
+                let tokens = ["go", "movetime", "wtime", "btime", "movestogo", "winc", "binc", "depth"];
                 for cmd in commands {
                     if let Some(x) = tokens.iter().position(|&y| y == cmd) { token = x }
                     else if let Ok(val) = cmd.parse::<i64>() {
                         match token {
-                            1 => {alloc = val; mtg = 1; times = [val, val]},
+                            1 => {alloc = val; mtg = 1;},
                             2 | 3 => times[token - 2] = val.max(0),
                             4 => mtg = val,
                             5 | 6 => incs[token - 5] = val.max(0),
+                            7 => depth = val.clamp(0, 64) as i32,
                             _ => {},
                         }
                     }
                 }
                 let side = usize::from(pos.c);
-                let (time, inc) = (times[side], incs[side]);
-                if time != 0 { alloc = time.min(time / mtg + 3 * inc / 4) }
+                let (mut time, inc) = (times[side], incs[side]);
+                if time != 0 { alloc = time.min(time / mtg + 3 * inc / 4) } else { time = alloc }
                 eng.max_time = (alloc * 2).clamp(1, 1.max(time - 10)) as u128;
-                let (bm, _) = go(&pos, &mut eng, true, 64, if mtg == 1 {alloc} else {alloc * 6 / 10} as f64, u64::MAX);
+                let (bm, _) = go(&pos, &mut eng, true, depth, if mtg == 1 {alloc} else {alloc * 6 / 10} as f64, u64::MAX);
                 println!("bestmove {}", bm.to_uci());
             },
             "position" => {

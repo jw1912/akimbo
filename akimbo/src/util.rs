@@ -14,16 +14,6 @@ pub struct ZobristVals {
     pub c: [u64; 2],
 }
 
-#[derive(Clone, Copy, Default, Debug)]
-pub struct S(pub i32, pub i32);
-
-impl std::ops::AddAssign<S> for S {
-    fn add_assign(&mut self, rhs: S) {
-        self.0 += rhs.0;
-        self.1 += rhs.1;
-    }
-}
-
 // Macros
 macro_rules! init {($i:ident, $size:expr, $($r:tt)+) => {{
     let mut $i = 0;
@@ -147,4 +137,3 @@ const FRONT_SPANS: [u64; 64] = init! {i, 64, {
 pub const SPANS: [[u64; 64]; 2] = [FRONT_SPANS, init! {i, 64, FRONT_SPANS[i ^ 56].swap_bytes()}];
 pub const SIDE: [i32; 2] = [1, -1];
 pub const PHASE_VALS: [i32; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
-
