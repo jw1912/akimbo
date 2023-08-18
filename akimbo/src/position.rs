@@ -8,13 +8,13 @@ macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
     }
 }}
 
-const HIDDEN: usize = 32;
+const HIDDEN: usize = 64;
 
 #[repr(C)]
 struct Eval([i16; 768 * HIDDEN], [i16; HIDDEN], [i16; 2 * HIDDEN], i16);
 static NNUE: Eval = unsafe {std::mem::transmute(*include_bytes!("../../resources/net.bin"))};
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub struct Position {
     pub bb: [u64; 8],
     pub c: bool,
@@ -315,7 +315,8 @@ impl Position {
         let p = vec[0].chars().collect::<Vec<char>>();
 
         // board
-        let (mut pos, mut row, mut col) = (Self::default(), 7i16, 0i16);
+        let mut pos = Self { bb: [0; 8], c: false, halfm: 0, enp_sq: 0, rights: 0, check: false, hash: 0, phase: 0, acc: [[0; HIDDEN]; 2] };
+        let (mut row, mut col) = (7i16, 0i16);
         pos.acc = [NNUE.1; 2];
 
         for ch in p {
