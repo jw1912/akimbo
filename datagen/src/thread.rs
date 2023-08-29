@@ -118,6 +118,7 @@ impl ThreadData {
                 return None;
             }
 
+            self.engine.stack.push(position.hash());
             position.make(legals[self.rng() as usize % legals.len()]);
         }
 
@@ -127,20 +128,21 @@ impl ThreadData {
         loop {
             let (bm, score) = go(&position, &mut self.engine, false, 32, 1000.0, self.nodes_per_move);
 
-            // not enough nodes to finish a depth!
-            if bm == Move::NULL || position.make(bm) {
-                return None
-            }
-
             // adjudicate large scores
             if score.abs() > 1000 {
-                result.result = f32::from(if score > 0 {position.c} else {!position.c});
+                result.result = f32::from(if score > 0 {!position.c} else {position.c});
                 break;
             }
 
             // position is quiet, can use fen
             if !is_capture(bm) && !position.in_check() {
                 result.fens.push(to_fen(&position, score));
+            }
+
+            // not enough nodes to finish a depth!
+            self.engine.stack.push(position.hash());
+            if bm == Move::NULL || position.make(bm) {
+                return None
             }
 
             // check for game end via check/stalemate
