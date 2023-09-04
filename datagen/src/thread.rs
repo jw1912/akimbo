@@ -34,6 +34,7 @@ impl ThreadData {
 
         let mut res = Self {
             engine: Engine {
+                mloop: false,
                 max_nodes: 1_000_000,
                 max_time: 10000,
                 ..Default::default()

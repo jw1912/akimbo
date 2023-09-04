@@ -8,7 +8,7 @@ macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
     }
 }}
 
-const HIDDEN: usize = 256;
+const HIDDEN: usize = 64;
 
 #[repr(C)]
 struct Eval([i16; 768 * HIDDEN], [i16; HIDDEN], [i16; 2 * HIDDEN], i16);
@@ -156,10 +156,10 @@ impl Position {
         let mut sum = i32::from(NNUE.3);
         let (boys, opps) = (&self.acc[usize::from(self.c)], &self.acc[usize::from(!self.c)]);
         for (&i, &w) in boys.iter().zip(&NNUE.2[..HIDDEN]) {
-            sum += i32::from(i.max(0)) * i32::from(w);
+            sum += i32::from(i.clamp(0, 255)) * i32::from(w);
         }
         for (&i, &w) in opps.iter().zip(&NNUE.2[HIDDEN..]) {
-            sum += i32::from(i.max(0)) * i32::from(w);
+            sum += i32::from(i.clamp(0, 255)) * i32::from(w);
         }
 
         sum * 400 / 16320

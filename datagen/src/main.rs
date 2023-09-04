@@ -3,24 +3,27 @@ mod thread;
 
 use thread::ThreadData;
 use std::{
+    env::args,
     sync::atomic::{AtomicBool, Ordering},
     thread::spawn,
 };
 
 pub static STOP: AtomicBool = AtomicBool::new(false);
 
-const GAMES_PER_THREAD: usize = 40_000;
 const NODES_PER_MOVE: u64 = 5_000;
-const THREADS: usize = 4;
 
 fn main() {
     let mut handles = Vec::new();
 
-    for _ in 0..THREADS {
+    let threads = args().nth(1).unwrap().parse().unwrap();
+    let gpt = args().nth(2).unwrap().parse().unwrap();
+
+    for _ in 0..threads {
+        std::thread::sleep(std::time::Duration::from_millis(10));
         handles.push(
             spawn(move || {
                 let mut worker = ThreadData::new(NODES_PER_MOVE, 8);
-                worker.run_datagen(GAMES_PER_THREAD as u64);
+                worker.run_datagen(gpt);
             })
         );
     }
