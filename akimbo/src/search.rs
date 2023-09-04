@@ -23,6 +23,7 @@ pub struct Engine {
     pub max_time: u128,
     pub max_nodes: u64,
     pub abort: bool,
+    pub mloop: bool,
 
     // tables
     pub tt: Vec<HashEntry>,
@@ -43,7 +44,7 @@ pub struct Engine {
 impl Default for Engine {
     fn default() -> Self {
         Self {
-            timing: Instant::now(), max_time: 0, abort: false, max_nodes: u64::MAX,
+            timing: Instant::now(), max_time: 0, abort: false, max_nodes: u64::MAX, mloop: true,
             tt: Vec::new(), tt_age: 0,
             htable: Box::new([[[(0, Move::NULL); 64]; 8]; 2]),
             plied: Box::new([([Move::NULL; 2], 0, Move::NULL, MoveList::ZEROED); 96]),
@@ -302,7 +303,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let improving = eng.ply > 1 && eval > eng.plied[eng.ply as usize - 2].1;
 
     // pruning
-    let can_prune = !pv_node && !pos.check;
+    let mut can_prune = !pv_node && !pos.check;
     if can_prune && beta.abs() < Score::MATE {
         // reverse futility pruning
         if depth <= 8 && eval >= beta + 80 * depth / if improving {2} else {1} { return eval }
@@ -353,6 +354,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let mut quiets_tried = MoveList::ZEROED;
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
+    can_prune &= eng.mloop;
 
     eng.push(hash);
     while let Some((mov, ms)) = moves.pick(&mut scores) {
