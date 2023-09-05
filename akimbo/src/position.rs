@@ -8,7 +8,7 @@ macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
     }
 }}
 
-const HIDDEN: usize = 64;
+const HIDDEN: usize = 256;
 
 #[repr(C)]
 struct Eval([i16; 768 * HIDDEN], [i16; HIDDEN], [i16; 2 * HIDDEN], i16);
