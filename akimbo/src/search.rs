@@ -452,7 +452,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         // quiet cutoffs pushed to tables
         if mov.flag >= Flag::CAP || eng.abort { break }
         eng.push_killer(mov);
-        let bonus = 1600.min(250 * (depth - 1));
+        let bonus = 1600.min(350 * (depth - 1));
         eng.push_history(mov, pos.c, bonus);
         for &quiet in &quiets_tried.list[..quiets_tried.len - 1] {
             eng.push_history(quiet, pos.c, -bonus)
