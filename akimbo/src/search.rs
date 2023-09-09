@@ -14,7 +14,7 @@ pub struct HashEntry {
     bound: u8,
 }
 
-type PlyInfo = ([Move; 2], i32, Move, MoveList);
+type PlyInfo = ([Move; 2], i32, Move, MoveList, i32);
 type History = (i32, Move);
 
 pub struct Engine {
@@ -47,7 +47,7 @@ impl Default for Engine {
             timing: Instant::now(), max_time: 0, abort: false, max_nodes: u64::MAX, mloop: true,
             tt: Vec::new(), tt_age: 0,
             htable: Box::new([[[(0, Move::NULL); 64]; 8]; 2]),
-            plied: Box::new([([Move::NULL; 2], 0, Move::NULL, MoveList::ZEROED); 96]),
+            plied: Box::new([([Move::NULL; 2], 0, Move::NULL, MoveList::ZEROED, 0); 96]),
             ntable: Box::new([[0; 64]; 64]),
             stack: Vec::with_capacity(96),
             nodes: 0, qnodes: 0, ply: 0, best_move: Move::NULL, seldepth: 0,
@@ -69,6 +69,7 @@ impl Engine {
     fn push(&mut self, hash: u64) {
         self.ply += 1;
         self.stack.push(hash);
+        self.plied[self.ply as usize].4 = 0;
     }
 
     fn pop(&mut self) {
@@ -410,6 +411,9 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             // reduce passed pawn moves less
             r -= i32::from(usize::from(mov.pc) == Piece::PAWN && pos.is_passer(mov.from, usize::from(pos.c)));
 
+            // reduce more if next ply has a lot of fail highs
+            r += i32::from(eng.plied[eng.ply as usize].4 > 3);
+
             // don't accidentally extend
             r.max(0)
         } else { 0 };
@@ -448,6 +452,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         // beta cutoff
         if score < beta { continue }
         bound = Bound::LOWER;
+        eng.plied[eng.ply as usize - 1].4 += 1;
 
         // quiet cutoffs pushed to tables
         if mov.flag >= Flag::CAP || eng.abort { break }
