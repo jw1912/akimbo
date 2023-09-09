@@ -37,8 +37,8 @@ pub fn to_fen(pos: &Position, score: i32) -> String {
 
     fen.push(' ');
     fen.push(['w', 'b'][usize::from(pos.c)]);
-    fen.push_str(" - - 0 1");
-    fen.push_str(&format!(" {}", if pos.c {-score} else {score}));
+    fen.push_str(" - - 0 1 | ");
+    fen.push_str(&if pos.c {-score} else {score}.to_string());
 
     fen
 }

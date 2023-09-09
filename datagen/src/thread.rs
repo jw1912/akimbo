@@ -58,7 +58,7 @@ impl ThreadData {
         self.games += 1;
         let num_taken = result.fens.len().saturating_sub(if result.result == 0.5 {8} else {0});
         for fen in result.fens.iter().take(num_taken) {
-            writeln!(&mut self.file, "{} [{:.1}]", fen, result.result).unwrap();
+            writeln!(&mut self.file, "{} | {:.1}", fen, result.result).unwrap();
             self.fens += 1;
         }
     }
