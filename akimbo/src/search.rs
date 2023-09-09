@@ -411,8 +411,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             // reduce passed pawn moves less
             r -= i32::from(usize::from(mov.pc) == Piece::PAWN && pos.is_passer(mov.from, usize::from(pos.c)));
 
-            // reduce more if next ply has a lot of fail highs
-            r += i32::from(eng.plied[eng.ply as usize].4 > 3);
+            // reduce less if next ply had few fail highs
+            r -= i32::from(eng.plied[eng.ply as usize].4 < 4);
 
             // don't accidentally extend
             r.max(0)
