@@ -414,6 +414,9 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             // reduce less if next ply had few fail highs
             r -= i32::from(eng.plied[eng.ply as usize].4 < 4);
 
+            // reduce more/less based on history score
+            if ms <= MoveScore::HISTORY_MAX { r -= ms / 8192 }
+
             // don't accidentally extend
             r.max(0)
         } else { 0 };
