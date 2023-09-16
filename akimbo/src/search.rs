@@ -391,10 +391,10 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             let s_beta = tt_score - depth * 2;
             eng.pop();
             eng.plied[eng.ply as usize].2 = mov;
-            let ret = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, prev);
+            let s_score = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, prev);
             eng.plied[eng.ply as usize].2 = Move::NULL;
             eng.push(hash);
-            if ret < s_beta {1} else {0}
+            if s_score < s_beta {1} else if tt_score >= beta {-1} else {0}
         } else {0};
 
         // reductions
