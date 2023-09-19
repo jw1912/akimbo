@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{fmt::Write, time::Instant};
 use super::{util::{Bound, Flag, MoveScore, Piece, Score}, position::{Move, MoveList, Position}};
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
@@ -160,7 +160,11 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
             let t = eng.timing.elapsed().as_millis();
             let nps = (1000.0 * nodes as f64 / t as f64) as u32;
             let pv_line = &eng.plied[0].3;
-            let pv = pv_line.list.iter().take(pv_line.len).map(|mov| format!("{} ", mov.to_uci())).collect::<String>();
+            let pv = pv_line.list.iter().take(pv_line.len)
+                .fold(String::new(), |mut pv_str, mov| {
+                    write!(&mut pv_str, "{} ", mov.to_uci()).unwrap();
+                    pv_str
+                });
             println!("info depth {d} seldepth {} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}", eng.seldepth);
         }
 
