@@ -12,7 +12,7 @@ const HIDDEN: usize = 256;
 
 #[repr(C)]
 struct Eval([i16; 768 * HIDDEN], [i16; HIDDEN], [i16; 2 * HIDDEN], i16);
-static NNUE: Eval = unsafe {std::mem::transmute(*include_bytes!("../../resources/net.bin"))};
+static NNUE: Eval = unsafe {std::mem::transmute(*include_bytes!("../../resources/bob.bin"))};
 
 #[derive(Clone, Copy)]
 pub struct Position {
