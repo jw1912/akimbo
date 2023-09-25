@@ -2,11 +2,11 @@ use std::{fmt::Write, time::Instant};
 use super::{
     moves::{Move, MoveList},
     position::Position,
-    util::{Bound, Flag, MoveScore, Piece, Score},
+    util::{Bound, MoveScore, Piece, Score},
 };
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
-    8 * pos.get_pc(1 << mov.to) as i32 - mov.pc as i32
+    8 * pos.get_pc(mov.bb_to()) as i32 - mov.moved_pc() as i32
 }
 
 #[derive(Clone, Copy, Default)]
@@ -48,13 +48,22 @@ pub struct Engine {
 impl Default for Engine {
     fn default() -> Self {
         Self {
-            timing: Instant::now(), max_time: 0, abort: false, max_nodes: u64::MAX, mloop: true,
-            tt: Vec::new(), tt_age: 0,
+            timing: Instant::now(),
+            max_time: 0,
+            abort: false,
+            max_nodes: u64::MAX,
+            mloop: true,
+            tt: Vec::new(),
+            tt_age: 0,
             htable: Box::new([[[(0, Move::NULL); 64]; 8]; 2]),
             plied: Box::new([([Move::NULL; 2], 0, Move::NULL, MoveList::ZEROED, 0); 96]),
             ntable: Box::new([[0; 64]; 64]),
             stack: Vec::with_capacity(96),
-            nodes: 0, qnodes: 0, ply: 0, best_move: Move::NULL, seldepth: 0,
+            nodes: 0,
+            qnodes: 0,
+            ply: 0,
+            best_move: Move::NULL,
+            seldepth: 0,
         }
     }
 }
@@ -63,9 +72,18 @@ impl Engine {
     pub fn repetition(&self, pos: &Position, curr_hash: u64, root: bool) -> bool {
         if self.stack.len() < 6 { return false }
         let mut reps = 1 + u8::from(root);
-        for &hash in self.stack.iter().rev().take(pos.halfm as usize + 1).skip(1).step_by(2) {
+        for &hash in self
+            .stack
+            .iter()
+            .rev()
+            .take(pos.halfm() + 1)
+            .skip(1)
+            .step_by(2)
+        {
             reps -= u8::from(hash == curr_hash);
-            if reps == 0 { return true }
+            if reps == 0 {
+                return true;
+            }
         }
         false
     }
@@ -118,8 +136,8 @@ impl Engine {
         self.plied[ply].0[0] = m;
     }
 
-    fn push_history(&mut self, mov: Move, side: bool, bonus: i32) {
-        let entry = &mut self.htable[usize::from(side)][usize::from(mov.pc)][usize::from(mov.to)];
+    fn push_history(&mut self, mov: Move, side: usize, bonus: i32) {
+        let entry = &mut self.htable[side][mov.moved_pc()][mov.to()];
         entry.0 += bonus - entry.0 * bonus.abs() / MoveScore::HISTORY_MAX
     }
 }
@@ -164,7 +182,7 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
             let t = eng.timing.elapsed().as_millis();
             let nps = (1000.0 * nodes as f64 / t as f64) as u32;
             let pv_line = &eng.plied[0].3;
-            let pv = pv_line.list.iter().take(pv_line.len)
+            let pv = pv_line.iter()
                 .fold(String::new(), |mut pv_str, mov| {
                     write!(&mut pv_str, "{} ", mov.to_uci()).unwrap();
                     pv_str
@@ -172,7 +190,7 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
             println!("info depth {d} seldepth {} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}", eng.seldepth);
         }
 
-        let frac = eng.ntable[usize::from(best_move.from)][usize::from(best_move.to)] as f64 / nodes as f64;
+        let frac = eng.ntable[best_move.from()][best_move.to()] as f64 / nodes as f64;
         if eng.timing.elapsed().as_millis() as f64 >= soft_bound * if d > 8 {(1.5 - frac) * 1.35} else {1.0} { break }
     }
     eng.tt_age = 63.min(eng.tt_age + 1);
@@ -224,7 +242,7 @@ fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
 
     let mut caps = pos.movegen::<false>();
     let mut scores = [0; 252];
-    caps.list.iter().enumerate().take(caps.len).for_each(|(i, &cap)| scores[i] = mvv_lva(cap, pos));
+    caps.iter().enumerate().for_each(|(i, &cap)| scores[i] = mvv_lva(cap, pos));
 
     eng.ply += 1;
     let mut bm = Move::NULL;
@@ -262,7 +280,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let hash = pos.hash();
 
     // clear pv line
-    eng.plied[eng.ply as usize].3.len = 0;
+    eng.plied[eng.ply as usize].3.clear();
 
     if eng.ply > 0 {
         // draw detection
@@ -328,8 +346,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             let mut new = *pos;
             let r = 3 + depth / 3;
             eng.push(hash);
-            new.c = !new.c;
-            new.enp_sq = 0;
+            new.make_null();
             let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, Move::NULL);
             eng.pop();
             if nw >= Score::MATE { return beta }
@@ -345,16 +362,24 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let mut scores = [0; 252];
     let killers = eng.plied[eng.ply as usize].0;
     let counter_mov = if prev != Move::NULL {
-        eng.htable[usize::from(pos.c)][usize::from(prev.pc)][usize::from(prev.to)].1
+        eng.htable[pos.stm()][prev.moved_pc()][prev.to()].1
     } else {Move::NULL};
-    moves.list[..moves.len].iter().enumerate().for_each(|(i, &mov)|
-        scores[i] = if mov == tt_move { MoveScore::HASH }
-            else if mov.flag == Flag::ENP { MoveScore::CAPTURE + 16 }
-            else if mov.flag & 4 > 0 { MoveScore::CAPTURE * i32::from(pos.see(mov, 0)) + mvv_lva(mov, pos) }
-            else if mov.flag & 8 > 0 { MoveScore::PROMO + i32::from(mov.flag & 7) }
-            else if killers.contains(&mov) { MoveScore::KILLER + 1 }
-            else if mov == counter_mov { MoveScore::KILLER }
-            else { eng.htable[usize::from(pos.c)][usize::from(mov.pc)][usize::from(mov.to)].0 }
+    moves.iter().enumerate().for_each(|(i, &mov)|
+        scores[i] = if mov == tt_move {
+                MoveScore::HASH
+            } else if mov.is_en_passant() {
+                MoveScore::CAPTURE + 16
+            } else if mov.is_capture() {
+                MoveScore::CAPTURE * i32::from(pos.see(mov, 0)) + mvv_lva(mov, pos)
+            } else if mov.is_promo() {
+                MoveScore::PROMO + i32::from(mov.flag() & 7)
+            } else if killers.contains(&mov) {
+                MoveScore::KILLER + 1
+            } else if mov == counter_mov {
+                MoveScore::KILLER
+            } else {
+                eng.htable[pos.stm()][mov.moved_pc()][mov.to()].0
+            }
     );
 
     // stuff for going through moves
@@ -366,32 +391,40 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     can_prune &= eng.mloop;
 
     eng.push(hash);
+
     while let Some((mov, ms)) = moves.pick(&mut scores) {
         // move is singular in a singular search
-        if mov == s_mov { continue }
+        if mov == s_mov {
+            continue;
+        }
 
         // pre-move pruning
         if can_prune && best_score.abs() < Score::MATE {
             // late move pruning
-            if ms < MoveScore::KILLER && legal > 2 + depth * depth / if improving {1} else {2} { break }
+            if ms < MoveScore::KILLER && legal > 2 + depth * depth / if improving {1} else {2} {
+                break;
+            }
 
             // static exchange eval pruning
-            let margin = if mov.flag & Flag::CAP > 0 {-90} else {-50};
-            if depth < 7 && ms < MoveScore::CAPTURE && !pos.see(mov, margin * depth) { continue }
+            let margin = if mov.is_capture() { -90 } else { -50 };
+            if depth < 7 && ms < MoveScore::CAPTURE && !pos.see(mov, margin * depth) {
+                continue;
+            }
         }
 
         let mut new = *pos;
 
         // skip move if not legal
-        if new.make(mov) { continue }
+        if new.make(mov) {
+            continue;
+        }
 
         // update stuff
         new.check = new.in_check();
         eng.nodes += 1;
         legal += 1;
-        if mov.flag < Flag::CAP {
-            quiets_tried.list[quiets_tried.len] = mov;
-            quiets_tried.len += 1;
+        if !mov.is_noisy() {
+            quiets_tried.add(mov);
         }
 
         // singular extensions
@@ -403,7 +436,9 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             eng.plied[eng.ply as usize].2 = Move::NULL;
             eng.push(hash);
             if s_score < s_beta {1} else if tt_score >= beta {-1} else {0}
-        } else {0};
+        } else {
+            0
+        };
 
         // reductions
         let reduce = if can_lmr && ms < MoveScore::KILLER {
@@ -417,7 +452,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             r -= i32::from(new.check);
 
             // reduce passed pawn moves less
-            r -= i32::from(usize::from(mov.pc) == Piece::PAWN && pos.is_passer(mov.from, usize::from(pos.c)));
+            r -= i32::from(mov.moved_pc() == Piece::PAWN && pos.is_passer(mov.from(), pos.stm()));
 
             // reduce less if next ply had few fail highs
             r -= i32::from(eng.plied[eng.ply as usize].4 < 4);
@@ -441,12 +476,17 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             } else { zw }
         };
 
-        if eng.ply == 1 { eng.ntable[usize::from(mov.from)][usize::from(mov.to)] += eng.nodes + eng.qnodes - pre_nodes }
+        if eng.ply == 1 {
+            eng.ntable[mov.from()][mov.to()] += eng.nodes + eng.qnodes - pre_nodes;
+        }
 
         best_score = best_score.max(score);
 
         // improve alpha
-        if score <= alpha { continue }
+        if score <= alpha {
+            continue;
+        }
+
         best_move = mov;
         alpha = score;
         bound = Bound::EXACT;
@@ -455,34 +495,51 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         if pv_node {
             let sub_line = eng.plied[eng.ply as usize].3;
             let line = &mut eng.plied[eng.ply as usize - 1].3;
-            line.len = 1 + sub_line.len;
-            line.list[0] = mov;
-            line.list[1..=sub_line.len].copy_from_slice(&sub_line.list[..sub_line.len]);
+            line.copy_in(mov, &sub_line);
         }
 
         // beta cutoff
-        if score < beta { continue }
+        if score < beta {
+            continue;
+        }
+
         bound = Bound::LOWER;
         eng.plied[eng.ply as usize - 1].4 += 1;
 
         // quiet cutoffs pushed to tables
-        if mov.flag >= Flag::CAP || eng.abort { break }
-        eng.push_killer(mov);
-        let bonus = 1600.min(350 * (depth - 1));
-        eng.push_history(mov, pos.c, bonus);
-        for &quiet in &quiets_tried.list[..quiets_tried.len - 1] {
-            eng.push_history(quiet, pos.c, -bonus)
+        if mov.is_noisy() || eng.abort {
+            break;
         }
-        eng.htable[usize::from(pos.c)][usize::from(prev.pc)][usize::from(prev.to)].1 = mov;
 
-        break
+        eng.push_killer(mov);
+
+        let bonus = 1600.min(350 * (depth - 1));
+        eng.push_history(mov, pos.stm(), bonus);
+        for &quiet in quiets_tried.iter().take(quiets_tried.len() - 1) {
+            eng.push_history(quiet, pos.stm(), -bonus)
+        }
+
+        eng.htable[pos.stm()][prev.moved_pc()][prev.to()].1 = mov;
+
+        break;
     }
+
     eng.pop();
 
     // end of node shenanigans
-    if eng.abort { return 0 }
-    if eng.ply == 0 { eng.best_move = best_move }
-    if legal == 0 { return i32::from(pos.check) * (eng.ply - Score::MAX) }
+    if eng.abort {
+        return 0;
+    }
+
+    if eng.ply == 0 {
+        eng.best_move = best_move;
+    }
+
+    if legal == 0 {
+        return i32::from(pos.check) * (eng.ply - Score::MAX);
+    }
+
     eng.push_tt(hash, best_move, depth as i8, bound, best_score);
+
     best_score
 }

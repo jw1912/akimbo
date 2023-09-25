@@ -21,7 +21,7 @@ fn main() {
         let bench_fens = FEN_STRING.split('\n').collect::<Vec<&str>>();
         for fen in bench_fens {
             pos = Position::from_fen(fen);
-            eval = eval.wrapping_add(SIDE[usize::from(pos.c)] * pos.eval());
+            eval = eval.wrapping_add(SIDE[pos.stm()] * pos.eval());
             let timer = Instant::now();
             go(&pos, &mut eng, false, 11, 1_000_000.0, u64::MAX);
             total_time += timer.elapsed().as_millis();
@@ -74,7 +74,7 @@ fn main() {
                         }
                     }
                 }
-                let side = usize::from(pos.c);
+                let side = pos.stm();
                 let (mut time, inc) = (times[side], incs[side]);
                 if time != 0 { alloc = time.min(time / mtg + 3 * inc / 4) } else { time = alloc }
                 eng.max_time = (alloc * 2).clamp(1, 1.max(time - 10)) as u128;
@@ -95,7 +95,7 @@ fn main() {
                 for m in move_list {
                     eng.stack.push(pos.hash());
                     let possible_moves = pos.movegen::<true>();
-                    for mov in &possible_moves.list[..possible_moves.len] {
+                    for mov in possible_moves.iter() {
                         if m == mov.to_uci() { pos.make(*mov); }
                     }
                 }
@@ -116,7 +116,7 @@ fn main() {
 fn perft(pos: &Position, depth: u8) -> u64 {
     let moves = pos.movegen::<true>();
     let mut positions = 0;
-    for &m in &moves.list[0..moves.len] {
+    for &m in moves.iter() {
         let mut tmp = *pos;
         if tmp.make(m) { continue }
         positions += if depth > 1 { perft(&tmp, depth - 1) } else { 1 };

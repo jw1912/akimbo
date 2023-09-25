@@ -5,7 +5,7 @@ use akimbo::{
 };
 
 use crate::{
-    util::{to_fen, is_capture, is_terminal},
+    util::{to_fen, is_terminal},
     STOP
 };
 
@@ -121,7 +121,7 @@ impl ThreadData {
         for _ in 0..(8 + (self.rng() % 2)) {
             let moves = position.movegen::<true>();
             let mut legals = Vec::new();
-            for &mov in &moves.list[..moves.len] {
+            for &mov in moves.iter() {
                 let mut new = position;
                 if !new.make(mov) {
                     legals.push(mov);
@@ -144,12 +144,17 @@ impl ThreadData {
 
             // adjudicate large scores
             if score.abs() > 1000 {
-                result.result = f32::from(if score > 0 {!position.c} else {position.c});
+                result.result = if score > 0 {
+                    1 - position.stm()
+                } else {
+                    position.stm()
+                } as f32;
+
                 break;
             }
 
             // position is quiet, can use fen
-            if !is_capture(bm) && !position.in_check() {
+            if !bm.is_capture() && !position.in_check() {
                 result.fens.push(to_fen(&position, score));
             }
 
@@ -162,7 +167,7 @@ impl ThreadData {
             // check for game end via check/stalemate
             if is_terminal(&position) {
                 result.result = if position.in_check() {
-                    f32::from(position.c)
+                    position.stm() as f32
                 } else {
                     0.5
                 };

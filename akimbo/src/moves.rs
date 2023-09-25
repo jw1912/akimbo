@@ -1,11 +1,11 @@
-use crate::position::Position;
+use crate::{position::Position, util::Flag};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Move {
-    pub from: u8,
-    pub to: u8,
-    pub flag: u8,
-    pub pc: u8,
+    from: u8,
+    to: u8,
+    flag: u8,
+    pc: u8,
 }
 
 impl Move {
@@ -15,6 +15,50 @@ impl Move {
         flag: 0,
         pc: 0,
     };
+
+    pub fn from(&self) -> usize {
+        usize::from(self.from)
+    }
+
+    pub fn to(&self) -> usize {
+        usize::from(self.to)
+    }
+
+    pub fn moved_pc(&self) -> usize {
+        usize::from(self.pc)
+    }
+
+    pub fn flag(&self) -> u8 {
+        self.flag
+    }
+
+    pub fn bb_to(&self) -> u64 {
+        1 << self.to
+    }
+
+    pub fn bb_from(&self) -> u64 {
+        1 << self.from
+    }
+
+    pub fn is_capture(&self) -> bool {
+        self.flag & Flag::CAP > 0
+    }
+
+    pub fn is_noisy(&self) -> bool {
+        self.flag >= Flag::CAP
+    }
+
+    pub fn is_en_passant(&self) -> bool {
+        self.flag == Flag::ENP
+    }
+
+    pub fn is_promo(&self) -> bool {
+        self.flag & Flag::PROMO > 0
+    }
+
+    pub fn promo_pc(&self) -> usize {
+        usize::from(self.flag & 3) + 3
+    }
 
     pub fn from_short(m: u16, pos: &Position) -> Self {
         let from = ((m >> 6) & 63) as u8;
@@ -48,8 +92,15 @@ impl Move {
 
 #[derive(Clone, Copy)]
 pub struct MoveList {
-    pub list: [Move; 252],
-    pub len: usize,
+    list: [Move; 252],
+    len: usize,
+}
+
+impl std::ops::Deref for MoveList {
+    type Target = [Move];
+    fn deref(&self) -> &Self::Target {
+        &self.list[..self.len]
+    }
 }
 
 impl MoveList {
@@ -57,6 +108,19 @@ impl MoveList {
         list: [Move::NULL; 252],
         len: 0,
     };
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    pub fn add(&mut self, mov: Move) {
+        self.list[self.len] = mov;
+        self.len += 1;
+    }
 
     pub fn push(&mut self, from: u8, to: u8, flag: u8, mpc: usize) {
         self.list[self.len] = Move {
@@ -66,6 +130,10 @@ impl MoveList {
             pc: mpc as u8,
         };
         self.len += 1;
+    }
+
+    pub fn clear(&mut self) {
+        self.len = 0;
     }
 
     pub fn pick(&mut self, scores: &mut [i32; 252]) -> Option<(Move, i32)> {
@@ -88,5 +156,11 @@ impl MoveList {
         self.list.swap(idx, self.len);
 
         Some((self.list[self.len], best))
+    }
+
+    pub fn copy_in(&mut self, mov:Move, other: &Self) {
+        self.len = 1 + other.len;
+        self.list[0] = mov;
+        self.list[1..=other.len].copy_from_slice(&other.list[..other.len]);
     }
 }
