@@ -1,11 +1,4 @@
-use akimbo::{
-    moves::Move,
-    position::Position,
-};
-
-pub fn is_capture(mov: Move) -> bool {
-    mov.flag & 4 > 0
-}
+use akimbo::{position::Position, util::Side};
 
 pub fn to_fen(pos: &Position, score: i32) -> String {
     const PIECES: [char; 12] = ['P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k'];
@@ -23,7 +16,7 @@ pub fn to_fen(pos: &Position, score: i32) -> String {
                     fen.push_str(&format!("{}", clear));
                 }
                 clear = 0;
-                fen.push(PIECES[pc - 2 + 6 * usize::from(pos.bb[1] & bit > 0)]);
+                fen.push(PIECES[pc - 2 + 6 * usize::from(pos.side(Side::BLACK) & bit > 0)]);
             } else {
                 clear += 1;
             }
@@ -39,16 +32,16 @@ pub fn to_fen(pos: &Position, score: i32) -> String {
     }
 
     fen.push(' ');
-    fen.push(['w', 'b'][usize::from(pos.c)]);
+    fen.push(['w', 'b'][pos.stm()]);
     fen.push_str(" - - 0 1 | ");
-    fen.push_str(&if pos.c {-score} else {score}.to_string());
+    fen.push_str(&if pos.stm() > 0 {-score} else {score}.to_string());
 
     fen
 }
 
 pub fn is_terminal(pos: &Position) -> bool {
     let moves = pos.movegen::<true>();
-    for &mov in &moves.list[..moves.len] {
+    for &mov in moves.iter() {
         let mut new = *pos;
         if !new.make(mov) {
             return false;

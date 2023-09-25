@@ -14,10 +14,10 @@ macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
 
 #[derive(Clone, Copy, Default)]
 pub struct Position {
-    pub bb: [u64; 8],
-    pub c: bool,
-    pub halfm: u8,
-    pub enp_sq: u8,
+    bb: [u64; 8],
+    c: bool,
+    halfm: u8,
+    enp_sq: u8,
     rights: u8,
     pub check: bool,
     hash: u64,
@@ -26,6 +26,18 @@ pub struct Position {
 }
 
 impl Position {
+    pub fn side(&self, side: usize) -> u64 {
+        self.bb[side]
+    }
+
+    pub fn halfm(&self) -> usize {
+        usize::from(self.halfm)
+    }
+
+    pub fn stm(&self) -> usize {
+        usize::from(self.c)
+    }
+
     pub fn hash(&self) -> u64 {
         let mut hash = self.hash;
 
@@ -74,13 +86,13 @@ impl Position {
 
     pub fn make(&mut self, mov: Move) -> bool {
         let side = usize::from(self.c);
-        let moved = usize::from(mov.pc);
-        let to = usize::from(mov.to);
-        let from = usize::from(mov.from);
-        let captured = if mov.flag & Flag::CAP == 0 {
-            Piece::EMPTY
-        } else {
+        let moved = mov.moved_pc();
+        let to = mov.to();
+        let from = mov.from();
+        let captured = if mov.is_capture() {
             self.get_pc(1 << to)
+        } else {
+            Piece::EMPTY
         };
 
         // update state
@@ -88,7 +100,7 @@ impl Position {
         self.halfm += 1;
         self.enp_sq = 0;
         self.c = !self.c;
-        if moved == Piece::PAWN || mov.flag == Flag::CAP {
+        if moved == Piece::PAWN || mov.is_capture() {
             self.halfm = 0;
         }
 
@@ -103,16 +115,16 @@ impl Position {
         }
 
         // more complex moves
-        match mov.flag {
-            Flag::DBL => self.enp_sq = mov.to ^ 8,
+        match mov.flag() {
+            Flag::DBL => self.enp_sq = mov.to() as u8 ^ 8,
             Flag::KS | Flag::QS => {
-                let (rfr, rto) = ROOK_MOVES[usize::from(mov.flag == Flag::KS)][side];
+                let (rfr, rto) = ROOK_MOVES[usize::from(mov.flag() == Flag::KS)][side];
                 self.toggle::<false>(side, Piece::ROOK, rfr);
                 self.toggle::<true>(side, Piece::ROOK, rto);
             },
             Flag::ENP => self.toggle::<false>(side ^ 1, Piece::PAWN, to ^ 8),
             Flag::PROMO.. => {
-                let promo = usize::from((mov.flag & 3) + 3);
+                let promo = mov.promo_pc();
                 self.phase += PHASE_VALS[promo];
                 self.toggle::<false>(side, Piece::PAWN, to);
                 self.toggle::<true>(side, promo, to);
@@ -123,6 +135,11 @@ impl Position {
         // validating move
         let kidx = (self.bb[Piece::KING] & self.bb[side]).trailing_zeros() as usize;
         self.sq_attacked(kidx, side, self.bb[0] | self.bb[1])
+    }
+
+    pub fn make_null(&mut self) {
+        self.c = !self.c;
+        self.enp_sq = 0;
     }
 
     pub fn eval(&self) -> i32 {
@@ -148,36 +165,38 @@ impl Position {
         self.sq_attacked(kidx, usize::from(self.c), self.bb[0] | self.bb[1])
     }
 
-    pub fn is_passer(&self, sq: u8, side: usize) -> bool {
-        SPANS[side][usize::from(sq)] & self.bb[Piece::PAWN] & self.bb[side ^ 1] == 0
+    pub fn is_passer(&self, sq: usize, side: usize) -> bool {
+        SPANS[side][sq] & self.bb[Piece::PAWN] & self.bb[side ^ 1] == 0
     }
 
     fn gain(&self, mov: Move) -> i32 {
-        if mov.flag == Flag::ENP {
+        if mov.is_en_passant() {
             return SEE_VALS[Piece::PAWN];
         }
-        let mut score = SEE_VALS[self.get_pc(1 << mov.to)];
-        if mov.flag >= Flag::PROMO {
-            score += SEE_VALS[usize::from(mov.flag & 3) + 3] - SEE_VALS[Piece::PAWN];
+        let mut score = SEE_VALS[self.get_pc(mov.bb_to())];
+        if mov.is_promo() {
+            score += SEE_VALS[mov.promo_pc()] - SEE_VALS[Piece::PAWN];
         }
         score
     }
 
     pub fn see(&self, mov: Move, threshold: i32) -> bool {
-        let sq = usize::from(mov.to);
-        let mut next = usize::from(if mov.flag >= Flag::PROMO {
-            (mov.flag & 3) + 3
+        let sq = mov.to();
+        let mut next = if mov.is_promo() {
+            mov.promo_pc()
         } else {
-            mov.pc
-        });
+            mov.moved_pc()
+        };
         let mut score = self.gain(mov) - threshold - SEE_VALS[next];
 
         if score >= 0 {
             return true;
         }
 
-        let mut occ = (self.bb[Side::WHITE] | self.bb[Side::BLACK]) ^ (1 << mov.from) ^ (1 << sq);
-        if mov.flag == Flag::ENP { occ ^= 1 << (sq ^ 8) }
+        let mut occ = (self.bb[Side::WHITE] | self.bb[Side::BLACK]) ^ mov.bb_from() ^ (1 << sq);
+        if mov.is_en_passant() {
+            occ ^= 1 << (sq ^ 8);
+        }
 
         let bishops = self.bb[Piece::BISHOP] | self.bb[Piece::QUEEN];
         let rooks   = self.bb[Piece::ROOK  ] | self.bb[Piece::QUEEN];
