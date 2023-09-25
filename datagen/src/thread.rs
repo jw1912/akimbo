@@ -1,7 +1,8 @@
 use akimbo::{
     moves::Move,
     position::Position,
-    search::{Engine, go}
+    search::go,
+    thread::ThreadData,
 };
 
 use crate::{
@@ -21,8 +22,8 @@ pub struct GameResult {
     result: f32,
 }
 
-pub struct ThreadData {
-    engine: Engine,
+pub struct DatagenThread {
+    engine: ThreadData,
     id: u64,
     rng: u64,
     file: BufWriter<File>,
@@ -32,7 +33,7 @@ pub struct ThreadData {
     nodes_per_move: u64,
 }
 
-impl ThreadData {
+impl DatagenThread {
     pub fn show_status(&self) {
         let fps = self.fens as f64 / self.start_time.elapsed().as_secs_f64();
         let fpg = self.fens / self.games;
@@ -46,7 +47,7 @@ impl ThreadData {
             .as_micros() as u64 & 0xFFFF_FFFF;
 
         let mut res = Self {
-            engine: Engine {
+            engine: ThreadData {
                 mloop: false,
                 max_nodes: 1_000_000,
                 max_time: 10000,
@@ -61,7 +62,7 @@ impl ThreadData {
             nodes_per_move,
         };
 
-        res.engine.resize_tt(hash_size);
+        res.engine.tt.resize(hash_size);
 
         println!("thread id {} created", res.id);
         res
@@ -84,8 +85,8 @@ impl ThreadData {
     }
 
     pub fn reset(&mut self) {
-        self.engine.clear_tt();
-        self.engine.htable = Box::new([[[(0, Move::NULL); 64]; 8]; 2]);
+        self.engine.tt.clear();
+        self.engine.htable.clear();
     }
 
     pub fn run_datagen(&mut self, max_games: u64) {
