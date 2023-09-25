@@ -1,6 +1,19 @@
-use akimbo::{position::{Position, Move}, search::{Engine, go}};
-use crate::{util::{to_fen, is_capture, is_terminal}, STOP};
-use std::{time::{SystemTime, UNIX_EPOCH, Instant}, io::{BufWriter, Write}, fs::File, sync::atomic::Ordering};
+use akimbo::{
+    moves::Move,
+    position::Position,
+    search::{Engine, go}
+};
+
+use crate::{
+    util::{to_fen, is_capture, is_terminal},
+    STOP
+};
+
+use std::{
+    time::{SystemTime, UNIX_EPOCH, Instant},
+    io::{BufWriter, Write},
+    fs::File, sync::atomic::Ordering
+};
 
 #[derive(Default)]
 pub struct GameResult {

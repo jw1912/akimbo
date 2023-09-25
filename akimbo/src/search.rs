@@ -1,5 +1,9 @@
 use std::{fmt::Write, time::Instant};
-use super::{util::{Bound, Flag, MoveScore, Piece, Score}, position::{Move, MoveList, Position}};
+use super::{
+    moves::{Move, MoveList},
+    position::Position,
+    util::{Bound, Flag, MoveScore, Piece, Score},
+};
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
     8 * pos.get_pc(1 << mov.to) as i32 - mov.pc as i32
@@ -97,7 +101,7 @@ impl Engine {
 
         // replace entry
         score += if score.abs() > Score::MATE {score.signum() * self.ply} else {0};
-        let best_move = u16::from(mov.from) << 6 | u16::from(mov.to) | u16::from(mov.flag) << 12;
+        let best_move = mov.to_short();
         *entry = HashEntry { key, best_move, score: score as i16, depth, bound: (self.tt_age << 2) | bound };
     }
 
