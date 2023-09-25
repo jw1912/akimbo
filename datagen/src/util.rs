@@ -1,4 +1,7 @@
-use akimbo::position::{Move, Position};
+use akimbo::{
+    moves::Move,
+    position::Position,
+};
 
 pub fn is_capture(mov: Move) -> bool {
     mov.flag & 4 > 0

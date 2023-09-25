@@ -1,4 +1,4 @@
-use akimbo::{position::{Position, Move}, search::{Engine, go}, util::SIDE};
+use akimbo::{moves::Move, position::Position, search::{Engine, go}, util::SIDE};
 
 use std::{io, process, time::Instant};
 
