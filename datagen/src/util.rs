@@ -1,4 +1,4 @@
-use akimbo::{position::Position, util::Side};
+use akimbo::{position::Position, consts::Side};
 
 pub fn to_fen(pos: &Position, score: i32) -> String {
     const PIECES: [char; 12] = ['P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k'];

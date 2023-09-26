@@ -1,7 +1,7 @@
 use crate::{
+    consts::{MoveScore, Score},
     moves::{Move, MoveList},
     position::Position,
-    util::{MoveScore, Score},
 };
 
 #[derive(Clone, Copy, Default)]

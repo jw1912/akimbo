@@ -1,8 +1,8 @@
 use akimbo::{
+    consts::SIDE,
     position::Position,
     search::go,
     thread::ThreadData,
-    util::SIDE,
 };
 
 use std::{io, process, time::Instant};

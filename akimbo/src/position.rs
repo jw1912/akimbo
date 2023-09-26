@@ -1,16 +1,22 @@
 use crate::{
+    attacks::Attacks,
+    bitloop,
     moves::{Move, MoveList},
     network::{Accumulator, Network},
-    util::*
-};
-
-macro_rules! bitloop {($bb:expr, $sq:ident, $func:expr) => {
-    while $bb > 0 {
-        let $sq = $bb.trailing_zeros() as u8;
-        $bb &= $bb - 1;
-        $func;
+    consts::{
+        ZVALS,
+        Piece,
+        Side,
+        SEE_VALS,
+        CASTLE_MASK,
+        PHASE_VALS,
+        ROOK_MOVES,
+        Rank,
+        Rights,
+        Flag,
+        SPANS,
     }
-}}
+};
 
 #[derive(Clone, Copy, Default)]
 pub struct Position {
@@ -67,9 +73,9 @@ impl Position {
     }
 
     fn sq_attacked(&self, sq: usize, side: usize, occ: u64) -> bool {
-        ( (Attacks::KNIGHT[sq] & self.bb[Piece::KNIGHT])
-        | (Attacks::KING  [sq] & self.bb[Piece::KING  ])
-        | (Attacks::PAWN  [side][sq] & self.bb[Piece::PAWN  ])
+        ( (Attacks::knight(sq) & self.bb[Piece::KNIGHT])
+        | (Attacks::king  (sq) & self.bb[Piece::KING  ])
+        | (Attacks::pawn  (side, sq) & self.bb[Piece::PAWN  ])
         | (Attacks::rook  (sq, occ) & (self.bb[Piece::ROOK  ] | self.bb[Piece::QUEEN]))
         | (Attacks::bishop(sq, occ) & (self.bb[Piece::BISHOP] | self.bb[Piece::QUEEN]))
         ) & self.bb[side ^ 1] > 0
@@ -201,10 +207,10 @@ impl Position {
         let bishops = self.bb[Piece::BISHOP] | self.bb[Piece::QUEEN];
         let rooks   = self.bb[Piece::ROOK  ] | self.bb[Piece::QUEEN];
         let mut us = usize::from(!self.c);
-        let mut attackers = (Attacks::KNIGHT[sq] & self.bb[Piece::KNIGHT])
-            | (Attacks::KING[sq] & self.bb[Piece::KING  ])
-            | (Attacks::PAWN[Side::WHITE][sq] & self.bb[Piece::PAWN] & self.bb[Side::BLACK])
-            | (Attacks::PAWN[Side::BLACK][sq] & self.bb[Piece::PAWN] & self.bb[Side::WHITE])
+        let mut attackers = (Attacks::knight(sq) & self.bb[Piece::KNIGHT])
+            | (Attacks::king(sq) & self.bb[Piece::KING  ])
+            | (Attacks::pawn(Side::WHITE, sq) & self.bb[Piece::PAWN] & self.bb[Side::BLACK])
+            | (Attacks::pawn(Side::BLACK, sq) & self.bb[Piece::PAWN] & self.bb[Side::WHITE])
             | (Attacks::rook  (sq, occ) & rooks  )
             | (Attacks::bishop(sq, occ) & bishops);
 
@@ -294,7 +300,7 @@ impl Position {
         }
 
         if self.enp_sq > 0 {
-            let mut attackers = Attacks::PAWN[side ^ 1][self.enp_sq as usize] & pawns;
+            let mut attackers = Attacks::pawn(side ^ 1, self.enp_sq as usize) & pawns;
             bitloop!(attackers, from,
                 moves.push(from, self.enp_sq, Flag::ENP, Piece::PAWN)
             );
@@ -303,14 +309,14 @@ impl Position {
         let (mut attackers, mut promo) = (pawns & !Rank::PEN[side], pawns & Rank::PEN[side]);
 
         bitloop!(attackers, from, {
-            let mut attacks = Attacks::PAWN[side][from as usize] & opps;
+            let mut attacks = Attacks::pawn(side, from as usize) & opps;
             bitloop!(attacks, to,
                 moves.push(from, to, Flag::CAP, Piece::PAWN)
             );
         });
 
         bitloop!(promo, from, {
-            let mut attacks = Attacks::PAWN[side][from as usize] & opps;
+            let mut attacks = Attacks::pawn(side, from as usize) & opps;
             bitloop!(attacks, to,
                 for flag in Flag::NPC..=Flag::QPC {
                     moves.push(from, to, flag, Piece::PAWN);
@@ -323,11 +329,11 @@ impl Position {
             let mut attackers = boys & self.bb[pc];
             bitloop!(attackers, from, {
                 let attacks = match pc {
-                    Piece::KNIGHT => Attacks::KNIGHT[from as usize],
+                    Piece::KNIGHT => Attacks::knight(from as usize),
                     Piece::BISHOP => Attacks::bishop(from as usize, occ),
                     Piece::ROOK   => Attacks::rook  (from as usize, occ),
-                    Piece::QUEEN  => Attacks::bishop(from as usize, occ) | Attacks::rook(from as usize, occ),
-                    Piece::KING   => Attacks::KING  [from as usize],
+                    Piece::QUEEN  => Attacks::queen (from as usize, occ),
+                    Piece::KING   => Attacks::king  (from as usize),
                     _ => unreachable!(),
                 };
 

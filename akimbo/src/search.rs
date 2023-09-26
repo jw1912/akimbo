@@ -1,11 +1,11 @@
 use std::{fmt::Write, time::Instant};
 
 use super::{
+    consts::{Bound, MoveScore, Piece, Score},
     moves::{Move, MoveList},
     position::Position,
     tables::NodeTable,
     thread::ThreadData,
-    util::{Bound, MoveScore, Piece, Score},
 };
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {

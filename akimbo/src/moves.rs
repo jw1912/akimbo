@@ -1,4 +1,4 @@
-use crate::{position::Position, util::Flag};
+use crate::{position::Position, consts::Flag};
 
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct Move {
