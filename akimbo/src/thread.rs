@@ -3,7 +3,7 @@ use std::time::Instant;
 use crate::{
     moves::Move,
     position::Position,
-    tables::{HistoryTable, PlyTable, HashTable, NodeTable},
+    tables::{HashTable, HistoryTable, NodeTable, PlyTable},
 };
 
 pub struct ThreadData {
@@ -53,7 +53,9 @@ impl Default for ThreadData {
 
 impl ThreadData {
     pub fn repetition(&self, pos: &Position, curr_hash: u64, root: bool) -> bool {
-        if self.stack.len() < 6 { return false }
+        if self.stack.len() < 6 {
+            return false;
+        }
         let mut reps = 1 + u8::from(root);
         for &hash in self
             .stack

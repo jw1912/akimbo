@@ -1,19 +1,15 @@
-use akimbo::{
-    moves::Move,
-    position::Position,
-    search::go,
-    thread::ThreadData,
-};
+use akimbo::{moves::Move, position::Position, search::go, thread::ThreadData};
 
 use crate::{
-    util::{to_fen, is_terminal},
-    STOP
+    util::{is_terminal, to_fen},
+    STOP,
 };
 
 use std::{
-    time::{SystemTime, UNIX_EPOCH, Instant},
+    fs::File,
     io::{BufWriter, Write},
-    fs::File, sync::atomic::Ordering
+    sync::atomic::Ordering,
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
 #[derive(Default)]
@@ -37,14 +33,18 @@ impl DatagenThread {
     pub fn show_status(&self) {
         let fps = self.fens as f64 / self.start_time.elapsed().as_secs_f64();
         let fpg = self.fens / self.games;
-        println!("thread id {} games {} fens {} fps {fps:.0} fpg {fpg}", self.id, self.games, self.fens);
+        println!(
+            "thread id {} games {} fens {} fps {fps:.0} fpg {fpg}",
+            self.id, self.games, self.fens
+        );
     }
 
     pub fn new(nodes_per_move: u64, hash_size: usize) -> Self {
         let seed = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Guaranteed increasing.")
-            .as_micros() as u64 & 0xFFFF_FFFF;
+            .as_micros() as u64
+            & 0xFFFF_FFFF;
 
         let mut res = Self {
             engine: ThreadData {
@@ -70,7 +70,10 @@ impl DatagenThread {
 
     pub fn write(&mut self, result: GameResult) {
         self.games += 1;
-        let num_taken = result.fens.len().saturating_sub(if result.result == 0.5 {8} else {0});
+        let num_taken = result
+            .fens
+            .len()
+            .saturating_sub(if result.result == 0.5 { 8 } else { 0 });
         for fen in result.fens.iter().take(num_taken) {
             writeln!(&mut self.file, "{} | {:.1}", fen, result.result).unwrap();
             self.fens += 1;
@@ -111,7 +114,7 @@ impl DatagenThread {
         self.show_status();
     }
 
-    pub fn run_game(&mut self) -> Option<GameResult>{
+    pub fn run_game(&mut self) -> Option<GameResult> {
         self.reset();
 
         let mut position;
@@ -141,7 +144,14 @@ impl DatagenThread {
 
         // play out game
         loop {
-            let (bm, score) = go(&position, &mut self.engine, false, 32, 1000.0, self.nodes_per_move);
+            let (bm, score) = go(
+                &position,
+                &mut self.engine,
+                false,
+                32,
+                1000.0,
+                self.nodes_per_move,
+            );
 
             // adjudicate large scores
             if score.abs() > 1000 {
@@ -162,7 +172,7 @@ impl DatagenThread {
             // not enough nodes to finish a depth!
             self.engine.stack.push(position.hash());
             if bm == Move::NULL || position.make(bm) {
-                return None
+                return None;
             }
 
             // check for game end via check/stalemate

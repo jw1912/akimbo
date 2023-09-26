@@ -1,7 +1,4 @@
-use crate::{
-    consts::File,
-    init,
-};
+use crate::{consts::File, init};
 
 pub struct Attacks;
 impl Attacks {
@@ -62,15 +59,15 @@ struct Mask {
 }
 
 const PAWN: [[u64; 64]; 2] = [
-        init!(|sq, 64| {
-            let bit = 1 << sq;
-            ((bit & !File::A) << 7) | ((bit & !File::H) << 9)
-        }),
-        init!(|sq, 64| {
-            let bit = 1 << sq;
-            ((bit & !File::A) >> 9) | ((bit & !File::H) >> 7)
-        }),
-    ];
+    init!(|sq, 64| {
+        let bit = 1 << sq;
+        ((bit & !File::A) << 7) | ((bit & !File::H) << 9)
+    }),
+    init!(|sq, 64| {
+        let bit = 1 << sq;
+        ((bit & !File::A) >> 9) | ((bit & !File::H) >> 7)
+    }),
+];
 
 const KNIGHT: [u64; 64] = init!(|sq, 64| {
     let n = 1 << sq;
@@ -92,13 +89,11 @@ const WEST: [u64; 64] = init!(|sq, 64| ((1 << sq) - 1) & (0xFF << (sq & 56)));
 
 const DIAG: u64 = 0x8040201008040201;
 
-const DIAGS: [u64; 15] = init!(|sq, 15|
-    if sq > 7 {
-        DIAG >> (8 * (sq - 7))
-    } else {
-        DIAG << (8 * (7 - sq))
-    }
-);
+const DIAGS: [u64; 15] = init!(|sq, 15| if sq > 7 {
+    DIAG >> (8 * (sq - 7))
+} else {
+    DIAG << (8 * (7 - sq))
+});
 
 static MASKS: [Mask; 64] = init!(|sq, 64|
     let bit = 1 << sq;
@@ -114,18 +109,15 @@ static MASKS: [Mask; 64] = init!(|sq, 64|
 
 const RANK_SHIFT: [usize; 64] = init!(|sq, 64| sq - (sq & 7) + 1);
 
-const RANK: [[u64; 64]; 64] = init!(|sq, 64|
-    init!(|i, 64| {
-        let f = sq & 7;
-        let occ = (i << 1) as u64;
-        let east = EAST[f] ^ EAST[((EAST[f] & occ) | (1<<63)).trailing_zeros() as usize];
-        let west = WEST[f] ^ WEST[(((WEST[f] & occ) | 1).leading_zeros() ^ 63) as usize];
-        (east | west) << (sq - f)
-    })
-);
+const RANK: [[u64; 64]; 64] = init!(|sq, 64| init!(|i, 64| {
+    let f = sq & 7;
+    let occ = (i << 1) as u64;
+    let east = EAST[f] ^ EAST[((EAST[f] & occ) | (1 << 63)).trailing_zeros() as usize];
+    let west = WEST[f] ^ WEST[(((WEST[f] & occ) | 1).leading_zeros() ^ 63) as usize];
+    (east | west) << (sq - f)
+}));
 
-const FILE: [[u64; 64]; 64] = init!(|sq, 64|
-    init!(|occ, 64|
-        (RANK[7 - sq / 8][occ].wrapping_mul(DIAG) & File::H) >> (7 - (sq & 7))
-    )
-);
+const FILE: [[u64; 64]; 64] = init!(|sq, 64| init!(|occ, 64| (RANK[7 - sq / 8][occ]
+    .wrapping_mul(DIAG)
+    & File::H)
+    >> (7 - (sq & 7))));

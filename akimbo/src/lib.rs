@@ -15,7 +15,7 @@ macro_rules! bitloop {
             $bb &= $bb - 1;
             $func;
         }
-    }
+    };
 }
 
 #[macro_export]

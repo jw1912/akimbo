@@ -44,7 +44,9 @@ impl HashTable {
     }
 
     pub fn clear(&mut self) {
-        self.table.iter_mut().for_each(|entry| *entry = HashEntry::default());
+        self.table
+            .iter_mut()
+            .for_each(|entry| *entry = HashEntry::default());
         self.age = 0;
     }
 
@@ -52,31 +54,23 @@ impl HashTable {
         self.age = 63.min(self.age + 1);
     }
 
-    pub fn push(
-        &mut self,
-        hash: u64,
-        mov: Move,
-        depth: i8,
-        bound: u8,
-        mut score: i32,
-        ply: i32,
-    ) {
-
+    pub fn push(&mut self, hash: u64, mov: Move, depth: i8, bound: u8, mut score: i32, ply: i32) {
         let key = (hash >> 48) as u16;
         let idx = (hash as usize) & (self.table.len() - 1);
         let entry = &mut self.table[idx];
 
         // replacement scheme
         let diff = self.age - (entry.bound >> 2);
-        if ply > 0
-            && key == entry.key
-            && depth as u8 + 2 * diff < entry.depth as u8
-        {
+        if ply > 0 && key == entry.key && depth as u8 + 2 * diff < entry.depth as u8 {
             return;
         }
 
         // replace entry
-        score += if score.abs() > Score::MATE {score.signum() * ply} else {0};
+        score += if score.abs() > Score::MATE {
+            score.signum() * ply
+        } else {
+            0
+        };
         let best_move = mov.to_short();
         *entry = HashEntry {
             key,
@@ -89,8 +83,14 @@ impl HashTable {
 
     pub fn probe(&self, hash: u64, ply: i32) -> Option<HashEntry> {
         let mut entry = self.table[(hash as usize) & (self.table.len() - 1)];
-        if entry.key != (hash >> 48) as u16 { return None }
-        entry.score -= if entry.score.abs() > Score::MATE as i16 {entry.score.signum() * ply as i16} else {0};
+        if entry.key != (hash >> 48) as u16 {
+            return None;
+        }
+        entry.score -= if entry.score.abs() > Score::MATE as i16 {
+            entry.score.signum() * ply as i16
+        } else {
+            0
+        };
         Some(entry)
     }
 }
@@ -115,14 +115,10 @@ impl Default for HistoryTable {
 
 impl HistoryTable {
     pub fn age(&mut self) {
-        self.table
-            .iter_mut()
-            .flatten()
-            .flatten()
-            .for_each(|entry| {
-                entry.score /= 2;
-                entry.counter = Move::NULL;
-            });
+        self.table.iter_mut().flatten().flatten().for_each(|entry| {
+            entry.score /= 2;
+            entry.counter = Move::NULL;
+        });
     }
 
     pub fn clear(&mut self) {
@@ -216,4 +212,3 @@ impl PlyTable {
         self[ply].killers[0] = m;
     }
 }
-

@@ -1,21 +1,12 @@
 use crate::{
     attacks::Attacks,
     bitloop,
+    consts::{
+        Flag, Piece, Rank, Rights, Side, CASTLE_MASK, PHASE_VALS, ROOK_MOVES, SEE_VALS, SPANS,
+        ZVALS,
+    },
     moves::{Move, MoveList},
     network::{Accumulator, Network},
-    consts::{
-        ZVALS,
-        Piece,
-        Side,
-        SEE_VALS,
-        CASTLE_MASK,
-        PHASE_VALS,
-        ROOK_MOVES,
-        Rank,
-        Rights,
-        Flag,
-        SPANS,
-    }
 };
 
 #[derive(Clone, Copy, Default)]
@@ -73,12 +64,13 @@ impl Position {
     }
 
     fn sq_attacked(&self, sq: usize, side: usize, occ: u64) -> bool {
-        ( (Attacks::knight(sq) & self.bb[Piece::KNIGHT])
-        | (Attacks::king  (sq) & self.bb[Piece::KING  ])
-        | (Attacks::pawn  (side, sq) & self.bb[Piece::PAWN  ])
-        | (Attacks::rook  (sq, occ) & (self.bb[Piece::ROOK  ] | self.bb[Piece::QUEEN]))
-        | (Attacks::bishop(sq, occ) & (self.bb[Piece::BISHOP] | self.bb[Piece::QUEEN]))
-        ) & self.bb[side ^ 1] > 0
+        ((Attacks::knight(sq) & self.bb[Piece::KNIGHT])
+            | (Attacks::king(sq) & self.bb[Piece::KING])
+            | (Attacks::pawn(side, sq) & self.bb[Piece::PAWN])
+            | (Attacks::rook(sq, occ) & (self.bb[Piece::ROOK] | self.bb[Piece::QUEEN]))
+            | (Attacks::bishop(sq, occ) & (self.bb[Piece::BISHOP] | self.bb[Piece::QUEEN])))
+            & self.bb[side ^ 1]
+            > 0
     }
 
     pub fn get_pc(&self, bit: u64) -> usize {
@@ -127,7 +119,7 @@ impl Position {
                 let (rfr, rto) = ROOK_MOVES[usize::from(mov.flag() == Flag::KS)][side];
                 self.toggle::<false>(side, Piece::ROOK, rfr);
                 self.toggle::<true>(side, Piece::ROOK, rto);
-            },
+            }
             Flag::ENP => self.toggle::<false>(side ^ 1, Piece::PAWN, to ^ 8),
             Flag::PROMO.. => {
                 let promo = mov.promo_pc();
@@ -161,9 +153,11 @@ impl Position {
 
         let ph = self.phase;
         let b = self.bb[Piece::BISHOP];
-        ph <= 2 && self.bb[Piece::PAWN] == 0 && ((ph != 2) // no pawns left, phase <= 2
-            || (b & self.bb[Side::WHITE] != b && b & self.bb[Side::BLACK] != b // one bishop each
-                && (b & 0x55AA55AA55AA55AA == b || b & 0xAA55AA55AA55AA55 == b))) // same colour bishops
+        ph <= 2
+            && self.bb[Piece::PAWN] == 0
+            && ((ph != 2)
+            || (b & self.bb[Side::WHITE] != b && b & self.bb[Side::BLACK] != b
+                && (b & 0x55AA55AA55AA55AA == b || b & 0xAA55AA55AA55AA55 == b)))
     }
 
     pub fn in_check(&self) -> bool {
@@ -205,13 +199,13 @@ impl Position {
         }
 
         let bishops = self.bb[Piece::BISHOP] | self.bb[Piece::QUEEN];
-        let rooks   = self.bb[Piece::ROOK  ] | self.bb[Piece::QUEEN];
+        let rooks = self.bb[Piece::ROOK] | self.bb[Piece::QUEEN];
         let mut us = usize::from(!self.c);
         let mut attackers = (Attacks::knight(sq) & self.bb[Piece::KNIGHT])
-            | (Attacks::king(sq) & self.bb[Piece::KING  ])
+            | (Attacks::king(sq) & self.bb[Piece::KING])
             | (Attacks::pawn(Side::WHITE, sq) & self.bb[Piece::PAWN] & self.bb[Side::BLACK])
             | (Attacks::pawn(Side::BLACK, sq) & self.bb[Piece::PAWN] & self.bb[Side::WHITE])
-            | (Attacks::rook  (sq, occ) & rooks  )
+            | (Attacks::rook(sq, occ) & rooks)
             | (Attacks::bishop(sq, occ) & bishops);
 
         loop {
@@ -241,7 +235,9 @@ impl Position {
             us ^= 1;
 
             if score >= 0 {
-                if next == Piece::KING && attackers & self.bb[us] > 0 { us ^= 1 }
+                if next == Piece::KING && attackers & self.bb[us] > 0 {
+                    us ^= 1;
+                }
                 break;
             }
         }
@@ -268,11 +264,11 @@ impl Position {
                         moves.push(60, 62, Flag::KS, Piece::KING);
                     }
                 } else {
-                    if self.can_castle::<{ Side::WHITE }, 0>(occ,  3) {
-                        moves.push( 4,  2, Flag::QS, Piece::KING);
+                    if self.can_castle::<{ Side::WHITE }, 0>(occ, 3) {
+                        moves.push(4, 2, Flag::QS, Piece::KING);
                     }
-                    if self.can_castle::<{ Side::WHITE }, 1>(occ,  5) {
-                        moves.push( 4,  6, Flag::KS, Piece::KING);
+                    if self.can_castle::<{ Side::WHITE }, 1>(occ, 5) {
+                        moves.push(4, 6, Flag::KS, Piece::KING);
                     }
                 }
             }
@@ -284,24 +280,32 @@ impl Position {
             let mut promo = push & Rank::PEN[side];
             push &= !Rank::PEN[side];
 
-            bitloop!(push, from,
+            bitloop!(
+                push,
+                from,
                 moves.push(from, idx_shift::<8>(side, from), Flag::QUIET, Piece::PAWN)
             );
 
-            bitloop!(promo, from,
+            bitloop!(
+                promo,
+                from,
                 for flag in Flag::PROMO..=Flag::QPR {
                     moves.push(from, idx_shift::<8>(side, from), flag, Piece::PAWN);
                 }
             );
 
-            bitloop!(dbl, from,
+            bitloop!(
+                dbl,
+                from,
                 moves.push(from, idx_shift::<16>(side, from), Flag::DBL, Piece::PAWN)
             );
         }
 
         if self.enp_sq > 0 {
             let mut attackers = Attacks::pawn(side ^ 1, self.enp_sq as usize) & pawns;
-            bitloop!(attackers, from,
+            bitloop!(
+                attackers,
+                from,
                 moves.push(from, self.enp_sq, Flag::ENP, Piece::PAWN)
             );
         }
@@ -310,14 +314,14 @@ impl Position {
 
         bitloop!(attackers, from, {
             let mut attacks = Attacks::pawn(side, from as usize) & opps;
-            bitloop!(attacks, to,
-                moves.push(from, to, Flag::CAP, Piece::PAWN)
-            );
+            bitloop!(attacks, to, moves.push(from, to, Flag::CAP, Piece::PAWN));
         });
 
         bitloop!(promo, from, {
             let mut attacks = Attacks::pawn(side, from as usize) & opps;
-            bitloop!(attacks, to,
+            bitloop!(
+                attacks,
+                to,
                 for flag in Flag::NPC..=Flag::QPC {
                     moves.push(from, to, flag, Piece::PAWN);
                 }
@@ -331,16 +335,14 @@ impl Position {
                 let attacks = match pc {
                     Piece::KNIGHT => Attacks::knight(from as usize),
                     Piece::BISHOP => Attacks::bishop(from as usize, occ),
-                    Piece::ROOK   => Attacks::rook  (from as usize, occ),
-                    Piece::QUEEN  => Attacks::queen (from as usize, occ),
-                    Piece::KING   => Attacks::king  (from as usize),
+                    Piece::ROOK => Attacks::rook(from as usize, occ),
+                    Piece::QUEEN => Attacks::queen(from as usize, occ),
+                    Piece::KING => Attacks::king(from as usize),
                     _ => unreachable!(),
                 };
 
                 let mut caps = attacks & opps;
-                bitloop!(caps, to,
-                    moves.push(from, to, Flag::CAP, pc)
-                );
+                bitloop!(caps, to, moves.push(from, to, Flag::CAP, pc));
 
                 if QUIETS {
                     let mut quiets = attacks & !occ;
@@ -382,23 +384,39 @@ impl Position {
 
         // state
         pos.c = vec[1] == "b";
-        pos.enp_sq = if vec[3] == "-" {0} else {
+        pos.enp_sq = if vec[3] == "-" {
+            0
+        } else {
             let chs: Vec<char> = vec[3].chars().collect();
             8 * chs[1].to_string().parse::<u8>().unwrap() + chs[0] as u8 - 105
         };
         pos.halfm = vec.get(4).unwrap_or(&"0").parse::<u8>().unwrap();
-        pos.rights = vec[2].chars().fold(0, |cr, ch| cr | match ch {
-            'Q' => Rights::WQS, 'K' => Rights::WKS, 'q' => Rights::BQS, 'k' => Rights::BKS, _ => 0
+        pos.rights = vec[2].chars().fold(0, |cr, ch| {
+            cr | match ch {
+                'Q' => Rights::WQS,
+                'K' => Rights::WKS,
+                'q' => Rights::BQS,
+                'k' => Rights::BKS,
+                _ => 0,
+            }
         });
 
         pos
     }
 }
 
-fn shift(side: usize,bb: u64) -> u64 {
-    if side == Side::WHITE { bb >> 8 } else { bb << 8 }
+fn shift(side: usize, bb: u64) -> u64 {
+    if side == Side::WHITE {
+        bb >> 8
+    } else {
+        bb << 8
+    }
 }
 
 fn idx_shift<const AMOUNT: u8>(side: usize, idx: u8) -> u8 {
-    if side == Side::WHITE { idx + AMOUNT } else { idx - AMOUNT }
+    if side == Side::WHITE {
+        idx + AMOUNT
+    } else {
+        idx - AMOUNT
+    }
 }

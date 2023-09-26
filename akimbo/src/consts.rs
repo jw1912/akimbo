@@ -76,17 +76,15 @@ c_enum!(
     H = Self::A << 7
 );
 
-pub const CASTLE_MASK: [u8; 64] = init!(|sq, 64|
-    match sq {
-        0 => 7,
-        4 => 3,
-        7 => 11,
-        56 => 13,
-        60 => 12,
-        63 => 14,
-        _ => 15,
-    }
-);
+pub const CASTLE_MASK: [u8; 64] = init!(|sq, 64| match sq {
+    0 => 7,
+    4 => 3,
+    7 => 11,
+    56 => 13,
+    60 => 12,
+    63 => 14,
+    _ => 15,
+});
 
 pub const ROOK_MOVES: [[(usize, usize); 2]; 2] = [[(0, 3), (56, 59)], [(7, 5), (63, 61)]];
 
@@ -110,16 +108,14 @@ pub static ZVALS: ZobristVals = {
 
     let c = [0, seed];
 
-    let pcs = init!(|side, 2| init!(|pc, 8|
-        init!(|sq, 64| {
-            if pc < 2 {
-                0
-            } else {
-                seed = rand(seed);
-                seed
-            }
-        })
-    ));
+    let pcs = init!(|side, 2| init!(|pc, 8| init!(|sq, 64| {
+        if pc < 2 {
+            0
+        } else {
+            seed = rand(seed);
+            seed
+        }
+    })));
 
     let cf = init!(|i, 4| {
         seed = rand(seed);
@@ -127,8 +123,10 @@ pub static ZVALS: ZobristVals = {
     });
 
     let cr = init!(|i, 16| {
-          ((i & 1 > 0) as u64 * cf[0]) ^ ((i & 2 > 0) as u64 * cf[1])
-        ^ ((i & 4 > 0) as u64 * cf[2]) ^ ((i & 8 > 0) as u64 * cf[3])
+        ((i & 1 > 0) as u64 * cf[0])
+            ^ ((i & 2 > 0) as u64 * cf[1])
+            ^ ((i & 4 > 0) as u64 * cf[2])
+            ^ ((i & 8 > 0) as u64 * cf[3])
     });
 
     let enp = init!(|i, 8| {

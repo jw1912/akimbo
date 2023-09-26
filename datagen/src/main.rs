@@ -1,12 +1,12 @@
-mod util;
 mod thread;
+mod util;
 
-use thread::DatagenThread;
 use std::{
     env::args,
     sync::atomic::{AtomicBool, Ordering},
     thread::spawn,
 };
+use thread::DatagenThread;
 
 pub static STOP: AtomicBool = AtomicBool::new(false);
 
@@ -20,12 +20,10 @@ fn main() {
 
     for _ in 0..threads {
         std::thread::sleep(std::time::Duration::from_millis(10));
-        handles.push(
-            spawn(move || {
-                let mut worker = DatagenThread::new(NODES_PER_MOVE, 8);
-                worker.run_datagen(gpt);
-            })
-        );
+        handles.push(spawn(move || {
+            let mut worker = DatagenThread::new(NODES_PER_MOVE, 8);
+            worker.run_datagen(gpt);
+        }));
     }
 
     loop {
