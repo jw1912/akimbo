@@ -1,6 +1,6 @@
 use crate::{position::Position, util::Flag};
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct Move {
     from: u8,
     to: u8,
@@ -94,6 +94,12 @@ impl Move {
 pub struct MoveList {
     list: [Move; 252],
     len: usize,
+}
+
+impl Default for MoveList {
+    fn default() -> Self {
+        Self::ZEROED
+    }
 }
 
 impl std::ops::Deref for MoveList {

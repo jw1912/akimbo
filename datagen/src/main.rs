@@ -1,7 +1,7 @@
 mod util;
 mod thread;
 
-use thread::ThreadData;
+use thread::DatagenThread;
 use std::{
     env::args,
     sync::atomic::{AtomicBool, Ordering},
@@ -22,7 +22,7 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_millis(10));
         handles.push(
             spawn(move || {
-                let mut worker = ThreadData::new(NODES_PER_MOVE, 8);
+                let mut worker = DatagenThread::new(NODES_PER_MOVE, 8);
                 worker.run_datagen(gpt);
             })
         );

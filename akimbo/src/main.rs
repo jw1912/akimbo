@@ -1,4 +1,9 @@
-use akimbo::{moves::Move, position::Position, search::{Engine, go}, util::SIDE};
+use akimbo::{
+    position::Position,
+    search::go,
+    thread::ThreadData,
+    util::SIDE,
+};
 
 use std::{io, process, time::Instant};
 
@@ -10,8 +15,8 @@ fn main() {
 
     // initialise engine
     let mut pos = Position::from_fen(STARTPOS);
-    let mut eng = Engine::default();
-    eng.resize_tt(16);
+    let mut eng = ThreadData::default();
+    eng.tt.resize(16);
 
     // bench for OpenBench
     if std::env::args().nth(1).as_deref() == Some("bench") {
@@ -50,12 +55,12 @@ fn main() {
             "isready" => println!("readyok"),
             "ucinewgame" => {
                 pos = Position::from_fen(STARTPOS);
-                eng.clear_tt();
-                eng.htable = Box::new([[[(0, Move::NULL); 64]; 8]; 2]);
+                eng.tt.clear();
+                eng.htable.clear();
             },
             "setoption" => match commands[..] {
-                ["setoption", "name", "Hash", "value", x] => eng.resize_tt(x.parse().unwrap()),
-                ["setoption", "name", "Clear", "Hash"] => eng.clear_tt(),
+                ["setoption", "name", "Hash", "value", x] => eng.tt.resize(x.parse().unwrap()),
+                ["setoption", "name", "Clear", "Hash"] => eng.tt.clear(),
                 _ => {}
             },
             "go" => {

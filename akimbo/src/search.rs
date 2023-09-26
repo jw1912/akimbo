@@ -1,7 +1,10 @@
 use std::{fmt::Write, time::Instant};
+
 use super::{
     moves::{Move, MoveList},
     position::Position,
+    tables::NodeTable,
+    thread::ThreadData,
     util::{Bound, MoveScore, Piece, Score},
 };
 
@@ -9,144 +12,11 @@ fn mvv_lva(mov: Move, pos: &Position) -> i32 {
     8 * pos.get_pc(mov.bb_to()) as i32 - mov.moved_pc() as i32
 }
 
-#[derive(Clone, Copy, Default)]
-pub struct HashEntry {
-    key: u16,
-    best_move: u16,
-    score: i16,
-    depth: i8,
-    bound: u8,
-}
-
-type PlyInfo = ([Move; 2], i32, Move, MoveList, i32);
-type History = (i32, Move);
-
-pub struct Engine {
-    // search control
-    pub timing: Instant,
-    pub max_time: u128,
-    pub max_nodes: u64,
-    pub abort: bool,
-    pub mloop: bool,
-
-    // tables
-    pub tt: Vec<HashEntry>,
-    pub tt_age: u8,
-    pub htable: Box<[[[History; 64]; 8]; 2]>,
-    pub plied: Box<[PlyInfo; 96]>,
-    pub ntable: Box<[[u64; 64]; 64]>,
-    pub stack: Vec<u64>,
-
-    // uci output
-    pub nodes: u64,
-    pub qnodes: u64,
-    pub ply: i32,
-    pub best_move: Move,
-    pub seldepth: i32,
-}
-
-impl Default for Engine {
-    fn default() -> Self {
-        Self {
-            timing: Instant::now(),
-            max_time: 0,
-            abort: false,
-            max_nodes: u64::MAX,
-            mloop: true,
-            tt: Vec::new(),
-            tt_age: 0,
-            htable: Box::new([[[(0, Move::NULL); 64]; 8]; 2]),
-            plied: Box::new([([Move::NULL; 2], 0, Move::NULL, MoveList::ZEROED, 0); 96]),
-            ntable: Box::new([[0; 64]; 64]),
-            stack: Vec::with_capacity(96),
-            nodes: 0,
-            qnodes: 0,
-            ply: 0,
-            best_move: Move::NULL,
-            seldepth: 0,
-        }
-    }
-}
-
-impl Engine {
-    pub fn repetition(&self, pos: &Position, curr_hash: u64, root: bool) -> bool {
-        if self.stack.len() < 6 { return false }
-        let mut reps = 1 + u8::from(root);
-        for &hash in self
-            .stack
-            .iter()
-            .rev()
-            .take(pos.halfm() + 1)
-            .skip(1)
-            .step_by(2)
-        {
-            reps -= u8::from(hash == curr_hash);
-            if reps == 0 {
-                return true;
-            }
-        }
-        false
-    }
-
-    fn push(&mut self, hash: u64) {
-        self.ply += 1;
-        self.stack.push(hash);
-        self.plied[self.ply as usize].4 = 0;
-    }
-
-    fn pop(&mut self) {
-        self.stack.pop();
-        self.ply -= 1;
-    }
-
-    pub fn resize_tt(&mut self, size: usize) {
-        self.tt = vec![HashEntry::default(); 1 << (80 - (size as u64).leading_zeros())];
-        self.tt_age = 0;
-    }
-
-    pub fn clear_tt(&mut self) {
-        self.tt.iter_mut().for_each(|entry| *entry = HashEntry::default());
-        self.tt_age = 0;
-    }
-
-    fn push_tt(&mut self, hash: u64, mov: Move, depth: i8, bound: u8, mut score: i32) {
-        let (key, idx) = ((hash >> 48) as u16, (hash as usize) & (self.tt.len() - 1));
-        let entry = &mut self.tt[idx];
-
-        // replacement scheme
-        let diff = self.tt_age - (entry.bound >> 2);
-        if self.ply > 0 && key == entry.key && depth as u8 + 2 * diff < entry.depth as u8  { return }
-
-        // replace entry
-        score += if score.abs() > Score::MATE {score.signum() * self.ply} else {0};
-        let best_move = mov.to_short();
-        *entry = HashEntry { key, best_move, score: score as i16, depth, bound: (self.tt_age << 2) | bound };
-    }
-
-    fn probe_tt(&self, hash: u64) -> Option<HashEntry> {
-        let mut entry = self.tt[(hash as usize) & (self.tt.len() - 1)];
-        if entry.key != (hash >> 48) as u16 { return None }
-        entry.score -= if entry.score.abs() > Score::MATE as i16 {entry.score.signum() * self.ply as i16} else {0};
-        Some(entry)
-    }
-
-    fn push_killer(&mut self, m: Move) {
-        let ply = self.ply as usize - 1;
-        self.plied[ply].0[1] = self.plied[ply].0[0];
-        self.plied[ply].0[0] = m;
-    }
-
-    fn push_history(&mut self, mov: Move, side: usize, bonus: i32) {
-        let entry = &mut self.htable[side][mov.moved_pc()][mov.to()];
-        entry.0 += bonus - entry.0 * bonus.abs() / MoveScore::HISTORY_MAX
-    }
-}
-
-pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft_bound: f64, soft_nodes: u64) -> (Move, i32) {
+pub fn go(start: &Position, eng: &mut ThreadData, report: bool, max_depth: i32, soft_bound: f64, soft_nodes: u64) -> (Move, i32) {
     // reset engine
-    *eng.ntable = [[0; 64]; 64];
-    eng.plied.iter_mut().for_each(|x| x.0 = [Move::NULL; 2]);
-    eng.htable.iter_mut().flatten().flatten().for_each(|x| *x = (x.0 / 2, Move::NULL));
+    eng.ntable = NodeTable::default();
+    eng.plied.clear_killers();
+    eng.htable.age();
     eng.timing = Instant::now();
     eng.nodes = 0;
     eng.qnodes = 0;
@@ -181,7 +51,7 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
             } else {format!("score cp {eval}")};
             let t = eng.timing.elapsed().as_millis();
             let nps = (1000.0 * nodes as f64 / t as f64) as u32;
-            let pv_line = &eng.plied[0].3;
+            let pv_line = &eng.plied[0].pv_line;
             let pv = pv_line.iter()
                 .fold(String::new(), |mut pv_str, mov| {
                     write!(&mut pv_str, "{} ", mov.to_uci()).unwrap();
@@ -190,14 +60,14 @@ pub fn go(start: &Position, eng: &mut Engine, report: bool, max_depth: i32, soft
             println!("info depth {d} seldepth {} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}", eng.seldepth);
         }
 
-        let frac = eng.ntable[best_move.from()][best_move.to()] as f64 / nodes as f64;
+        let frac = eng.ntable.get(best_move) as f64 / nodes as f64;
         if eng.timing.elapsed().as_millis() as f64 >= soft_bound * if d > 8 {(1.5 - frac) * 1.35} else {1.0} { break }
     }
-    eng.tt_age = 63.min(eng.tt_age + 1);
+    eng.tt.age();
     (best_move, score)
 }
 
-fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, max_depth: i32, best_move: &mut Move, prev: Move) -> i32 {
+fn aspiration(pos: &Position, eng: &mut ThreadData, mut score: i32, max_depth: i32, best_move: &mut Move, prev: Move) -> i32 {
     let mut delta = 25;
     let mut alpha = (-Score::MAX).max(score - delta);
     let mut beta = Score::MAX.min(score + delta);
@@ -223,7 +93,7 @@ fn aspiration(pos: &Position, eng: &mut Engine, mut score: i32, max_depth: i32, 
     }
 }
 
-fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
+fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     eng.seldepth = eng.seldepth.max(eng.ply);
     let mut eval = pos.eval();
     if eval >= beta { return eval }
@@ -231,13 +101,15 @@ fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
 
     // probe hash table for cutoff
     let hash = pos.hash();
-    if let Some(res) = eng.probe_tt(hash) {
-        let tt_score = i32::from(res.score);
-        if match res.bound & 3 {
+    if let Some(entry) = eng.tt.probe(hash, eng.ply) {
+        let tt_score = entry.score();
+        if match entry.bound() {
             Bound::LOWER => tt_score >= beta,
             Bound::UPPER => tt_score <= alpha,
             _ => true,
-        } { return tt_score }
+        } {
+            return tt_score;
+        }
     }
 
     let mut caps = pos.movegen::<false>();
@@ -265,11 +137,12 @@ fn qs(pos: &Position, eng: &mut Engine, mut alpha: i32, beta: i32) -> i32 {
     }
     eng.ply -= 1;
 
-    eng.push_tt(hash, bm, 0, if eval >= beta {Bound::LOWER} else {Bound::UPPER}, eval);
+    let bound = if eval >= beta { Bound::LOWER } else { Bound::UPPER };
+    eng.tt.push(hash, bm, 0, bound, eval, eng.ply);
     eval
 }
 
-fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut depth: i32, null: bool, prev: Move) -> i32 {
+fn pvs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, mut beta: i32, mut depth: i32, null: bool, prev: Move) -> i32 {
     // stopping search
     if eng.abort { return 0 }
     if eng.nodes & 1023 == 0 && (eng.timing.elapsed().as_millis() >= eng.max_time || eng.nodes + eng.qnodes >= eng.max_nodes) {
@@ -280,7 +153,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     let hash = pos.hash();
 
     // clear pv line
-    eng.plied[eng.ply as usize].3.clear();
+    eng.plied[eng.ply].pv_line.clear();
 
     if eng.ply > 0 {
         // draw detection
@@ -300,24 +173,30 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
     // probing hash table
     let pv_node = beta > alpha + 1;
-    let s_mov = eng.plied[eng.ply as usize].2;
+    let s_mov = eng.plied[eng.ply].singular;
     let singular = s_mov != Move::NULL;
     let mut eval = pos.eval();
     let mut tt_move = Move::NULL;
     let mut tt_score = -Score::MAX;
     let mut try_singular = !singular && depth >= 8 && eng.ply > 0;
-    if let Some(res) = eng.probe_tt(hash) {
-        let bound = res.bound & 3;
-        tt_move = Move::from_short(res.best_move, pos);
-        tt_score = i32::from(res.score);
-        try_singular &= i32::from(res.depth) >= depth - 3 && bound != Bound::UPPER && tt_score.abs() < Score::MATE;
+    if let Some(entry) = eng.tt.probe(hash, eng.ply) {
+        let bound = entry.bound();
+        tt_move = entry.best_move(pos);
+        tt_score = entry.score();
+        try_singular &= entry.depth() >= depth - 3 && bound != Bound::UPPER && tt_score.abs() < Score::MATE;
 
         // tt cutoffs
-        if !singular && !pv_node && depth <= i32::from(res.depth) && match bound {
-            Bound::LOWER => tt_score >= beta,
-            Bound::UPPER => tt_score <= alpha,
-            _ => true,
-        } { return tt_score }
+        if !singular
+            && !pv_node
+            && depth <= entry.depth()
+            && match bound {
+                Bound::LOWER => tt_score >= beta,
+                Bound::UPPER => tt_score <= alpha,
+                _ => true,
+            }
+        {
+            return tt_score;
+        }
 
         // use tt score instead of static eval
         if !((eval > tt_score && bound == Bound::LOWER) || (eval < tt_score && bound == Bound::UPPER)) {
@@ -326,8 +205,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     }
 
     // improving heuristic
-    eng.plied[eng.ply as usize].1 = eval;
-    let improving = eng.ply > 1 && eval > eng.plied[eng.ply as usize - 2].1;
+    eng.plied[eng.ply].eval = eval;
+    let improving = eng.ply > 1 && eval > eng.plied[eng.ply - 2].eval;
 
     // pruning
     let mut can_prune = !pv_node && !pos.check;
@@ -360,9 +239,9 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
     // generating and scoring moves
     let mut moves = pos.movegen::<true>();
     let mut scores = [0; 252];
-    let killers = eng.plied[eng.ply as usize].0;
+    let killers = eng.plied[eng.ply].killers;
     let counter_mov = if prev != Move::NULL {
-        eng.htable[pos.stm()][prev.moved_pc()][prev.to()].1
+        eng.htable.get_counter(pos.stm(), prev)
     } else {Move::NULL};
     moves.iter().enumerate().for_each(|(i, &mov)|
         scores[i] = if mov == tt_move {
@@ -378,7 +257,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             } else if mov == counter_mov {
                 MoveScore::KILLER
             } else {
-                eng.htable[pos.stm()][mov.moved_pc()][mov.to()].0
+                eng.htable.get_score(pos.stm(), mov)
             }
     );
 
@@ -431,9 +310,9 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         let ext = if try_singular && mov == tt_move {
             let s_beta = tt_score - depth * 2;
             eng.pop();
-            eng.plied[eng.ply as usize].2 = mov;
+            eng.plied[eng.ply].singular = mov;
             let s_score = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, prev);
-            eng.plied[eng.ply as usize].2 = Move::NULL;
+            eng.plied[eng.ply].singular = Move::NULL;
             eng.push(hash);
             if s_score < s_beta {1} else if tt_score >= beta {-1} else {0}
         } else {
@@ -455,7 +334,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
             r -= i32::from(mov.moved_pc() == Piece::PAWN && pos.is_passer(mov.from(), pos.stm()));
 
             // reduce less if next ply had few fail highs
-            r -= i32::from(eng.plied[eng.ply as usize].4 < 4);
+            r -= i32::from(eng.plied[eng.ply].cutoffs < 4);
 
             // reduce more/less based on history score
             if ms <= MoveScore::HISTORY_MAX { r -= ms / 8192 }
@@ -477,7 +356,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         };
 
         if eng.ply == 1 {
-            eng.ntable[mov.from()][mov.to()] += eng.nodes + eng.qnodes - pre_nodes;
+            eng.ntable.update(mov, eng.nodes + eng.qnodes - pre_nodes);
         }
 
         best_score = best_score.max(score);
@@ -493,8 +372,8 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
 
         // update pv line
         if pv_node {
-            let sub_line = eng.plied[eng.ply as usize].3;
-            let line = &mut eng.plied[eng.ply as usize - 1].3;
+            let sub_line = eng.plied[eng.ply].pv_line;
+            let line = &mut eng.plied[eng.ply - 1].pv_line;
             line.copy_in(mov, &sub_line);
         }
 
@@ -504,22 +383,22 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         }
 
         bound = Bound::LOWER;
-        eng.plied[eng.ply as usize - 1].4 += 1;
+        eng.plied[eng.ply - 1].cutoffs += 1;
 
         // quiet cutoffs pushed to tables
         if mov.is_noisy() || eng.abort {
             break;
         }
 
-        eng.push_killer(mov);
+        eng.plied.push_killer(mov, eng.ply);
 
         let bonus = 1600.min(350 * (depth - 1));
-        eng.push_history(mov, pos.stm(), bonus);
+        eng.htable.push(mov, pos.stm(), bonus);
         for &quiet in quiets_tried.iter().take(quiets_tried.len() - 1) {
-            eng.push_history(quiet, pos.stm(), -bonus)
+            eng.htable.push(quiet, pos.stm(), -bonus)
         }
 
-        eng.htable[pos.stm()][prev.moved_pc()][prev.to()].1 = mov;
+        eng.htable.push_counter(pos.stm(), prev, mov);
 
         break;
     }
@@ -539,7 +418,7 @@ fn pvs(pos: &Position, eng: &mut Engine, mut alpha: i32, mut beta: i32, mut dept
         return i32::from(pos.check) * (eng.ply - Score::MAX);
     }
 
-    eng.push_tt(hash, best_move, depth as i8, bound, best_score);
+    eng.tt.push(hash, best_move, depth as i8, bound, best_score, eng.ply);
 
     best_score
 }
