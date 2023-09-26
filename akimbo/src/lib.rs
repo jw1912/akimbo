@@ -20,7 +20,7 @@ macro_rules! bitloop {
 
 #[macro_export]
 macro_rules! c_enum {
-    ($t:ty, $name:ident, $($n:ident = $v:expr),*) => {
+    ($name:ident : $t:ty, $($n:ident = $v:expr),*) => {
         pub struct $name;
         impl $name {
             $(pub const $n: $t = $v;)*

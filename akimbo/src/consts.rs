@@ -1,18 +1,21 @@
 use crate::{c_enum, init};
 
-c_enum!(u8, Bound,
+c_enum!(
+    Bound: u8,
     LOWER = 0,
     EXACT = 1,
     UPPER = 2
 );
 
-c_enum!(i32, Score,
+c_enum!(
+    Score: i32,
     MAX = 30000,
     MATE = Self::MAX - 256,
     DRAW = 0
 );
 
-c_enum!(i32, MoveScore,
+c_enum!(
+    MoveScore: i32,
     HASH = 3000000,
     HISTORY_MAX = 16384,
     PROMO = 70000,
@@ -20,12 +23,14 @@ c_enum!(i32, MoveScore,
     CAPTURE = 8 * Self::HISTORY_MAX
 );
 
-c_enum!(usize, Side,
+c_enum!(
+    Side: usize,
     WHITE = 0,
     BLACK = 1
 );
 
-c_enum!(usize, Piece,
+c_enum!(
+    Piece: usize,
     EMPTY = 0,
     PAWN = 2,
     KNIGHT = 3,
@@ -35,7 +40,8 @@ c_enum!(usize, Piece,
     KING = 7
 );
 
-c_enum!(u8, Flag,
+c_enum!(
+    Flag: u8,
     QUIET = 0,
     DBL = 1,
     KS = 2,
@@ -48,7 +54,8 @@ c_enum!(u8, Flag,
     QPC = 15
 );
 
-c_enum!(u8, Rights,
+c_enum!(
+    Rights: u8,
     WQS = 8,
     WKS = 4,
     BQS = 2,
@@ -57,12 +64,14 @@ c_enum!(u8, Rights,
     BLACK = Self::BQS | Self::BKS
 );
 
-c_enum!([u64; 2], Rank,
+c_enum!(
+    Rank: [u64; 2],
     PEN = [0xFF000000000000, 0xFF00],
     DBL = [0xFF000000, 0xFF00000000]
 );
 
-c_enum!(u64, File,
+c_enum!(
+    File: u64,
     A = 0x101010101010101,
     H = Self::A << 7
 );
