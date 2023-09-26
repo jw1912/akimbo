@@ -156,8 +156,9 @@ impl Position {
         ph <= 2
             && self.bb[Piece::PAWN] == 0
             && ((ph != 2)
-            || (b & self.bb[Side::WHITE] != b && b & self.bb[Side::BLACK] != b
-                && (b & 0x55AA55AA55AA55AA == b || b & 0xAA55AA55AA55AA55 == b)))
+                || (b & self.bb[Side::WHITE] != b
+                    && b & self.bb[Side::BLACK] != b
+                    && (b & 0x55AA55AA55AA55AA == b || b & 0xAA55AA55AA55AA55 == b)))
     }
 
     pub fn in_check(&self) -> bool {
@@ -280,26 +281,28 @@ impl Position {
             let mut promo = push & Rank::PEN[side];
             push &= !Rank::PEN[side];
 
-            bitloop!(|push, from|
-                moves.push(from, idx_shift::<8>(side, from), Flag::QUIET, Piece::PAWN)
-            );
+            bitloop!(|push, from| moves.push(
+                from,
+                idx_shift::<8>(side, from),
+                Flag::QUIET,
+                Piece::PAWN
+            ));
 
-            bitloop!(|promo, from|
-                for flag in Flag::PROMO..=Flag::QPR {
-                    moves.push(from, idx_shift::<8>(side, from), flag, Piece::PAWN);
-                }
-            );
+            bitloop!(|promo, from| for flag in Flag::PROMO..=Flag::QPR {
+                moves.push(from, idx_shift::<8>(side, from), flag, Piece::PAWN);
+            });
 
-            bitloop!(|dbl, from|
-                moves.push(from, idx_shift::<16>(side, from), Flag::DBL, Piece::PAWN)
-            );
+            bitloop!(|dbl, from| moves.push(
+                from,
+                idx_shift::<16>(side, from),
+                Flag::DBL,
+                Piece::PAWN
+            ));
         }
 
         if self.enp_sq > 0 {
             let mut attackers = Attacks::pawn(side ^ 1, self.enp_sq as usize) & pawns;
-            bitloop!(|attackers, from|
-                moves.push(from, self.enp_sq, Flag::ENP, Piece::PAWN)
-            );
+            bitloop!(|attackers, from| moves.push(from, self.enp_sq, Flag::ENP, Piece::PAWN));
         }
 
         let (mut attackers, mut promo) = (pawns & !Rank::PEN[side], pawns & Rank::PEN[side]);
@@ -311,11 +314,9 @@ impl Position {
 
         bitloop!(|promo, from| {
             let mut attacks = Attacks::pawn(side, from as usize) & opps;
-            bitloop!(|attacks, to|
-                for flag in Flag::NPC..=Flag::QPC {
-                    moves.push(from, to, flag, Piece::PAWN);
-                }
-            );
+            bitloop!(|attacks, to| for flag in Flag::NPC..=Flag::QPC {
+                moves.push(from, to, flag, Piece::PAWN);
+            });
         });
 
         // non-pawn moves
