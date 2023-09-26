@@ -9,7 +9,7 @@ pub mod thread;
 
 #[macro_export]
 macro_rules! bitloop {
-    ($bb:expr, $sq:ident, $func:expr) => {
+    (| $bb:expr, $sq:ident | $func:expr) => {
         while $bb > 0 {
             let $sq = $bb.trailing_zeros() as u8;
             $bb &= $bb - 1;

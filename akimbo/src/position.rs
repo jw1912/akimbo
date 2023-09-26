@@ -280,48 +280,38 @@ impl Position {
             let mut promo = push & Rank::PEN[side];
             push &= !Rank::PEN[side];
 
-            bitloop!(
-                push,
-                from,
+            bitloop!(|push, from|
                 moves.push(from, idx_shift::<8>(side, from), Flag::QUIET, Piece::PAWN)
             );
 
-            bitloop!(
-                promo,
-                from,
+            bitloop!(|promo, from|
                 for flag in Flag::PROMO..=Flag::QPR {
                     moves.push(from, idx_shift::<8>(side, from), flag, Piece::PAWN);
                 }
             );
 
-            bitloop!(
-                dbl,
-                from,
+            bitloop!(|dbl, from|
                 moves.push(from, idx_shift::<16>(side, from), Flag::DBL, Piece::PAWN)
             );
         }
 
         if self.enp_sq > 0 {
             let mut attackers = Attacks::pawn(side ^ 1, self.enp_sq as usize) & pawns;
-            bitloop!(
-                attackers,
-                from,
+            bitloop!(|attackers, from|
                 moves.push(from, self.enp_sq, Flag::ENP, Piece::PAWN)
             );
         }
 
         let (mut attackers, mut promo) = (pawns & !Rank::PEN[side], pawns & Rank::PEN[side]);
 
-        bitloop!(attackers, from, {
+        bitloop!(|attackers, from| {
             let mut attacks = Attacks::pawn(side, from as usize) & opps;
-            bitloop!(attacks, to, moves.push(from, to, Flag::CAP, Piece::PAWN));
+            bitloop!(|attacks, to| moves.push(from, to, Flag::CAP, Piece::PAWN));
         });
 
-        bitloop!(promo, from, {
+        bitloop!(|promo, from| {
             let mut attacks = Attacks::pawn(side, from as usize) & opps;
-            bitloop!(
-                attacks,
-                to,
+            bitloop!(|attacks, to|
                 for flag in Flag::NPC..=Flag::QPC {
                     moves.push(from, to, flag, Piece::PAWN);
                 }
@@ -331,7 +321,7 @@ impl Position {
         // non-pawn moves
         for pc in Piece::KNIGHT..=Piece::KING {
             let mut attackers = boys & self.bb[pc];
-            bitloop!(attackers, from, {
+            bitloop!(|attackers, from| {
                 let attacks = match pc {
                     Piece::KNIGHT => Attacks::knight(from as usize),
                     Piece::BISHOP => Attacks::bishop(from as usize, occ),
@@ -342,11 +332,11 @@ impl Position {
                 };
 
                 let mut caps = attacks & opps;
-                bitloop!(caps, to, moves.push(from, to, Flag::CAP, pc));
+                bitloop!(|caps, to| moves.push(from, to, Flag::CAP, pc));
 
                 if QUIETS {
                     let mut quiets = attacks & !occ;
-                    bitloop!(quiets, to, moves.push(from, to, Flag::QUIET, pc));
+                    bitloop!(|quiets, to| moves.push(from, to, Flag::QUIET, pc));
                 }
             });
         }
