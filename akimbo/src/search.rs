@@ -1,18 +1,25 @@
 use std::{fmt::Write, time::Instant};
 
 use super::{
+    consts::{Bound, MoveScore, Piece, Score},
     moves::{Move, MoveList},
     position::Position,
     tables::NodeTable,
     thread::ThreadData,
-    util::{Bound, MoveScore, Piece, Score},
 };
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
     8 * pos.get_pc(mov.bb_to()) as i32 - mov.moved_pc() as i32
 }
 
-pub fn go(start: &Position, eng: &mut ThreadData, report: bool, max_depth: i32, soft_bound: f64, soft_nodes: u64) -> (Move, i32) {
+pub fn go(
+    start: &Position,
+    eng: &mut ThreadData,
+    report: bool,
+    max_depth: i32,
+    soft_bound: f64,
+    soft_nodes: u64,
+) -> (Move, i32) {
     // reset engine
     eng.ntable = NodeTable::default();
     eng.plied.clear_killers();
@@ -32,13 +39,19 @@ pub fn go(start: &Position, eng: &mut ThreadData, report: bool, max_depth: i32, 
 
     // iterative deepening loop
     for d in 1..=max_depth {
-        if eng.nodes + eng.qnodes > soft_nodes { break }
+        if eng.nodes + eng.qnodes > soft_nodes {
+            break;
+        }
 
         eval = if d < 7 {
             pvs(&pos, eng, -Score::MAX, Score::MAX, d, false, Move::NULL)
-        } else { aspiration(&pos, eng, eval, d, &mut best_move, Move::NULL) };
+        } else {
+            aspiration(&pos, eng, eval, d, &mut best_move, Move::NULL)
+        };
 
-        if eng.abort { break }
+        if eng.abort {
+            break;
+        }
         best_move = eng.best_move;
         score = eval;
 
@@ -47,27 +60,49 @@ pub fn go(start: &Position, eng: &mut ThreadData, report: bool, max_depth: i32, 
         // UCI output
         if report {
             let score = if eval.abs() >= Score::MATE {
-                format!("score mate {}", if eval < 0 {eval.abs() - Score::MAX} else {Score::MAX - eval + 1} / 2)
-            } else {format!("score cp {eval}")};
+                format!(
+                    "score mate {}",
+                    if eval < 0 {
+                        eval.abs() - Score::MAX
+                    } else {
+                        Score::MAX - eval + 1
+                    } / 2
+                )
+            } else {
+                format!("score cp {eval}")
+            };
             let t = eng.timing.elapsed().as_millis();
             let nps = (1000.0 * nodes as f64 / t as f64) as u32;
             let pv_line = &eng.plied[0].pv_line;
-            let pv = pv_line.iter()
-                .fold(String::new(), |mut pv_str, mov| {
-                    write!(&mut pv_str, "{} ", mov.to_uci()).unwrap();
-                    pv_str
-                });
-            println!("info depth {d} seldepth {} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}", eng.seldepth);
+            let pv = pv_line.iter().fold(String::new(), |mut pv_str, mov| {
+                write!(&mut pv_str, "{} ", mov.to_uci()).unwrap();
+                pv_str
+            });
+            println!(
+                "info depth {d} seldepth {} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}",
+                eng.seldepth
+            );
         }
 
         let frac = eng.ntable.get(best_move) as f64 / nodes as f64;
-        if eng.timing.elapsed().as_millis() as f64 >= soft_bound * if d > 8 {(1.5 - frac) * 1.35} else {1.0} { break }
+        if eng.timing.elapsed().as_millis() as f64
+            >= soft_bound * if d > 8 { (1.5 - frac) * 1.35 } else { 1.0 }
+        {
+            break;
+        }
     }
     eng.tt.age();
     (best_move, score)
 }
 
-fn aspiration(pos: &Position, eng: &mut ThreadData, mut score: i32, max_depth: i32, best_move: &mut Move, prev: Move) -> i32 {
+fn aspiration(
+    pos: &Position,
+    eng: &mut ThreadData,
+    mut score: i32,
+    max_depth: i32,
+    best_move: &mut Move,
+    prev: Move,
+) -> i32 {
     let mut delta = 25;
     let mut alpha = (-Score::MAX).max(score - delta);
     let mut beta = Score::MAX.min(score + delta);
@@ -75,7 +110,9 @@ fn aspiration(pos: &Position, eng: &mut ThreadData, mut score: i32, max_depth: i
 
     loop {
         score = pvs(pos, eng, alpha, beta, depth, false, prev);
-        if eng.abort { return 0 }
+        if eng.abort {
+            return 0;
+        }
 
         if score <= alpha {
             beta = (alpha + beta) / 2;
@@ -86,7 +123,7 @@ fn aspiration(pos: &Position, eng: &mut ThreadData, mut score: i32, max_depth: i
             *best_move = eng.best_move;
             depth -= 1;
         } else {
-            return score
+            return score;
         }
 
         delta *= 2;
@@ -96,7 +133,9 @@ fn aspiration(pos: &Position, eng: &mut ThreadData, mut score: i32, max_depth: i
 fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     eng.seldepth = eng.seldepth.max(eng.ply);
     let mut eval = pos.eval();
-    if eval >= beta { return eval }
+    if eval >= beta {
+        return eval;
+    }
     alpha = alpha.max(eval);
 
     // probe hash table for cutoff
@@ -114,40 +153,67 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
 
     let mut caps = pos.movegen::<false>();
     let mut scores = [0; 252];
-    caps.iter().enumerate().for_each(|(i, &cap)| scores[i] = mvv_lva(cap, pos));
+    caps.iter()
+        .enumerate()
+        .for_each(|(i, &cap)| scores[i] = mvv_lva(cap, pos));
 
     eng.ply += 1;
     let mut bm = Move::NULL;
     while let Some((mov, _)) = caps.pick(&mut scores) {
         // static exchange eval pruning
-        if !pos.see(mov, 1) { continue }
+        if !pos.see(mov, 1) {
+            continue;
+        }
 
         let mut new = *pos;
-        if new.make(mov) { continue }
+        if new.make(mov) {
+            continue;
+        }
         eng.qnodes += 1;
 
         let score = -qs(&new, eng, -beta, -alpha);
 
-        if score <= eval { continue }
+        if score <= eval {
+            continue;
+        }
         eval = score;
         bm = mov;
 
-        if eval >= beta { break }
+        if eval >= beta {
+            break;
+        }
         alpha = alpha.max(eval);
     }
     eng.ply -= 1;
 
-    let bound = if eval >= beta { Bound::LOWER } else { Bound::UPPER };
+    let bound = if eval >= beta {
+        Bound::LOWER
+    } else {
+        Bound::UPPER
+    };
     eng.tt.push(hash, bm, 0, bound, eval, eng.ply);
     eval
 }
 
-fn pvs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, mut beta: i32, mut depth: i32, null: bool, prev: Move) -> i32 {
+fn pvs(
+    pos: &Position,
+    eng: &mut ThreadData,
+    mut alpha: i32,
+    mut beta: i32,
+    mut depth: i32,
+    null: bool,
+    prev: Move,
+) -> i32 {
     // stopping search
-    if eng.abort { return 0 }
-    if eng.nodes & 1023 == 0 && (eng.timing.elapsed().as_millis() >= eng.max_time || eng.nodes + eng.qnodes >= eng.max_nodes) {
+    if eng.abort {
+        return 0;
+    }
+    if eng.nodes & 1023 == 0
+        && (eng.timing.elapsed().as_millis() >= eng.max_time
+            || eng.nodes + eng.qnodes >= eng.max_nodes)
+    {
         eng.abort = true;
-        return 0
+        return 0;
     }
 
     let hash = pos.hash();
@@ -157,19 +223,25 @@ fn pvs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, mut beta: i32, mut 
 
     if eng.ply > 0 {
         // draw detection
-        if pos.draw() || eng.repetition(pos, hash, eng.ply == 0) { return Score::DRAW }
+        if pos.draw() || eng.repetition(pos, hash, eng.ply == 0) {
+            return Score::DRAW;
+        }
 
         // mate distance pruning
         alpha = alpha.max(eng.ply - Score::MAX);
         beta = beta.min(Score::MAX - eng.ply - 1);
-        if alpha >= beta { return alpha }
+        if alpha >= beta {
+            return alpha;
+        }
 
         // check extensions - not on root
         depth += i32::from(pos.check);
     }
 
     // drop into quiescence search
-    if depth <= 0 || eng.ply == 95 { return qs(pos, eng, alpha, beta) }
+    if depth <= 0 || eng.ply == 95 {
+        return qs(pos, eng, alpha, beta);
+    }
 
     // probing hash table
     let pv_node = beta > alpha + 1;
@@ -183,7 +255,8 @@ fn pvs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, mut beta: i32, mut 
         let bound = entry.bound();
         tt_move = entry.best_move(pos);
         tt_score = entry.score();
-        try_singular &= entry.depth() >= depth - 3 && bound != Bound::UPPER && tt_score.abs() < Score::MATE;
+        try_singular &=
+            entry.depth() >= depth - 3 && bound != Bound::UPPER && tt_score.abs() < Score::MATE;
 
         // tt cutoffs
         if !singular
@@ -199,7 +272,9 @@ fn pvs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, mut beta: i32, mut 
         }
 
         // use tt score instead of static eval
-        if !((eval > tt_score && bound == Bound::LOWER) || (eval < tt_score && bound == Bound::UPPER)) {
+        if !((eval > tt_score && bound == Bound::LOWER)
+            || (eval < tt_score && bound == Bound::UPPER))
+        {
             eval = tt_score;
         }
     }
@@ -212,12 +287,16 @@ fn pvs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, mut beta: i32, mut 
     let mut can_prune = !pv_node && !pos.check;
     if can_prune && beta.abs() < Score::MATE {
         // reverse futility pruning
-        if depth <= 8 && eval >= beta + 80 * depth / if improving {2} else {1} { return eval }
+        if depth <= 8 && eval >= beta + 80 * depth / if improving { 2 } else { 1 } {
+            return eval;
+        }
 
         // razoring
         if depth <= 2 && eval + 400 * depth < alpha {
             let qeval = qs(pos, eng, alpha, beta);
-            if qeval < alpha { return qeval }
+            if qeval < alpha {
+                return qeval;
+            }
         }
 
         // null move pruning
@@ -228,13 +307,19 @@ fn pvs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, mut beta: i32, mut 
             new.make_null();
             let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, Move::NULL);
             eng.pop();
-            if nw >= Score::MATE { return beta }
-            if nw >= beta { return nw }
+            if nw >= Score::MATE {
+                return beta;
+            }
+            if nw >= beta {
+                return nw;
+            }
         }
     }
 
     // internal iterative reduction
-    if depth >= 4 && tt_move == Move::NULL { depth -= 1 }
+    if depth >= 4 && tt_move == Move::NULL {
+        depth -= 1
+    }
 
     // generating and scoring moves
     let mut moves = pos.movegen::<true>();
@@ -242,24 +327,26 @@ fn pvs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, mut beta: i32, mut 
     let killers = eng.plied[eng.ply].killers;
     let counter_mov = if prev != Move::NULL {
         eng.htable.get_counter(pos.stm(), prev)
-    } else {Move::NULL};
-    moves.iter().enumerate().for_each(|(i, &mov)|
+    } else {
+        Move::NULL
+    };
+    moves.iter().enumerate().for_each(|(i, &mov)| {
         scores[i] = if mov == tt_move {
-                MoveScore::HASH
-            } else if mov.is_en_passant() {
-                MoveScore::CAPTURE + 16
-            } else if mov.is_capture() {
-                MoveScore::CAPTURE * i32::from(pos.see(mov, 0)) + mvv_lva(mov, pos)
-            } else if mov.is_promo() {
-                MoveScore::PROMO + i32::from(mov.flag() & 7)
-            } else if killers.contains(&mov) {
-                MoveScore::KILLER + 1
-            } else if mov == counter_mov {
-                MoveScore::KILLER
-            } else {
-                eng.htable.get_score(pos.stm(), mov)
-            }
-    );
+            MoveScore::HASH
+        } else if mov.is_en_passant() {
+            MoveScore::CAPTURE + 16
+        } else if mov.is_capture() {
+            MoveScore::CAPTURE * i32::from(pos.see(mov, 0)) + mvv_lva(mov, pos)
+        } else if mov.is_promo() {
+            MoveScore::PROMO + i32::from(mov.flag() & 7)
+        } else if killers.contains(&mov) {
+            MoveScore::KILLER + 1
+        } else if mov == counter_mov {
+            MoveScore::KILLER
+        } else {
+            eng.htable.get_score(pos.stm(), mov)
+        }
+    });
 
     // stuff for going through moves
     let (mut legal, mut bound) = (0, Bound::UPPER);
@@ -280,7 +367,7 @@ fn pvs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, mut beta: i32, mut 
         // pre-move pruning
         if can_prune && best_score.abs() < Score::MATE {
             // late move pruning
-            if ms < MoveScore::KILLER && legal > 2 + depth * depth / if improving {1} else {2} {
+            if ms < MoveScore::KILLER && legal > 2 + depth * depth / if improving { 1 } else { 2 } {
                 break;
             }
 
@@ -314,7 +401,13 @@ fn pvs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, mut beta: i32, mut 
             let s_score = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, prev);
             eng.plied[eng.ply].singular = Move::NULL;
             eng.push(hash);
-            if s_score < s_beta {1} else if tt_score >= beta {-1} else {0}
+            if s_score < s_beta {
+                1
+            } else if tt_score >= beta {
+                -1
+            } else {
+                0
+            }
         } else {
             0
         };
@@ -337,11 +430,15 @@ fn pvs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, mut beta: i32, mut 
             r -= i32::from(eng.plied[eng.ply].cutoffs < 4);
 
             // reduce more/less based on history score
-            if ms <= MoveScore::HISTORY_MAX { r -= ms / 8192 }
+            if ms <= MoveScore::HISTORY_MAX {
+                r -= ms / 8192
+            }
 
             // don't accidentally extend
             r.max(0)
-        } else { 0 };
+        } else {
+            0
+        };
 
         let pre_nodes = eng.nodes + eng.qnodes;
 
@@ -352,7 +449,9 @@ fn pvs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, mut beta: i32, mut 
             let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true, mov);
             if zw > alpha && (pv_node || reduce > 0) {
                 -pvs(&new, eng, -beta, -alpha, depth - 1, false, mov)
-            } else { zw }
+            } else {
+                zw
+            }
         };
 
         if eng.ply == 1 {
@@ -418,7 +517,8 @@ fn pvs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, mut beta: i32, mut 
         return i32::from(pos.check) * (eng.ply - Score::MAX);
     }
 
-    eng.tt.push(hash, best_move, depth as i8, bound, best_score, eng.ply);
+    eng.tt
+        .push(hash, best_move, depth as i8, bound, best_score, eng.ply);
 
     best_score
 }

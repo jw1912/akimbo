@@ -1,4 +1,4 @@
-use crate::{position::Position, util::Flag};
+use crate::{consts::Flag, position::Position};
 
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct Move {
@@ -77,16 +77,12 @@ impl Move {
     pub fn to_uci(self) -> String {
         let idx_to_sq = |i| format!("{}{}", ((i & 7) + b'a') as char, (i / 8) + 1);
         let promo = if self.flag & 0b1000 > 0 {
-            ["n","b","r","q"][(self.flag & 0b11) as usize]
+            ["n", "b", "r", "q"][(self.flag & 0b11) as usize]
         } else {
             ""
         };
 
-        format!(
-            "{}{}{}",
-            idx_to_sq(self.from),
-            idx_to_sq(self.to), promo
-        )
+        format!("{}{}{}", idx_to_sq(self.from), idx_to_sq(self.to), promo)
     }
 }
 
@@ -164,7 +160,7 @@ impl MoveList {
         Some((self.list[self.len], best))
     }
 
-    pub fn copy_in(&mut self, mov:Move, other: &Self) {
+    pub fn copy_in(&mut self, mov: Move, other: &Self) {
         self.len = 1 + other.len;
         self.list[0] = mov;
         self.list[1..=other.len].copy_from_slice(&other.list[..other.len]);

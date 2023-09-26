@@ -1,4 +1,4 @@
-use akimbo::{position::Position, util::Side};
+use akimbo::{consts::Side, position::Position};
 
 pub fn to_fen(pos: &Position, score: i32) -> String {
     const PIECES: [char; 12] = ['P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k'];
@@ -7,7 +7,7 @@ pub fn to_fen(pos: &Position, score: i32) -> String {
     for rank in (0..8).rev() {
         let mut clear = 0;
 
-        for file in 0..8{
+        for file in 0..8 {
             let sq = 8 * rank + file;
             let bit = 1 << sq;
             let pc = pos.get_pc(bit);
@@ -34,7 +34,7 @@ pub fn to_fen(pos: &Position, score: i32) -> String {
     fen.push(' ');
     fen.push(['w', 'b'][pos.stm()]);
     fen.push_str(" - - 0 1 | ");
-    fen.push_str(&if pos.stm() > 0 {-score} else {score}.to_string());
+    fen.push_str(&if pos.stm() > 0 { -score } else { score }.to_string());
 
     fen
 }
@@ -58,6 +58,9 @@ mod test {
     #[test]
     fn to_fen_test() {
         let pos = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        assert_eq!(to_fen(&pos, pos.eval()), "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1 6");
+        assert_eq!(
+            to_fen(&pos, pos.eval()),
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1 6"
+        );
     }
 }
