@@ -30,7 +30,7 @@ macro_rules! c_enum {
 
 #[macro_export]
 macro_rules! init {
-    ($i:ident, $size:expr, $($r:tt)+) => {{
+    (| $i:ident, $size:literal | $($r:tt)+) => {{
         let mut $i = 0;
         let mut res = [{$($r)+}; $size];
         while $i < $size - 1 {

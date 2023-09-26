@@ -62,31 +62,48 @@ struct Mask {
 }
 
 const PAWN: [[u64; 64]; 2] = [
-        init!(i, 64, (((1 << i) & !File::A) << 7) | (((1 << i) & !File::H) << 9)),
-        init!(i, 64, (((1 << i) & !File::A) >> 9) | (((1 << i) & !File::H) >> 7)),
+        init!(|sq, 64| {
+            let bit = 1 << sq;
+            ((bit & !File::A) << 7) | ((bit & !File::H) << 9)
+        }),
+        init!(|sq, 64| {
+            let bit = 1 << sq;
+            ((bit & !File::A) >> 9) | ((bit & !File::H) >> 7)
+        }),
     ];
 
-const KNIGHT: [u64; 64] = init!(i, 64, {
-    let n = 1 << i;
+const KNIGHT: [u64; 64] = init!(|sq, 64| {
+    let n = 1 << sq;
     let h1 = ((n >> 1) & 0x7f7f7f7f7f7f7f7f) | ((n << 1) & 0xfefefefefefefefe);
     let h2 = ((n >> 2) & 0x3f3f3f3f3f3f3f3f) | ((n << 2) & 0xfcfcfcfcfcfcfcfc);
     (h1 << 16) | (h1 >> 16) | (h2 << 8) | (h2 >> 8)
 });
 
-const KING: [u64; 64] = init!(i, 64, {
-    let mut k = 1 << i;
+const KING: [u64; 64] = init!(|sq, 64| {
+    let mut k = 1 << sq;
     k |= (k << 8) | (k >> 8);
     k |= ((k & !File::A) >> 1) | ((k & !File::H) << 1);
-    k ^ (1 << i)
+    k ^ (1 << sq)
 });
 
-// Movegen
-const EAST: [u64; 64] = init!(i, 64, (1 << i) ^ WEST[i] ^ (0xFF << (i & 56)));
-const WEST: [u64; 64] = init!(i, 64, ((1 << i) - 1) & (0xFF << (i & 56)));
+const EAST: [u64; 64] = init!(|sq, 64| (1 << sq) ^ WEST[sq] ^ (0xFF << (sq & 56)));
+
+const WEST: [u64; 64] = init!(|sq, 64| ((1 << sq) - 1) & (0xFF << (sq & 56)));
+
 const DIAG: u64 = 0x8040201008040201;
-const DIAGS: [u64; 15] = init!(i, 15, if i > 7 { DIAG >> (8 * (i - 7)) } else {DIAG << (8 * (7 - i)) });
-static MASKS: [Mask; 64] = init!(i, 64,
-    let (bit, rank, file) = (1 << i, i / 8, i & 7);
+
+const DIAGS: [u64; 15] = init!(|sq, 15|
+    if sq > 7 {
+        DIAG >> (8 * (sq - 7))
+    } else {
+        DIAG << (8 * (7 - sq))
+    }
+);
+
+static MASKS: [Mask; 64] = init!(|sq, 64|
+    let bit = 1 << sq;
+    let file = sq & 7;
+    let rank = sq / 8;
     Mask {
         bit,
         diag: bit ^ DIAGS[7 + file - rank],
@@ -94,10 +111,21 @@ static MASKS: [Mask; 64] = init!(i, 64,
         swap: bit.swap_bytes(),
     }
 );
-const RANK_SHIFT: [usize; 64] = init! {sq, 64, sq - (sq & 7) + 1};
-const RANK: [[u64; 64]; 64] = init!(sq, 64, init!(i, 64, {
-    let (f, occ) = (sq & 7, (i << 1) as u64);
-    (EAST[f] ^ EAST[( (EAST[f] & occ) | (1<<63)).trailing_zeros() as usize]
-    | WEST[f] ^ WEST[(((WEST[f] & occ) | 1).leading_zeros() ^ 63) as usize]) << (sq - f)
-}));
-const FILE: [[u64; 64]; 64] = init! {sq, 64, init! {occ, 64, (RANK[7 - sq / 8][occ].wrapping_mul(DIAG) & File::H) >> (7 - (sq & 7))}};
+
+const RANK_SHIFT: [usize; 64] = init!(|sq, 64| sq - (sq & 7) + 1);
+
+const RANK: [[u64; 64]; 64] = init!(|sq, 64|
+    init!(|i, 64| {
+        let f = sq & 7;
+        let occ = (i << 1) as u64;
+        let east = EAST[f] ^ EAST[((EAST[f] & occ) | (1<<63)).trailing_zeros() as usize];
+        let west = WEST[f] ^ WEST[(((WEST[f] & occ) | 1).leading_zeros() ^ 63) as usize];
+        (east | west) << (sq - f)
+    })
+);
+
+const FILE: [[u64; 64]; 64] = init!(|sq, 64|
+    init!(|occ, 64|
+        (RANK[7 - sq / 8][occ].wrapping_mul(DIAG) & File::H) >> (7 - (sq & 7))
+    )
+);
