@@ -53,6 +53,7 @@ fn main() {
                 println!("option name Threads type spin default 1 min 1 max 1");
                 println!("option name Hash type spin default 16 min 1 max 1024");
                 println!("option name Clear Hash type button");
+                println!("option name UCI_Chess960 type check default false");
                 println!("uciok");
             }
             "isready" => println!("readyok"),
