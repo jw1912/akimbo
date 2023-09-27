@@ -1,10 +1,8 @@
 use crate::{
     attacks::Attacks,
     bitloop,
-    consts::{
-        Flag, Piece, Rank, Rights, Side, CASTLE_MASK, PHASE_VALS, ROOK_MOVES, SEE_VALS, SPANS,
-        ZVALS,
-    },
+    consts::{Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, SPANS, ZVALS},
+    frc::Castling,
     moves::{Move, MoveList},
     network::{Accumulator, Network},
 };
@@ -25,6 +23,10 @@ pub struct Position {
 impl Position {
     pub fn side(&self, side: usize) -> u64 {
         self.bb[side]
+    }
+
+    pub fn piece(&self, pc: usize) -> u64 {
+        self.bb[pc]
     }
 
     pub fn halfm(&self) -> usize {
@@ -94,7 +96,7 @@ impl Position {
         };
 
         // update state
-        self.rights &= CASTLE_MASK[to] & CASTLE_MASK[from];
+        self.rights &= Castling::mask(to) & Castling::mask(from);
         self.halfm += 1;
         self.enp_sq = 0;
         self.c = !self.c;
@@ -116,7 +118,10 @@ impl Position {
         match mov.flag() {
             Flag::DBL => self.enp_sq = mov.to() as u8 ^ 8,
             Flag::KS | Flag::QS => {
-                let (rfr, rto) = ROOK_MOVES[usize::from(mov.flag() == Flag::KS)][side];
+                let ks = usize::from(mov.flag() == Flag::KS);
+                let sf = 56 * side;
+                let rfr = sf + Castling::rook_file(side, ks) as usize;
+                let rto = sf + [3, 5][ks];
                 self.toggle::<false>(side, Piece::ROOK, rfr);
                 self.toggle::<true>(side, Piece::ROOK, rto);
             }
@@ -257,19 +262,21 @@ impl Position {
         // special quiet moves
         if QUIETS {
             if self.rights & [Rights::WHITE, Rights::BLACK][side] > 0 && !self.in_check() {
+                let kbb = self.bb[Piece::KING] & self.bb[side];
+                let ksq = kbb.trailing_zeros() as u8;
                 if self.c {
-                    if self.can_castle::<{ Side::BLACK }, 0>(occ, 59) {
-                        moves.push(60, 58, Flag::QS, Piece::KING);
+                    if self.can_castle(Rights::BQS, 0, occ, kbb, 1 << 58, 1 << 59) {
+                        moves.push(ksq, 58, Flag::QS, Piece::KING);
                     }
-                    if self.can_castle::<{ Side::BLACK }, 1>(occ, 61) {
-                        moves.push(60, 62, Flag::KS, Piece::KING);
+                    if self.can_castle(Rights::BKS, 1, occ, kbb, 1 << 62, 1 << 61) {
+                        moves.push(ksq, 62, Flag::KS, Piece::KING);
                     }
                 } else {
-                    if self.can_castle::<{ Side::WHITE }, 0>(occ, 3) {
-                        moves.push(4, 2, Flag::QS, Piece::KING);
+                    if self.can_castle(Rights::WQS, 0, occ, kbb, 1 << 2, 1 << 3) {
+                        moves.push(ksq, 2, Flag::QS, Piece::KING);
                     }
-                    if self.can_castle::<{ Side::WHITE }, 1>(occ, 5) {
-                        moves.push(4, 6, Flag::KS, Piece::KING);
+                    if self.can_castle(Rights::WKS, 1, occ, kbb, 1 << 6, 1 << 5) {
+                        moves.push(ksq, 6, Flag::KS, Piece::KING);
                     }
                 }
             }
@@ -344,10 +351,21 @@ impl Position {
         moves
     }
 
-    fn can_castle<const SIDE: usize, const KS: usize>(&self, occ: u64, sq: usize) -> bool {
-        self.rights & [[Rights::WQS, Rights::WKS], [Rights::BQS, Rights::BKS]][SIDE][KS] > 0
-            && occ & [[0xE, 0x60], [0xE00000000000000, 0x6000000000000000]][SIDE][KS] == 0
-            && !self.sq_attacked(sq, SIDE, occ)
+    fn path(&self, side: usize, mut path: u64, occ: u64) -> bool {
+        bitloop!(|path, idx| if self.sq_attacked(idx as usize, side, occ) {
+            return false;
+        });
+
+        true
+    }
+
+    fn can_castle(&self, right: u8, ks: usize, occ: u64, kbb: u64, kto: u64, rto: u64) -> bool {
+        let side = usize::from(self.c);
+        let bit = 1 << (56 * side + usize::from(Castling::rook_file(side, ks)));
+        self.rights & right > 0
+            && (occ ^ bit) & (btwn(kbb, kto) ^ kto) == 0
+            && (occ ^ kbb) & (btwn(bit, rto) ^ rto) == 0
+            && self.path(side, btwn(kbb, kto), occ)
     }
 
     pub fn from_fen(fen: &str) -> Self {
@@ -375,22 +393,17 @@ impl Position {
 
         // state
         pos.c = vec[1] == "b";
+
         pos.enp_sq = if vec[3] == "-" {
             0
         } else {
             let chs: Vec<char> = vec[3].chars().collect();
             8 * chs[1].to_string().parse::<u8>().unwrap() + chs[0] as u8 - 105
         };
+
         pos.halfm = vec.get(4).unwrap_or(&"0").parse::<u8>().unwrap();
-        pos.rights = vec[2].chars().fold(0, |cr, ch| {
-            cr | match ch {
-                'Q' => Rights::WQS,
-                'K' => Rights::WKS,
-                'q' => Rights::BQS,
-                'k' => Rights::BKS,
-                _ => 0,
-            }
-        });
+
+        pos.rights = Castling::parse(&pos, vec[2]);
 
         pos
     }
@@ -410,4 +423,9 @@ fn idx_shift<const AMOUNT: u8>(side: usize, idx: u8) -> u8 {
     } else {
         idx - AMOUNT
     }
+}
+
+fn btwn(bit1: u64, bit2: u64) -> u64 {
+    let min = bit1.min(bit2);
+    (bit1.max(bit2) - min) ^ min
 }

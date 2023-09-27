@@ -1,5 +1,6 @@
 pub mod attacks;
 pub mod consts;
+pub mod frc;
 pub mod moves;
 pub mod network;
 pub mod position;

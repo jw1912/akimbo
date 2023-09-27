@@ -53,6 +53,7 @@ fn main() {
                 println!("option name Threads type spin default 1 min 1 max 1");
                 println!("option name Hash type spin default 16 min 1 max 1024");
                 println!("option name Clear Hash type button");
+                println!("option name UCI_Chess960 type check default false");
                 println!("uciok");
             }
             "isready" => println!("readyok"),
@@ -143,7 +144,7 @@ fn main() {
             }
             "perft" => {
                 let (depth, now) = (commands[1].parse().unwrap(), Instant::now());
-                let count = perft(&pos, depth);
+                let count = perft::<true>(&pos, depth);
                 let time = now.elapsed().as_micros();
                 println!(
                     "perft {depth} time {} nodes {count} ({:.2} Mnps)",
@@ -158,7 +159,7 @@ fn main() {
     }
 }
 
-fn perft(pos: &Position, depth: u8) -> u64 {
+fn perft<const ROOT: bool>(pos: &Position, depth: u8) -> u64 {
     let moves = pos.movegen::<true>();
     let mut positions = 0;
     for &m in moves.iter() {
@@ -166,7 +167,18 @@ fn perft(pos: &Position, depth: u8) -> u64 {
         if tmp.make(m) {
             continue;
         }
-        positions += if depth > 1 { perft(&tmp, depth - 1) } else { 1 };
+
+        let count = if depth > 1 {
+            perft::<false>(&tmp, depth - 1)
+        } else {
+            1
+        };
+
+        if ROOT {
+            println!("{}: {count}", m.to_uci());
+        }
+
+        positions += count;
     }
     positions
 }
