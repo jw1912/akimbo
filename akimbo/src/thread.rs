@@ -3,10 +3,10 @@ use std::time::Instant;
 use crate::{
     moves::Move,
     position::Position,
-    tables::{HashTable, HistoryTable, NodeTable, PlyTable},
+    tables::{HashView, HistoryTable, NodeTable, PlyTable, HashTable},
 };
 
-pub struct ThreadData {
+pub struct ThreadData<'a> {
     // search control
     pub timing: Instant,
     pub max_time: u128,
@@ -15,7 +15,7 @@ pub struct ThreadData {
     pub mloop: bool,
 
     // tables
-    pub tt: HashTable,
+    pub tt: HashView<'a>,
     pub htable: HistoryTable,
     pub plied: PlyTable,
     pub ntable: NodeTable,
@@ -29,19 +29,19 @@ pub struct ThreadData {
     pub seldepth: i32,
 }
 
-impl Default for ThreadData {
-    fn default() -> Self {
+impl<'a> ThreadData<'a> {
+    pub fn new(tt: &'a HashTable, stack: Vec<u64>, htable: HistoryTable) -> Self {
         Self {
             timing: Instant::now(),
             max_time: 0,
             abort: false,
             max_nodes: u64::MAX,
             mloop: true,
-            tt: HashTable::default(),
-            htable: HistoryTable::default(),
+            tt: HashView::new(tt),
+            htable,
             plied: PlyTable::default(),
             ntable: NodeTable::default(),
-            stack: Vec::with_capacity(96),
+            stack,
             nodes: 0,
             qnodes: 0,
             ply: 0,
@@ -49,9 +49,7 @@ impl Default for ThreadData {
             seldepth: 0,
         }
     }
-}
 
-impl ThreadData {
     pub fn repetition(&self, pos: &Position, curr_hash: u64, root: bool) -> bool {
         if self.stack.len() < 6 {
             return false;

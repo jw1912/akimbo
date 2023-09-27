@@ -1,4 +1,4 @@
-use akimbo::{moves::Move, position::Position, search::go, thread::ThreadData};
+use akimbo::{moves::Move, position::Position, search::go, thread::ThreadData, tables::{HashTable, HistoryTable}};
 
 use crate::{
     util::{is_terminal, to_fen},
@@ -19,7 +19,7 @@ pub struct GameResult {
 }
 
 pub struct DatagenThread {
-    engine: ThreadData,
+    hash_size: usize,
     id: u64,
     rng: u64,
     file: BufWriter<File>,
@@ -46,13 +46,8 @@ impl DatagenThread {
             .as_micros() as u64
             & 0xFFFF_FFFF;
 
-        let mut res = Self {
-            engine: ThreadData {
-                mloop: false,
-                max_nodes: 1_000_000,
-                max_time: 10000,
-                ..Default::default()
-            },
+        let res = Self {
+            hash_size,
             id: seed,
             rng: seed,
             file: BufWriter::new(File::create(format!("resources/akimbo-{seed}.epd")).unwrap()),
@@ -61,8 +56,6 @@ impl DatagenThread {
             start_time: Instant::now(),
             nodes_per_move,
         };
-
-        res.engine.tt.resize(hash_size);
 
         println!("thread id {} created", res.id);
         res
@@ -87,18 +80,16 @@ impl DatagenThread {
         self.rng
     }
 
-    pub fn reset(&mut self) {
-        self.engine.tt.clear();
-        self.engine.htable.clear();
-    }
-
     pub fn run_datagen(&mut self, max_games: u64) {
+        let mut tt = HashTable::default();
+        tt.resize(self.hash_size);
+
         while self.games < max_games {
             if STOP.load(Ordering::SeqCst) {
                 break;
             }
 
-            let result = if let Some(res) = self.run_game() {
+            let result = if let Some(res) = self.run_game(&tt) {
                 res
             } else {
                 continue;
@@ -114,8 +105,13 @@ impl DatagenThread {
         self.show_status();
     }
 
-    pub fn run_game(&mut self) -> Option<GameResult> {
-        self.reset();
+    pub fn run_game(&mut self, tt: &HashTable) -> Option<GameResult> {
+        let mut engine = ThreadData {
+            mloop: false,
+            max_nodes: 1_000_000,
+            max_time: 10000,
+            ..ThreadData::new(tt, Vec::new(), HistoryTable::default())
+        };
 
         let mut position;
 
@@ -136,7 +132,7 @@ impl DatagenThread {
                 return None;
             }
 
-            self.engine.stack.push(position.hash());
+            engine.stack.push(position.hash());
             position.make(legals[self.rng() as usize % legals.len()]);
         }
 
@@ -146,7 +142,7 @@ impl DatagenThread {
         loop {
             let (bm, score) = go(
                 &position,
-                &mut self.engine,
+                &mut engine,
                 false,
                 32,
                 1000.0,
@@ -170,7 +166,7 @@ impl DatagenThread {
             }
 
             // not enough nodes to finish a depth!
-            self.engine.stack.push(position.hash());
+            engine.stack.push(position.hash());
             if bm == Move::NULL || position.make(bm) {
                 return None;
             }
@@ -186,7 +182,7 @@ impl DatagenThread {
             }
 
             // check for game end via other draw rules
-            if position.draw() || self.engine.repetition(&position, position.hash(), true) {
+            if position.draw() || engine.repetition(&position, position.hash(), true) {
                 result.result = 0.5;
                 break;
             }

@@ -91,7 +91,7 @@ pub fn go(
             break;
         }
     }
-    eng.tt.age();
+    eng.tt.age_up();
     (best_move, score)
 }
 
@@ -191,7 +191,9 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     } else {
         Bound::UPPER
     };
+
     eng.tt.push(hash, bm, 0, bound, eval, eng.ply);
+
     eval
 }
 
