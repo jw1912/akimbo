@@ -1,4 +1,17 @@
-use std::time::Instant;
+use std::{time::Instant, sync::atomic::{AtomicBool, Ordering::Relaxed}};
+
+static STOP: AtomicBool = AtomicBool::new(false);
+
+pub struct Stop;
+impl Stop {
+    pub fn is_set() -> bool {
+        STOP.load(Relaxed)
+    }
+
+    pub fn store(val: bool) {
+        STOP.store(val, Relaxed);
+    }
+}
 
 use crate::{
     moves::Move,
@@ -11,7 +24,6 @@ pub struct ThreadData<'a> {
     pub timing: Instant,
     pub max_time: u128,
     pub max_nodes: u64,
-    pub abort: bool,
     pub mloop: bool,
 
     // tables
@@ -34,7 +46,6 @@ impl<'a> ThreadData<'a> {
         Self {
             timing: Instant::now(),
             max_time: 0,
-            abort: false,
             max_nodes: u64::MAX,
             mloop: true,
             tt: HashView::new(tt),
