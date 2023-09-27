@@ -76,18 +76,6 @@ c_enum!(
     H = Self::A << 7
 );
 
-pub const CASTLE_MASK: [u8; 64] = init!(|sq, 64| match sq {
-    0 => 7,
-    4 => 3,
-    7 => 11,
-    56 => 13,
-    60 => 12,
-    63 => 14,
-    _ => 15,
-});
-
-pub const ROOK_MOVES: [[(usize, usize); 2]; 2] = [[(0, 3), (56, 59)], [(7, 5), (63, 61)]];
-
 const fn rand(mut seed: u64) -> u64 {
     seed ^= seed << 13;
     seed ^= seed >> 7;
