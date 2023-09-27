@@ -8,7 +8,7 @@
 
 </div>
 
-A compact UCI Chess engine written in Rust.
+A strong UCI Chess and Chess960 engine written in Rust.
 
 Ending with version 0.6.0, akimbo had a hard upper limit of 1000 lines of code, excluding blank lines and comments.
 Stats are included below (SLOC), but this restraint is now abandoned in favour of making a more feature-complete engine.
