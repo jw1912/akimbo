@@ -25,7 +25,7 @@ impl Castling {
     }
 
     pub fn parse(pos: &Position, rights_str: &str) -> u8 {
-        let mut king = 4;
+        let mut kings = [4, 4];
 
         CHESS960.store(false, Relaxed);
         ROOK_FILES[0][0].store(0, Relaxed);
@@ -40,31 +40,31 @@ impl Castling {
                 b'K' => Rights::WKS,
                 b'q' => Rights::BQS,
                 b'k' => Rights::BKS,
-                b'A'..=b'H' => parse_castle(pos, Side::WHITE, &mut king, ch),
-                b'a'..=b'h' => parse_castle(pos, Side::BLACK, &mut king, ch),
+                b'A'..=b'H' => parse_castle(pos, Side::WHITE, &mut kings, ch),
+                b'a'..=b'h' => parse_castle(pos, Side::BLACK, &mut kings, ch),
                 _ => 0
             });
 
         for sq in &CASTLE_MASK {
-            sq.store(15, Relaxed)
+            sq.store(15, Relaxed);
         }
 
         CASTLE_MASK[usize::from(Self::rook_file(0, 0))].store(7, Relaxed);
         CASTLE_MASK[usize::from(Self::rook_file(0, 1))].store(11, Relaxed);
         CASTLE_MASK[usize::from(Self::rook_file(1, 0)) + 56].store(13, Relaxed);
         CASTLE_MASK[usize::from(Self::rook_file(1, 1)) + 56].store(14, Relaxed);
-        CASTLE_MASK[king].store( 3, Relaxed);
-        CASTLE_MASK[king + 56].store(12, Relaxed);
+        CASTLE_MASK[kings[0]].store( 3, Relaxed);
+        CASTLE_MASK[kings[1] + 56].store(12, Relaxed);
 
         rights
     }
 }
 
-fn parse_castle(pos: &Position, side: usize, king: &mut usize, ch: char) -> u8 {
+fn parse_castle(pos: &Position, side: usize, kings: &mut [usize; 2], ch: char) -> u8 {
     CHESS960.store(true, Relaxed);
 
     let wkc = (pos.side(side) & pos.piece(Piece::KING)).trailing_zeros() as u8 & 7;
-    *king = wkc as usize;
+    kings[side] = wkc as usize;
     let rook = ch as u8 - [b'A', b'a'][side];
     let i = usize::from(rook > wkc);
 
