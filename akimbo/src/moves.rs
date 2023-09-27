@@ -1,4 +1,4 @@
-use crate::{consts::Flag, position::Position, frc::Castling};
+use crate::{consts::Flag, frc::Castling, position::Position};
 
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct Move {
@@ -84,10 +84,7 @@ impl Move {
 
         let to = if Castling::is_chess960() && [Flag::QS, Flag::KS].contains(&self.flag) {
             let sf = 56 * (self.to / 56);
-            sf + Castling::rook_file(
-                usize::from(sf > 0),
-                usize::from(self.flag == Flag::KS),
-            )
+            sf + Castling::rook_file(usize::from(sf > 0), usize::from(self.flag == Flag::KS))
         } else {
             self.to
         };

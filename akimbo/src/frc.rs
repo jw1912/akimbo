@@ -1,6 +1,9 @@
-use crate::{consts::{Piece, Rights, Side}, position::Position};
+use crate::{
+    consts::{Piece, Rights, Side},
+    position::Position,
+};
 
-use std::sync::atomic::{AtomicU8, AtomicBool, Ordering::Relaxed};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering::Relaxed};
 
 #[allow(clippy::declare_interior_mutable_const)]
 const ATOMIC_INIT: AtomicU8 = AtomicU8::new(0);
@@ -33,17 +36,17 @@ impl Castling {
         ROOK_FILES[1][0].store(0, Relaxed);
         ROOK_FILES[1][1].store(7, Relaxed);
 
-        let rights = rights_str
-            .chars()
-            .fold(0, |cr, ch| cr | match ch as u8 {
+        let rights = rights_str.chars().fold(0, |cr, ch| {
+            cr | match ch as u8 {
                 b'Q' => Rights::WQS,
                 b'K' => Rights::WKS,
                 b'q' => Rights::BQS,
                 b'k' => Rights::BKS,
                 b'A'..=b'H' => parse_castle(pos, Side::WHITE, &mut kings, ch),
                 b'a'..=b'h' => parse_castle(pos, Side::BLACK, &mut kings, ch),
-                _ => 0
-            });
+                _ => 0,
+            }
+        });
 
         for sq in &CASTLE_MASK {
             sq.store(15, Relaxed);
@@ -53,7 +56,7 @@ impl Castling {
         CASTLE_MASK[usize::from(Self::rook_file(0, 1))].store(11, Relaxed);
         CASTLE_MASK[usize::from(Self::rook_file(1, 0)) + 56].store(13, Relaxed);
         CASTLE_MASK[usize::from(Self::rook_file(1, 1)) + 56].store(14, Relaxed);
-        CASTLE_MASK[kings[0]].store( 3, Relaxed);
+        CASTLE_MASK[kings[0]].store(3, Relaxed);
         CASTLE_MASK[kings[1] + 56].store(12, Relaxed);
 
         rights

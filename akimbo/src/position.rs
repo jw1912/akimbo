@@ -1,12 +1,10 @@
 use crate::{
     attacks::Attacks,
     bitloop,
-    consts::{
-        Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, SPANS,
-        ZVALS,
-    },
+    consts::{Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, SPANS, ZVALS},
+    frc::Castling,
     moves::{Move, MoveList},
-    network::{Accumulator, Network}, frc::Castling,
+    network::{Accumulator, Network},
 };
 
 #[derive(Clone, Copy, Default)]
@@ -354,24 +352,14 @@ impl Position {
     }
 
     fn path(&self, side: usize, mut path: u64, occ: u64) -> bool {
-        bitloop!(|path, idx|
-            if self.sq_attacked(idx as usize, side, occ) {
-                return false
-            }
-        );
+        bitloop!(|path, idx| if self.sq_attacked(idx as usize, side, occ) {
+            return false;
+        });
 
         true
     }
 
-    fn can_castle(
-        &self,
-        right: u8,
-        ks: usize,
-        occ: u64,
-        kbb: u64,
-        kto: u64,
-        rto: u64
-    ) -> bool {
+    fn can_castle(&self, right: u8, ks: usize, occ: u64, kbb: u64, kto: u64, rto: u64) -> bool {
         let side = usize::from(self.c);
         let bit = 1 << (56 * side + usize::from(Castling::rook_file(side, ks)));
         self.rights & right > 0
