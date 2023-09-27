@@ -43,8 +43,8 @@ fn main() {
 
     // main uci loop
     loop {
-        let input = if let Some(ref msg) = stored_message {
-            msg.to_string()
+        let input = if let Some(msg) = stored_message {
+            msg.clone()
         } else {
             let mut input = String::new();
             let bytes_read = io::stdin().read_line(&mut input).unwrap();
@@ -56,6 +56,8 @@ fn main() {
 
             input
         };
+
+        stored_message = None;
 
         let commands = input.split_whitespace().collect::<Vec<_>>();
 
@@ -140,7 +142,7 @@ fn main() {
                         println!("bestmove {}", bm.to_uci());
                     });
 
-                    handle_search_input(&mut stored_message);
+                    stored_message = handle_search_input();
                 });
 
                 htable = eng.htable.clone();
@@ -191,7 +193,7 @@ fn main() {
     }
 }
 
-fn handle_search_input(stored_message: &mut Option<String>) {
+fn handle_search_input() -> Option<String> {
     loop {
         let mut input = String::new();
         let bytes_read = io::stdin().read_line(&mut input).unwrap();
@@ -206,14 +208,9 @@ fn handle_search_input(stored_message: &mut Option<String>) {
             "quit" => process::exit(0),
             "stop" => {
                 Stop::store(true);
-                return;
+                return None;
             }
-            _ => {
-                if Stop::is_set() {
-                    *stored_message = Some(input);
-                    return;
-                }
-            }
+            _ => return Some(input),
         };
     }
 }
