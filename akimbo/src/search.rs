@@ -51,9 +51,10 @@ pub fn go(
         best_move = eng.best_move;
         score = eval;
 
+        let nodes = eng.nodes + eng.qnodes;
+
         // UCI output
         if main_thread {
-            let nodes = eng.nodes + eng.qnodes;
             let score = if eval.abs() >= Score::MATE {
                 format!(
                     "score mate {}",
@@ -84,10 +85,10 @@ pub fn go(
             {
                 break;
             }
+        }
 
-            if nodes > soft_nodes {
-                break;
-            }
+        if nodes > soft_nodes {
+            break;
         }
     }
 
