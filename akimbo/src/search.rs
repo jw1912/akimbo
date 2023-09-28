@@ -15,7 +15,7 @@ fn mvv_lva(mov: Move, pos: &Position) -> i32 {
 pub fn go(
     start: &Position,
     eng: &mut ThreadData,
-    report: bool,
+    main_thread: bool,
     max_depth: i32,
     soft_bound: f64,
     soft_nodes: u64,
@@ -38,10 +38,6 @@ pub fn go(
 
     // iterative deepening loop
     for d in 1..=max_depth {
-        if eng.nodes + eng.qnodes > soft_nodes {
-            break;
-        }
-
         eval = if d < 7 {
             pvs(&pos, eng, -Score::MAX, Score::MAX, d, false, Move::NULL)
         } else {
@@ -58,7 +54,7 @@ pub fn go(
         let nodes = eng.nodes + eng.qnodes;
 
         // UCI output
-        if report {
+        if main_thread {
             let score = if eval.abs() >= Score::MATE {
                 format!(
                     "score mate {}",
@@ -82,16 +78,20 @@ pub fn go(
                 "info depth {d} seldepth {} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}",
                 eng.seldepth
             );
+
+            let frac = eng.ntable.get(best_move) as f64 / nodes as f64;
+            if eng.timing.elapsed().as_millis() as f64
+                >= soft_bound * if d > 8 { (1.5 - frac) * 1.35 } else { 1.0 }
+            {
+                break;
+            }
         }
 
-        let frac = eng.ntable.get(best_move) as f64 / nodes as f64;
-        if eng.timing.elapsed().as_millis() as f64
-            >= soft_bound * if d > 8 { (1.5 - frac) * 1.35 } else { 1.0 }
-        {
+        if nodes > soft_nodes {
             break;
         }
     }
-    eng.tt.age_up();
+
     (best_move, score)
 }
 
