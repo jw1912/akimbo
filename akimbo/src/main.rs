@@ -31,6 +31,7 @@ fn main() {
             go(&pos, &mut eng, false, 11, 1_000_000.0, u64::MAX);
             total_time += timer.elapsed().as_millis();
             total_nodes += eng.nodes + eng.qnodes;
+            tt.age_up();
         }
         println!("Summed Eval: {eval}");
         println!(
@@ -157,8 +158,7 @@ fn main() {
                 });
 
                 htable = eng.htable.clone();
-
-
+                tt.age_up();
             }
             "position" => {
                 let (mut fen, mut move_list, mut moves) = (String::new(), Vec::new(), false);
