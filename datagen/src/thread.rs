@@ -89,7 +89,10 @@ impl DatagenThread {
                 break;
             }
 
-            let result = if let Some(res) = self.run_game(&tt) {
+            let optional = self.run_game(&tt);
+            tt.clear();
+
+            let result = if let Some(res) = optional {
                 res
             } else {
                 continue;
