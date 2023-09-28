@@ -5,7 +5,7 @@ use super::{
     moves::{Move, MoveList},
     position::Position,
     tables::NodeTable,
-    thread::ThreadData,
+    thread::{Stop, ThreadData},
 };
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
@@ -29,7 +29,6 @@ pub fn go(
     eng.qnodes = 0;
     eng.ply = 0;
     eng.best_move = Move::NULL;
-    eng.abort = false;
     eng.seldepth = 0;
 
     let mut best_move = Move::NULL;
@@ -49,9 +48,10 @@ pub fn go(
             aspiration(&pos, eng, eval, d, &mut best_move, Move::NULL)
         };
 
-        if eng.abort {
+        if Stop::is_set() {
             break;
         }
+
         best_move = eng.best_move;
         score = eval;
 
@@ -91,7 +91,7 @@ pub fn go(
             break;
         }
     }
-    eng.tt.age();
+    eng.tt.age_up();
     (best_move, score)
 }
 
@@ -110,7 +110,7 @@ fn aspiration(
 
     loop {
         score = pvs(pos, eng, alpha, beta, depth, false, prev);
-        if eng.abort {
+        if Stop::is_set() {
             return 0;
         }
 
@@ -191,7 +191,9 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     } else {
         Bound::UPPER
     };
+
     eng.tt.push(hash, bm, 0, bound, eval, eng.ply);
+
     eval
 }
 
@@ -205,14 +207,15 @@ fn pvs(
     prev: Move,
 ) -> i32 {
     // stopping search
-    if eng.abort {
+    if Stop::is_set() {
         return 0;
     }
+
     if eng.nodes & 1023 == 0
         && (eng.timing.elapsed().as_millis() >= eng.max_time
             || eng.nodes + eng.qnodes >= eng.max_nodes)
     {
-        eng.abort = true;
+        Stop::store(true);
         return 0;
     }
 
@@ -485,7 +488,7 @@ fn pvs(
         eng.plied[eng.ply - 1].cutoffs += 1;
 
         // quiet cutoffs pushed to tables
-        if mov.is_noisy() || eng.abort {
+        if mov.is_noisy() || Stop::is_set() {
             break;
         }
 
@@ -505,7 +508,7 @@ fn pvs(
     eng.pop();
 
     // end of node shenanigans
-    if eng.abort {
+    if Stop::is_set() {
         return 0;
     }
 

@@ -1,4 +1,4 @@
-use akimbo::{consts::SIDE, position::Position, search::go, thread::ThreadData};
+use akimbo::{consts::SIDE, position::Position, search::go, thread::{Stop, ThreadData}, tables::{HashTable, HistoryTable}};
 
 use std::{io, process, time::Instant};
 
@@ -10,12 +10,16 @@ fn main() {
 
     // initialise engine
     let mut pos = Position::from_fen(STARTPOS);
-    let mut eng = ThreadData::default();
-    eng.tt.resize(16);
+    let mut stack = Vec::new();
+    let mut tt = HashTable::default();
+    let mut htable = HistoryTable::default();
+    tt.resize(16);
 
     // bench for OpenBench
     if std::env::args().nth(1).as_deref() == Some("bench") {
-        let (mut total_nodes, mut total_time) = (0, 0);
+        let mut eng = ThreadData::new(&tt, stack, htable);
+        let mut total_nodes = 0;
+        let mut total_time = 0;
         let mut eval = 0i32;
         eng.max_time = 30000;
         let bench_fens = FEN_STRING.split('\n').collect::<Vec<&str>>();
@@ -35,15 +39,28 @@ fn main() {
         return;
     }
 
+    let mut stored_message: Option<String> = None;
+
     // main uci loop
     loop {
-        let mut input = String::new();
-        let bytes_read = io::stdin().read_line(&mut input).unwrap();
-        // got EOF, exit (for OpenBench).
-        if bytes_read == 0 {
-            break;
-        }
+        let input = if let Some(msg) = stored_message {
+            msg.clone()
+        } else {
+            let mut input = String::new();
+            let bytes_read = io::stdin().read_line(&mut input).unwrap();
+
+            // got EOF, exit (for OpenBench).
+            if bytes_read == 0 {
+                break;
+            }
+
+            input
+        };
+
+        stored_message = None;
+
         let commands = input.split_whitespace().collect::<Vec<_>>();
+
         match *commands.first().unwrap_or(&"oops") {
             "uci" => {
                 println!(
@@ -59,17 +76,21 @@ fn main() {
             "isready" => println!("readyok"),
             "ucinewgame" => {
                 pos = Position::from_fen(STARTPOS);
-                eng.tt.clear();
-                eng.htable.clear();
+                tt.clear();
             }
             "setoption" => match commands[..] {
-                ["setoption", "name", "Hash", "value", x] => eng.tt.resize(x.parse().unwrap()),
-                ["setoption", "name", "Clear", "Hash"] => eng.tt.clear(),
+                ["setoption", "name", "Hash", "value", x] => tt.resize(x.parse().unwrap()),
+                ["setoption", "name", "Clear", "Hash"] => tt.clear(),
                 _ => {}
             },
             "go" => {
-                let (mut token, mut times, mut mtg, mut alloc, mut incs, mut depth) =
-                    (0, [0, 0], 25, 1_000_000, [0, 0], 64);
+                let mut token = 0;
+                let mut times = [0, 0];
+                let mut mtg = 25;
+                let mut alloc = 1_000_000;
+                let mut incs = [0, 0];
+                let mut depth = 64;
+
                 let tokens = [
                     "go",
                     "movetime",
@@ -80,6 +101,7 @@ fn main() {
                     "binc",
                     "depth",
                 ];
+
                 for cmd in commands {
                     if let Some(x) = tokens.iter().position(|&y| y == cmd) {
                         token = x
@@ -97,23 +119,35 @@ fn main() {
                         }
                     }
                 }
+
                 let side = pos.stm();
-                let (mut time, inc) = (times[side], incs[side]);
+                let mut time = times[side];
+                let inc = incs[side];
                 if time != 0 {
                     alloc = time.min(time / mtg + 3 * inc / 4)
                 } else {
                     time = alloc
                 }
+
+                Stop::store(false);
+
+                let mut eng = ThreadData::new(&tt, stack.clone(), htable.clone());
                 eng.max_time = (alloc * 2).clamp(1, 1.max(time - 10)) as u128;
-                let (bm, _) = go(
-                    &pos,
-                    &mut eng,
-                    true,
-                    depth,
-                    if mtg == 1 { alloc } else { alloc * 6 / 10 } as f64,
-                    u64::MAX,
-                );
-                println!("bestmove {}", bm.to_uci());
+                let soft_bound = if mtg == 1 { alloc } else { alloc * 6 / 10 };
+
+                std::thread::scope(|s| {
+                    s.spawn(|| {
+                        let (bm, _) = go(&pos, &mut eng, true, depth, soft_bound as f64, u64::MAX);
+
+                        println!("bestmove {}", bm.to_uci());
+                    });
+
+                    stored_message = handle_search_input();
+                });
+
+                htable = eng.htable.clone();
+
+
             }
             "position" => {
                 let (mut fen, mut move_list, mut moves) = (String::new(), Vec::new(), false);
@@ -131,9 +165,9 @@ fn main() {
                     }
                 }
                 pos = Position::from_fen(if fen.is_empty() { STARTPOS } else { &fen });
-                eng.stack.clear();
+                stack.clear();
                 for m in move_list {
-                    eng.stack.push(pos.hash());
+                    stack.push(pos.hash());
                     let possible_moves = pos.movegen::<true>();
                     for mov in possible_moves.iter() {
                         if m == mov.to_uci() {
@@ -156,6 +190,28 @@ fn main() {
             "eval" => println!("eval: {}cp", pos.eval()),
             _ => {}
         }
+    }
+}
+
+fn handle_search_input() -> Option<String> {
+    loop {
+        let mut input = String::new();
+        let bytes_read = io::stdin().read_line(&mut input).unwrap();
+
+        // got EOF, exit (for OpenBench).
+        if bytes_read == 0 {
+            process::exit(0);
+        }
+
+        match input.as_str().trim() {
+            "isready" => println!("readyok"),
+            "quit" => process::exit(0),
+            "stop" => {
+                Stop::store(true);
+                return None;
+            }
+            _ => return Some(input),
+        };
     }
 }
 

@@ -6,6 +6,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
     thread::spawn,
 };
+
 use thread::DatagenThread;
 
 pub static STOP: AtomicBool = AtomicBool::new(false);
