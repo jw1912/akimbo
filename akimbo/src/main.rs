@@ -13,6 +13,7 @@ fn main() {
     let mut stack = Vec::new();
     let mut tt = HashTable::default();
     let mut htable = HistoryTable::default();
+    let mut threads = 1;
     tt.resize(16);
 
     // bench for OpenBench
@@ -67,7 +68,7 @@ fn main() {
                     "id name akimbo {}\nid author Jamie Whiting",
                     env!("CARGO_PKG_VERSION")
                 );
-                println!("option name Threads type spin default 1 min 1 max 1");
+                println!("option name Threads type spin default 1 min 1 max 512");
                 println!("option name Hash type spin default 16 min 1 max 1024");
                 println!("option name Clear Hash type button");
                 println!("option name UCI_Chess960 type check default false");
@@ -81,6 +82,7 @@ fn main() {
             "setoption" => match commands[..] {
                 ["setoption", "name", "Hash", "value", x] => tt.resize(x.parse().unwrap()),
                 ["setoption", "name", "Clear", "Hash"] => tt.clear(),
+                ["setoption", "name", "Threads", "value", x] => threads = x.parse().unwrap(),
                 _ => {}
             },
             "go" => {
@@ -131,9 +133,12 @@ fn main() {
 
                 Stop::store(false);
 
-                let mut eng = ThreadData::new(&tt, stack.clone(), htable.clone());
-                eng.max_time = (alloc * 2).clamp(1, 1.max(time - 10)) as u128;
+                let hard_bound = (alloc * 2).clamp(1, 1.max(time - 10)) as u128;
                 let soft_bound = if mtg == 1 { alloc } else { alloc * 6 / 10 };
+
+                // main search thread
+                let mut eng = ThreadData::new(&tt, stack.clone(), htable.clone());
+                eng.max_time = hard_bound;
 
                 std::thread::scope(|s| {
                     s.spawn(|| {
@@ -141,6 +146,12 @@ fn main() {
 
                         println!("bestmove {}", bm.to_uci());
                     });
+
+                    for _ in 0..(threads - 1) {
+                        let mut sub = ThreadData::new(&tt, stack.clone(), htable.clone());
+                        sub.max_time = hard_bound;
+                        s.spawn(move || go(&pos, &mut sub, false, depth, soft_bound as f64, u64::MAX));
+                    }
 
                     stored_message = handle_search_input();
                 });
