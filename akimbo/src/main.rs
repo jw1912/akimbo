@@ -79,6 +79,7 @@ fn main() {
             "ucinewgame" => {
                 pos = Position::from_fen(STARTPOS);
                 tt.clear();
+                htable.clear();
             }
             "setoption" => match commands[..] {
                 ["setoption", "name", "Hash", "value", x] => tt.resize(x.parse().unwrap()),
@@ -161,7 +162,10 @@ fn main() {
                 tt.age_up();
             }
             "position" => {
-                let (mut fen, mut move_list, mut moves) = (String::new(), Vec::new(), false);
+                let mut fen = String::new();
+                let mut move_list = Vec::new();
+                let mut moves = false;
+
                 for cmd in commands {
                     match cmd {
                         "position" | "startpos" | "fen" => {}
@@ -175,11 +179,14 @@ fn main() {
                         }
                     }
                 }
+
                 pos = Position::from_fen(if fen.is_empty() { STARTPOS } else { &fen });
                 stack.clear();
+
                 for m in move_list {
                     stack.push(pos.hash());
                     let possible_moves = pos.movegen::<true>();
+
                     for mov in possible_moves.iter() {
                         if m == mov.to_uci() {
                             pos.make(*mov);
@@ -188,7 +195,8 @@ fn main() {
                 }
             }
             "perft" => {
-                let (depth, now) = (commands[1].parse().unwrap(), Instant::now());
+                let depth = commands[1].parse().unwrap();
+                let now = Instant::now();
                 let count = perft::<true>(&pos, depth);
                 let time = now.elapsed().as_micros();
                 println!(

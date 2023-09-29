@@ -312,7 +312,8 @@ impl Position {
             bitloop!(|attackers, from| moves.push(from, self.enp_sq, Flag::ENP, Piece::PAWN));
         }
 
-        let (mut attackers, mut promo) = (pawns & !Rank::PEN[side], pawns & Rank::PEN[side]);
+        let mut attackers = pawns & !Rank::PEN[side];
+        let mut promo = pawns & Rank::PEN[side];
 
         bitloop!(|attackers, from| {
             let mut attacks = Attacks::pawn(side, from as usize) & opps;
@@ -374,7 +375,8 @@ impl Position {
 
         // board
         let mut pos = Self::default();
-        let (mut row, mut col) = (7i16, 0i16);
+        let mut row = 7i16;
+        let mut col = 0i16;
 
         for ch in p {
             if ch == '/' {
@@ -384,9 +386,12 @@ impl Position {
                 col += ch.to_string().parse().unwrap_or(0);
             } else if let Some(idx) = "PNBRQKpnbrqk".chars().position(|el| el == ch) {
                 let side = usize::from(idx > 5);
-                let (pc, sq) = (idx + 2 - 6 * side, 8 * row + col);
+                let pc = idx + 2 - 6 * side;
+                let sq = 8 * row + col;
+
                 pos.toggle::<true>(side, pc, sq as usize);
                 pos.phase += PHASE_VALS[pc];
+
                 col += 1;
             }
         }

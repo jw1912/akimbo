@@ -33,7 +33,8 @@ pub fn go(
 
     let mut best_move = Move::NULL;
     let mut pos = *start;
-    let (mut eval, mut score) = (0, 0);
+    let mut eval = 0;
+    let mut score = 0;
     pos.check = pos.in_check();
 
     // iterative deepening loop
@@ -157,8 +158,11 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
         .enumerate()
         .for_each(|(i, &cap)| scores[i] = mvv_lva(cap, pos));
 
+    let mut best_move = Move::NULL;
+    let mut bound = Bound::UPPER;
+
     eng.ply += 1;
-    let mut bm = Move::NULL;
+
     while let Some((mov, _)) = caps.pick(&mut scores) {
         // static exchange eval pruning
         if !pos.see(mov, 1) {
@@ -176,23 +180,20 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
         if score <= eval {
             continue;
         }
+
         eval = score;
-        bm = mov;
+        best_move = mov;
 
         if eval >= beta {
+            bound = Bound::LOWER;
             break;
         }
+
         alpha = alpha.max(eval);
     }
     eng.ply -= 1;
 
-    let bound = if eval >= beta {
-        Bound::LOWER
-    } else {
-        Bound::UPPER
-    };
-
-    eng.tt.push(hash, bm, 0, bound, eval, eng.ply);
+    eng.tt.push(hash, best_move, 0, bound, eval, eng.ply);
 
     eval
 }
@@ -246,14 +247,16 @@ fn pvs(
         return qs(pos, eng, alpha, beta);
     }
 
-    // probing hash table
     let pv_node = beta > alpha + 1;
     let s_mov = eng.plied[eng.ply].singular;
     let singular = s_mov != Move::NULL;
+
     let mut eval = pos.eval();
     let mut tt_move = Move::NULL;
     let mut tt_score = -Score::MAX;
     let mut try_singular = !singular && depth >= 8 && eng.ply > 0;
+
+    // probing hash table
     if let Some(entry) = eng.tt.probe(hash, eng.ply) {
         let bound = entry.bound();
         tt_move = entry.best_move(pos);
@@ -324,15 +327,18 @@ fn pvs(
         depth -= 1
     }
 
-    // generating and scoring moves
+    // generating moves
     let mut moves = pos.movegen::<true>();
-    let mut scores = [0; 252];
+
     let killers = eng.plied[eng.ply].killers;
     let counter_mov = if prev != Move::NULL {
         eng.htable.get_counter(pos.stm(), prev)
     } else {
         Move::NULL
     };
+
+    // scoring moves
+    let mut scores = [0; 252];
     moves.iter().enumerate().for_each(|(i, &mov)| {
         scores[i] = if mov == tt_move {
             MoveScore::HASH
@@ -352,8 +358,10 @@ fn pvs(
     });
 
     // stuff for going through moves
-    let (mut legal, mut bound) = (0, Bound::UPPER);
-    let (mut best_score, mut best_move) = (-Score::MAX, tt_move);
+    let mut legal = 0;
+    let mut bound = Bound::UPPER;
+    let mut best_score = -Score::MAX;
+    let mut best_move = tt_move;
     let mut quiets_tried = MoveList::ZEROED;
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
