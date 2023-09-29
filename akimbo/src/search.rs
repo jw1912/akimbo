@@ -111,6 +111,7 @@ fn aspiration(
 
     loop {
         score = pvs(pos, eng, alpha, beta, depth, false, prev);
+
         if Stop::is_set() {
             return 0;
         }
