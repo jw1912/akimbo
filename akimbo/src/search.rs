@@ -133,6 +133,7 @@ fn aspiration(
 
 fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     eng.seldepth = eng.seldepth.max(eng.ply);
+
     let mut eval = pos.eval();
 
     // stand-pat
@@ -142,8 +143,9 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
 
     alpha = alpha.max(eval);
 
-    // probe hash table for cutoff
     let hash = pos.hash();
+
+    // probe hash table for cutoff
     if let Some(entry) = eng.tt.probe(hash, eng.ply) {
         let tt_score = entry.score();
         if match entry.bound() {
@@ -157,6 +159,7 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
 
     let mut caps = pos.movegen::<false>();
     let mut scores = [0; 252];
+
     caps.iter()
         .enumerate()
         .for_each(|(i, &cap)| scores[i] = mvv_lva(cap, pos));
@@ -176,6 +179,7 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
         if new.make(mov) {
             continue;
         }
+
         eng.qnodes += 1;
 
         let score = -qs(&new, eng, -beta, -alpha);
@@ -304,6 +308,7 @@ fn pvs(
         // razoring
         if depth <= 2 && eval + 400 * depth < alpha {
             let qeval = qs(pos, eng, alpha, beta);
+
             if qeval < alpha {
                 return qeval;
             }
@@ -313,13 +318,18 @@ fn pvs(
         if null && depth >= 3 && pos.phase > 2 && eval >= beta {
             let mut new = *pos;
             let r = 3 + depth / 3;
+
             eng.push(hash);
             new.make_null();
+
             let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, Move::NULL);
+
             eng.pop();
+
             if nw >= Score::MATE {
                 return beta;
             }
+
             if nw >= beta {
                 return nw;
             }
@@ -393,17 +403,16 @@ fn pvs(
             }
         }
 
+        // make move and skip if not legal
         let mut new = *pos;
-
-        // skip move if not legal
         if new.make(mov) {
             continue;
         }
 
-        // update stuff
         new.check = new.in_check();
         eng.nodes += 1;
         legal += 1;
+
         if !mov.is_noisy() {
             quiets_tried.add(mov);
         }
@@ -411,11 +420,15 @@ fn pvs(
         // singular extensions
         let ext = if try_singular && mov == tt_move {
             let s_beta = tt_score - depth * 2;
+
             eng.pop();
             eng.plied[eng.ply].singular = mov;
+
             let s_score = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, prev);
+
             eng.plied[eng.ply].singular = Move::NULL;
             eng.push(hash);
+
             if s_score < s_beta {
                 1
             } else if tt_score >= beta {
@@ -462,6 +475,7 @@ fn pvs(
             -pvs(&new, eng, -beta, -alpha, depth + ext - 1, false, mov)
         } else {
             let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true, mov);
+
             if zw > alpha && (pv_node || reduce > 0) {
                 -pvs(&new, eng, -beta, -alpha, depth - 1, false, mov)
             } else {
