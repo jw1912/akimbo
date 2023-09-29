@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicU64, Ordering::Relaxed, AtomicU8};
+use std::sync::atomic::{AtomicU64, AtomicU8, Ordering::Relaxed};
 
 use crate::{
     consts::{MoveScore, Score},
@@ -24,6 +24,7 @@ impl<'a> HashView<'a> {
 }
 
 #[derive(Clone, Copy, Default)]
+#[repr(C)]
 pub struct HashEntry {
     key: u16,
     best_move: u16,
@@ -122,7 +123,8 @@ impl HashTable {
             score: score as i16,
             depth,
             bound: (self.get_age() << 2) | bound,
-        }.to_u64();
+        }
+        .to_u64();
 
         self.table[idx].data.store(new_entry, Relaxed);
     }

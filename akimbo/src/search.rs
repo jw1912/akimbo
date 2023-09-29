@@ -33,7 +33,8 @@ pub fn go(
 
     let mut best_move = Move::NULL;
     let mut pos = *start;
-    let (mut eval, mut score) = (0, 0);
+    let mut eval = 0;
+    let mut score = 0;
     pos.check = pos.in_check();
 
     // iterative deepening loop
@@ -110,6 +111,7 @@ fn aspiration(
 
     loop {
         score = pvs(pos, eng, alpha, beta, depth, false, prev);
+
         if Stop::is_set() {
             return 0;
         }
@@ -132,14 +134,19 @@ fn aspiration(
 
 fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     eng.seldepth = eng.seldepth.max(eng.ply);
+
     let mut eval = pos.eval();
+
+    // stand-pat
     if eval >= beta {
         return eval;
     }
+
     alpha = alpha.max(eval);
 
-    // probe hash table for cutoff
     let hash = pos.hash();
+
+    // probe hash table for cutoff
     if let Some(entry) = eng.tt.probe(hash, eng.ply) {
         let tt_score = entry.score();
         if match entry.bound() {
@@ -153,12 +160,16 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
 
     let mut caps = pos.movegen::<false>();
     let mut scores = [0; 252];
+
     caps.iter()
         .enumerate()
         .for_each(|(i, &cap)| scores[i] = mvv_lva(cap, pos));
 
+    let mut best_move = Move::NULL;
+    let mut bound = Bound::UPPER;
+
     eng.ply += 1;
-    let mut bm = Move::NULL;
+
     while let Some((mov, _)) = caps.pick(&mut scores) {
         // static exchange eval pruning
         if !pos.see(mov, 1) {
@@ -169,6 +180,7 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
         if new.make(mov) {
             continue;
         }
+
         eng.qnodes += 1;
 
         let score = -qs(&new, eng, -beta, -alpha);
@@ -176,23 +188,21 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
         if score <= eval {
             continue;
         }
+
         eval = score;
-        bm = mov;
+        best_move = mov;
 
         if eval >= beta {
+            bound = Bound::LOWER;
             break;
         }
+
         alpha = alpha.max(eval);
     }
+
     eng.ply -= 1;
 
-    let bound = if eval >= beta {
-        Bound::LOWER
-    } else {
-        Bound::UPPER
-    };
-
-    eng.tt.push(hash, bm, 0, bound, eval, eng.ply);
+    eng.tt.push(hash, best_move, 0, bound, eval, eng.ply);
 
     eval
 }
@@ -246,14 +256,16 @@ fn pvs(
         return qs(pos, eng, alpha, beta);
     }
 
-    // probing hash table
     let pv_node = beta > alpha + 1;
     let s_mov = eng.plied[eng.ply].singular;
     let singular = s_mov != Move::NULL;
+
     let mut eval = pos.eval();
     let mut tt_move = Move::NULL;
     let mut tt_score = -Score::MAX;
     let mut try_singular = !singular && depth >= 8 && eng.ply > 0;
+
+    // probing hash table
     if let Some(entry) = eng.tt.probe(hash, eng.ply) {
         let bound = entry.bound();
         tt_move = entry.best_move(pos);
@@ -297,6 +309,7 @@ fn pvs(
         // razoring
         if depth <= 2 && eval + 400 * depth < alpha {
             let qeval = qs(pos, eng, alpha, beta);
+
             if qeval < alpha {
                 return qeval;
             }
@@ -306,13 +319,18 @@ fn pvs(
         if null && depth >= 3 && pos.phase > 2 && eval >= beta {
             let mut new = *pos;
             let r = 3 + depth / 3;
+
             eng.push(hash);
             new.make_null();
+
             let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, Move::NULL);
+
             eng.pop();
+
             if nw >= Score::MATE {
                 return beta;
             }
+
             if nw >= beta {
                 return nw;
             }
@@ -324,15 +342,18 @@ fn pvs(
         depth -= 1
     }
 
-    // generating and scoring moves
+    // generating moves
     let mut moves = pos.movegen::<true>();
-    let mut scores = [0; 252];
+
     let killers = eng.plied[eng.ply].killers;
     let counter_mov = if prev != Move::NULL {
         eng.htable.get_counter(pos.stm(), prev)
     } else {
         Move::NULL
     };
+
+    // scoring moves
+    let mut scores = [0; 252];
     moves.iter().enumerate().for_each(|(i, &mov)| {
         scores[i] = if mov == tt_move {
             MoveScore::HASH
@@ -351,10 +372,12 @@ fn pvs(
         }
     });
 
-    // stuff for going through moves
-    let (mut legal, mut bound) = (0, Bound::UPPER);
-    let (mut best_score, mut best_move) = (-Score::MAX, tt_move);
+    let mut legal = 0;
+    let mut bound = Bound::UPPER;
+    let mut best_score = -Score::MAX;
+    let mut best_move = tt_move;
     let mut quiets_tried = MoveList::ZEROED;
+
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
     can_prune &= eng.mloop;
@@ -381,17 +404,16 @@ fn pvs(
             }
         }
 
+        // make move and skip if not legal
         let mut new = *pos;
-
-        // skip move if not legal
         if new.make(mov) {
             continue;
         }
 
-        // update stuff
         new.check = new.in_check();
         eng.nodes += 1;
         legal += 1;
+
         if !mov.is_noisy() {
             quiets_tried.add(mov);
         }
@@ -399,11 +421,15 @@ fn pvs(
         // singular extensions
         let ext = if try_singular && mov == tt_move {
             let s_beta = tt_score - depth * 2;
+
             eng.pop();
             eng.plied[eng.ply].singular = mov;
+
             let s_score = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, prev);
+
             eng.plied[eng.ply].singular = Move::NULL;
             eng.push(hash);
+
             if s_score < s_beta {
                 1
             } else if tt_score >= beta {
@@ -450,6 +476,7 @@ fn pvs(
             -pvs(&new, eng, -beta, -alpha, depth + ext - 1, false, mov)
         } else {
             let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true, mov);
+
             if zw > alpha && (pv_node || reduce > 0) {
                 -pvs(&new, eng, -beta, -alpha, depth - 1, false, mov)
             } else {
