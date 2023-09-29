@@ -24,6 +24,7 @@ impl<'a> HashView<'a> {
 }
 
 #[derive(Clone, Copy, Default)]
+#[repr(C)]
 pub struct HashEntry {
     key: u16,
     best_move: u16,
