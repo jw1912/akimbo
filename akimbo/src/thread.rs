@@ -1,4 +1,7 @@
-use std::{time::Instant, sync::atomic::{AtomicBool, Ordering::Relaxed}};
+use std::{
+    sync::atomic::{AtomicBool, Ordering::Relaxed},
+    time::Instant,
+};
 
 static STOP: AtomicBool = AtomicBool::new(false);
 
@@ -16,7 +19,7 @@ impl Stop {
 use crate::{
     moves::Move,
     position::Position,
-    tables::{HashView, HistoryTable, NodeTable, PlyTable, HashTable},
+    tables::{HashTable, HashView, HistoryTable, NodeTable, PlyTable},
 };
 
 pub struct ThreadData<'a> {

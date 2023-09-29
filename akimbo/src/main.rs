@@ -1,4 +1,10 @@
-use akimbo::{consts::SIDE, position::Position, search::go, thread::{Stop, ThreadData}, tables::{HashTable, HistoryTable}};
+use akimbo::{
+    consts::SIDE,
+    position::Position,
+    search::go,
+    tables::{HashTable, HistoryTable},
+    thread::{Stop, ThreadData},
+};
 
 use std::{io, process, time::Instant};
 
@@ -152,7 +158,9 @@ fn main() {
                     for _ in 0..(threads - 1) {
                         let mut sub = ThreadData::new(&tt, stack.clone(), htable.clone());
                         sub.max_time = hard_bound;
-                        s.spawn(move || go(&pos, &mut sub, false, depth, soft_bound as f64, u64::MAX));
+                        s.spawn(move || {
+                            go(&pos, &mut sub, false, depth, soft_bound as f64, u64::MAX)
+                        });
                     }
 
                     stored_message = handle_search_input();

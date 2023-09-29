@@ -134,9 +134,12 @@ fn aspiration(
 fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     eng.seldepth = eng.seldepth.max(eng.ply);
     let mut eval = pos.eval();
+
+    // stand-pat
     if eval >= beta {
         return eval;
     }
+
     alpha = alpha.max(eval);
 
     // probe hash table for cutoff
@@ -191,6 +194,7 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
 
         alpha = alpha.max(eval);
     }
+
     eng.ply -= 1;
 
     eng.tt.push(hash, best_move, 0, bound, eval, eng.ply);
@@ -357,12 +361,12 @@ fn pvs(
         }
     });
 
-    // stuff for going through moves
     let mut legal = 0;
     let mut bound = Bound::UPPER;
     let mut best_score = -Score::MAX;
     let mut best_move = tt_move;
     let mut quiets_tried = MoveList::ZEROED;
+
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
     let lmr_base = (depth as f64).ln() / 2.67;
     can_prune &= eng.mloop;

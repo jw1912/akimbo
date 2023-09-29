@@ -1,4 +1,10 @@
-use akimbo::{moves::Move, position::Position, search::go, thread::ThreadData, tables::{HashTable, HistoryTable}};
+use akimbo::{
+    moves::Move,
+    position::Position,
+    search::go,
+    tables::{HashTable, HistoryTable},
+    thread::ThreadData,
+};
 
 use crate::{
     util::{is_terminal, to_fen},
