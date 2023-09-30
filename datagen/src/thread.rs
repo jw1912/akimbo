@@ -7,14 +7,14 @@ use akimbo::{
 };
 
 use crate::{
-    util::{is_terminal, to_fen},
+    util::{is_terminal, to_fen, update_display},
     STOP,
 };
 
 use std::{
     fs::File,
     io::{BufWriter, Write},
-    sync::atomic::Ordering,
+    sync::atomic::{Ordering, AtomicU64},
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -36,15 +36,6 @@ pub struct DatagenThread {
 }
 
 impl DatagenThread {
-    pub fn show_status(&self) {
-        let fps = self.fens as f64 / self.start_time.elapsed().as_secs_f64();
-        let fpg = self.fens / self.games;
-        println!(
-            "thread id {} games {} fens {} fps {fps:.0} fpg {fpg}",
-            self.id, self.games, self.fens
-        );
-    }
-
     pub fn new(nodes_per_move: u64, hash_size: usize) -> Self {
         let seed = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -56,7 +47,7 @@ impl DatagenThread {
             hash_size,
             id: seed,
             rng: seed,
-            file: BufWriter::new(File::create(format!("resources/akimbo-{seed}.epd")).unwrap()),
+            file: BufWriter::new(File::create(format!("resources/akimbo-{seed}.txt")).unwrap()),
             games: 0,
             fens: 0,
             start_time: Instant::now(),
@@ -86,7 +77,13 @@ impl DatagenThread {
         self.rng
     }
 
-    pub fn run_datagen(&mut self, max_games: u64) {
+    fn update_display(&self, num: usize, games: &[AtomicU64], fens: &[AtomicU64]) {
+        games[num].store(self.games, Ordering::Relaxed);
+        fens[num].store(self.fens, Ordering::Relaxed);
+        update_display(self.start_time, games, fens);
+    }
+
+    pub fn run_datagen(&mut self, max_games: u64, num: usize, games: &[AtomicU64], fens: &[AtomicU64]) {
         let mut tt = HashTable::default();
         tt.resize(self.hash_size);
 
@@ -105,13 +102,13 @@ impl DatagenThread {
             };
 
             self.write(result);
-            if self.games % 20 == 0 {
-                self.show_status();
+            if self.games % 10 == 0 {
+                self.update_display(num, games, fens);
             }
         }
         self.file.flush().unwrap();
         println!("thread id {} finished", self.id);
-        self.show_status();
+        self.update_display(num, games, fens);
     }
 
     pub fn run_game(&mut self, tt: &HashTable) -> Option<GameResult> {

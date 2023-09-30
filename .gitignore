@@ -2,3 +2,7 @@
 /target
 Cargo.lock
 /.cargo
+
+# Other
+*.txt
+*.epd
