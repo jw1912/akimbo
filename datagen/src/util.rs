@@ -67,6 +67,15 @@ mod test {
     }
 }
 
+macro_rules! ansi {
+    ($x:expr, $y:expr) => {
+        format!("\x1b[{}m{}\x1b[0m", $y, $x)
+    };
+    ($x:expr, $y:expr, $esc:expr) => {
+        format!("\x1b[{}m{}\x1b[0m{}", $y, $x, $esc)
+    };
+}
+
 pub fn update_display(timer: Instant, games: &[AtomicU64], fens: &[AtomicU64]) {
     let elapsed = timer.elapsed().as_secs_f32();
     println!("\x1b[2J\x1b[H");
