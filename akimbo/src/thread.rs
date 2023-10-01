@@ -3,19 +3,6 @@ use std::{
     time::Instant,
 };
 
-static STOP: AtomicBool = AtomicBool::new(false);
-
-pub struct Stop;
-impl Stop {
-    pub fn is_set() -> bool {
-        STOP.load(Relaxed)
-    }
-
-    pub fn store(val: bool) {
-        STOP.store(val, Relaxed);
-    }
-}
-
 use crate::{
     moves::Move,
     position::Position,
@@ -28,6 +15,7 @@ pub struct ThreadData<'a> {
     pub max_time: u128,
     pub max_nodes: u64,
     pub mloop: bool,
+    pub abort: &'a AtomicBool,
 
     // tables
     pub tt: HashView<'a>,
@@ -45,7 +33,7 @@ pub struct ThreadData<'a> {
 }
 
 impl<'a> ThreadData<'a> {
-    pub fn new(tt: &'a HashTable, stack: Vec<u64>, htable: HistoryTable) -> Self {
+    pub fn new(abort: &'a AtomicBool, tt: &'a HashTable, stack: Vec<u64>, htable: HistoryTable) -> Self {
         Self {
             timing: Instant::now(),
             max_time: 0,
@@ -61,7 +49,16 @@ impl<'a> ThreadData<'a> {
             ply: 0,
             best_move: Move::NULL,
             seldepth: 0,
+            abort,
         }
+    }
+
+    pub fn stop_is_set(&self) -> bool {
+        self.abort.load(Relaxed)
+    }
+
+    pub fn store_stop(&self, val: bool) {
+        self.abort.store(val, Relaxed);
     }
 
     pub fn repetition(&self, pos: &Position, curr_hash: u64, root: bool) -> bool {

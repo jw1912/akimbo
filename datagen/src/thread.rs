@@ -14,7 +14,7 @@ use crate::{
 use std::{
     fs::File,
     io::{BufWriter, Write},
-    sync::atomic::Ordering,
+    sync::atomic::{Ordering, AtomicBool},
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -115,11 +115,12 @@ impl DatagenThread {
     }
 
     pub fn run_game(&mut self, tt: &HashTable) -> Option<GameResult> {
+        let abort = AtomicBool::new(false);
         let mut engine = ThreadData {
             mloop: false,
             max_nodes: 1_000_000,
             max_time: 10000,
-            ..ThreadData::new(tt, Vec::new(), HistoryTable::default())
+            ..ThreadData::new(&abort, tt, Vec::new(), HistoryTable::default())
         };
 
         let mut position;

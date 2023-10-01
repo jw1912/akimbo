@@ -5,7 +5,7 @@ use super::{
     moves::{Move, MoveList},
     position::Position,
     tables::NodeTable,
-    thread::{Stop, ThreadData},
+    thread::ThreadData,
 };
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
@@ -45,7 +45,7 @@ pub fn go(
             aspiration(&pos, eng, eval, d, &mut best_move, Move::NULL)
         };
 
-        if Stop::is_set() {
+        if eng.stop_is_set() {
             break;
         }
 
@@ -112,7 +112,7 @@ fn aspiration(
     loop {
         score = pvs(pos, eng, alpha, beta, depth, false, prev);
 
-        if Stop::is_set() {
+        if eng.stop_is_set() {
             return 0;
         }
 
@@ -217,7 +217,7 @@ fn pvs(
     prev: Move,
 ) -> i32 {
     // stopping search
-    if Stop::is_set() {
+    if eng.stop_is_set() {
         return 0;
     }
 
@@ -225,7 +225,7 @@ fn pvs(
         && (eng.timing.elapsed().as_millis() >= eng.max_time
             || eng.nodes + eng.qnodes >= eng.max_nodes)
     {
-        Stop::store(true);
+        eng.store_stop(true);
         return 0;
     }
 
@@ -515,7 +515,7 @@ fn pvs(
         eng.plied[eng.ply - 1].cutoffs += 1;
 
         // quiet cutoffs pushed to tables
-        if mov.is_noisy() || Stop::is_set() {
+        if mov.is_noisy() || eng.stop_is_set() {
             break;
         }
 
@@ -535,7 +535,7 @@ fn pvs(
     eng.pop();
 
     // end of node shenanigans
-    if Stop::is_set() {
+    if eng.stop_is_set() {
         return 0;
     }
 
