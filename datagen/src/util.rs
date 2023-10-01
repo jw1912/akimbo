@@ -1,5 +1,7 @@
 use akimbo::{consts::Side, position::Position};
 
+use std::{time::Instant, sync::atomic::{AtomicU64, Ordering::Relaxed}};
+
 pub fn to_fen(pos: &Position, score: i32) -> String {
     const PIECES: [char; 12] = ['P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k'];
     let mut fen = String::new();
@@ -63,4 +65,27 @@ mod test {
             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1 6"
         );
     }
+}
+
+pub fn update_display(timer: Instant, games: &[AtomicU64], fens: &[AtomicU64]) {
+    let elapsed = timer.elapsed().as_secs_f32();
+    println!("\x1b[2J\x1b[H");
+    println!("+--------+-------------+--------------+--------------+");
+    println!("| Thread |    Games    |     Fens     |   Fens/Sec   |");
+    println!("+--------+-------------+--------------+--------------+");
+
+    for (i, (num_games, num_fens)) in games.iter().zip(fens.iter()).enumerate() {
+        let ng = num_games.load(Relaxed);
+        let nf = num_fens.load(Relaxed);
+        let fs = nf as f32 / elapsed;
+        println!(
+            "| {} | {} | {} | {} |",
+            ansi!(format!("{i:^6}"), 36),
+            ansi!(format!("{ng:^11}"), 36),
+            ansi!(format!("{nf:^12}"), 36),
+            ansi!(format!("{fs:^12.0}"), 36),
+        );
+    }
+
+    println!("+--------+-------------+--------------+--------------+");
 }
