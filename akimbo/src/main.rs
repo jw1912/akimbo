@@ -3,10 +3,10 @@ use akimbo::{
     position::Position,
     search::go,
     tables::{HashTable, HistoryTable},
-    thread::{Stop, ThreadData},
+    thread::ThreadData,
 };
 
-use std::{io, process, time::Instant};
+use std::{io, process, time::Instant, sync::atomic::AtomicBool};
 
 const FEN_STRING: &str = include_str!("../../resources/fens.txt");
 const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -24,7 +24,8 @@ fn main() {
 
     // bench for OpenBench
     if std::env::args().nth(1).as_deref() == Some("bench") {
-        let mut eng = ThreadData::new(&tt, stack, htable);
+        let abort = AtomicBool::new(false);
+        let mut eng = ThreadData::new(&abort, &tt, stack, htable);
         let mut total_nodes = 0;
         let mut total_time = 0;
         let mut eval = 0i32;
@@ -139,13 +140,13 @@ fn main() {
                     time = alloc
                 }
 
-                Stop::store(false);
+                let abort = AtomicBool::new(false);
 
                 let hard_bound = (alloc * 2).clamp(1, 1.max(time - 10)) as u128;
                 let soft_bound = if mtg == 1 { alloc } else { alloc * 6 / 10 };
 
                 // main search thread
-                let mut eng = ThreadData::new(&tt, stack.clone(), htable.clone());
+                let mut eng = ThreadData::new(&abort, &tt, stack.clone(), htable.clone());
                 eng.max_time = hard_bound;
 
                 std::thread::scope(|s| {
@@ -156,14 +157,14 @@ fn main() {
                     });
 
                     for _ in 0..(threads - 1) {
-                        let mut sub = ThreadData::new(&tt, stack.clone(), htable.clone());
+                        let mut sub = ThreadData::new(&abort, &tt, stack.clone(), htable.clone());
                         sub.max_time = hard_bound;
                         s.spawn(move || {
                             go(&pos, &mut sub, false, depth, soft_bound as f64, u64::MAX)
                         });
                     }
 
-                    stored_message = handle_search_input();
+                    stored_message = handle_search_input(&abort);
                 });
 
                 htable = eng.htable.clone();
@@ -220,7 +221,7 @@ fn main() {
     }
 }
 
-fn handle_search_input() -> Option<String> {
+fn handle_search_input(abort: &AtomicBool) -> Option<String> {
     loop {
         let mut input = String::new();
         let bytes_read = io::stdin().read_line(&mut input).unwrap();
@@ -234,7 +235,7 @@ fn handle_search_input() -> Option<String> {
             "isready" => println!("readyok"),
             "quit" => process::exit(0),
             "stop" => {
-                Stop::store(true);
+                abort.store(true, std::sync::atomic::Ordering::Relaxed);
                 return None;
             }
             _ => return Some(input),
