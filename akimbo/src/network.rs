@@ -18,7 +18,7 @@ pub struct Network {
     output_bias: i16,
 }
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../../resources/bob.bin")) };
+static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../../resources/net.bin")) };
 
 impl Network {
     pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
@@ -37,6 +37,7 @@ impl Network {
 }
 
 #[derive(Clone, Copy)]
+#[repr(C, align(64))]
 pub struct Accumulator {
     vals: [i16; HIDDEN],
 }
