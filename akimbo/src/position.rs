@@ -148,7 +148,7 @@ impl Position {
     pub fn eval(&self) -> i32 {
         let boys = &self.acc[usize::from(self.c)];
         let opps = &self.acc[usize::from(!self.c)];
-        Network::out(boys, opps)
+        Network::out(boys, opps, self.side(Side::WHITE) | self.side(Side::BLACK))
     }
 
     pub fn draw(&self) -> bool {
