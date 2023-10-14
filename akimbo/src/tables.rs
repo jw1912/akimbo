@@ -225,6 +225,7 @@ pub struct PlyEntry {
     pub singular: Move,
     pub pv_line: MoveList,
     pub cutoffs: i32,
+    pub dbl_exts: i32,
 }
 
 pub struct PlyTable {

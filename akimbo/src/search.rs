@@ -382,6 +382,10 @@ fn pvs(
     let lmr_base = (depth as f64).ln() / 2.67;
     can_prune &= eng.mloop;
 
+    if eng.ply > 0 {
+        eng.plied[eng.ply].dbl_exts = eng.plied[eng.ply - 1].dbl_exts;
+    }
+
     eng.push(hash);
 
     while let Some((mov, ms)) = moves.pick(&mut scores) {
@@ -431,7 +435,15 @@ fn pvs(
             eng.push(hash);
 
             if s_score < s_beta {
-                1
+                if !pv_node
+                    && s_score < s_beta - 25
+                    && eng.plied[eng.ply].dbl_exts < 5
+                {
+                    eng.plied[eng.ply].dbl_exts += 1;
+                    2
+                } else {
+                    1
+                }
             } else if tt_score >= beta {
                 -1
             } else {
