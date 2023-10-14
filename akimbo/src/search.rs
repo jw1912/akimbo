@@ -382,11 +382,8 @@ fn pvs(
     let lmr_base = (depth as f64).ln() / 2.67;
     can_prune &= eng.mloop;
 
-    if eng.ply > 0 {
-        eng.plied[eng.ply].dbl_exts = eng.plied[eng.ply - 1].dbl_exts;
-    }
-
     eng.push(hash);
+    eng.plied[eng.ply].dbl_exts = eng.plied[eng.ply - 1].dbl_exts;
 
     while let Some((mov, ms)) = moves.pick(&mut scores) {
         // move is singular in a singular search
