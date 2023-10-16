@@ -40,9 +40,9 @@ pub fn go(
     // iterative deepening loop
     for d in 1..=max_depth {
         eval = if d < 7 {
-            pvs(&pos, eng, -Score::MAX, Score::MAX, d, false, Move::NULL)
+            pvs(&pos, eng, -Score::MAX, Score::MAX, d, false, Move::NULL, Move::NULL)
         } else {
-            aspiration(&pos, eng, eval, d, &mut best_move, Move::NULL)
+            aspiration(&pos, eng, eval, d, &mut best_move)
         };
 
         if eng.stop_is_set() {
@@ -102,7 +102,6 @@ fn aspiration(
     mut score: i32,
     max_depth: i32,
     best_move: &mut Move,
-    prev: Move,
 ) -> i32 {
     let mut delta = 25;
     let mut alpha = (-Score::MAX).max(score - delta);
@@ -110,7 +109,7 @@ fn aspiration(
     let mut depth = max_depth;
 
     loop {
-        score = pvs(pos, eng, alpha, beta, depth, false, prev);
+        score = pvs(pos, eng, alpha, beta, depth, false, Move::NULL, Move::NULL);
 
         if eng.stop_is_set() {
             return 0;
@@ -207,6 +206,7 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     eval
 }
 
+#[allow(clippy::too_many_arguments)]
 fn pvs(
     pos: &Position,
     eng: &mut ThreadData,
@@ -215,6 +215,7 @@ fn pvs(
     mut depth: i32,
     null: bool,
     prev: Move,
+    prev_prev: Move,
 ) -> i32 {
     // stopping search
     if eng.stop_is_set() {
@@ -323,7 +324,7 @@ fn pvs(
             eng.push(hash);
             new.make_null();
 
-            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, Move::NULL);
+            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, Move::NULL, prev);
 
             eng.pop();
 
@@ -368,7 +369,7 @@ fn pvs(
         } else if mov == counter_mov {
             MoveScore::KILLER
         } else {
-            eng.htable.get_score(pos.stm(), mov)
+            eng.htable.get_score(pos.stm(), mov, prev_prev)
         }
     });
 
@@ -426,7 +427,7 @@ fn pvs(
             eng.pop();
             eng.plied[eng.ply].singular = mov;
 
-            let s_score = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, prev);
+            let s_score = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, prev, prev_prev);
 
             eng.plied[eng.ply].singular = Move::NULL;
             eng.push(hash);
@@ -482,12 +483,12 @@ fn pvs(
 
         // pvs
         let score = if legal == 1 {
-            -pvs(&new, eng, -beta, -alpha, depth + ext - 1, false, mov)
+            -pvs(&new, eng, -beta, -alpha, depth + ext - 1, false, mov, prev)
         } else {
-            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true, mov);
+            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true, mov, prev);
 
             if zw > alpha && (pv_node || reduce > 0) {
-                -pvs(&new, eng, -beta, -alpha, depth - 1, false, mov)
+                -pvs(&new, eng, -beta, -alpha, depth - 1, false, mov, prev)
             } else {
                 zw
             }
@@ -531,9 +532,9 @@ fn pvs(
         eng.plied.push_killer(mov, eng.ply);
 
         let bonus = 1600.min(350 * (depth - 1));
-        eng.htable.push(mov, pos.stm(), bonus);
+        eng.htable.push(mov, prev_prev, pos.stm(), bonus);
         for &quiet in quiets_tried.iter().take(quiets_tried.len() - 1) {
-            eng.htable.push(quiet, pos.stm(), -bonus)
+            eng.htable.push(quiet, prev_prev, pos.stm(), -bonus)
         }
 
         eng.htable.push_counter(pos.stm(), prev, mov);
