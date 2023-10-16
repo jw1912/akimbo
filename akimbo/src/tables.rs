@@ -147,10 +147,17 @@ impl HashTable {
     }
 }
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone)]
 pub struct HistoryEntry {
     score: i32,
     counter: Move,
+    continuation: [[i32; 64]; 6],
+}
+
+impl Default for HistoryEntry {
+    fn default() -> Self {
+        Self { score: 0, counter: Move::NULL, continuation: [[0; 64]; 6] }
+    }
 }
 
 #[derive(Clone)]
@@ -178,17 +185,29 @@ impl HistoryTable {
         *self = Self::default();
     }
 
-    pub fn get_score(&self, side: usize, mov: Move) -> i32 {
-        self.table[side][mov.moved_pc()][mov.to()].score
+    pub fn get_score(&self, side: usize, mov: Move, prev_prev: Move) -> i32 {
+        let entry = &self.table[side][mov.moved_pc()][mov.to()];
+        let mut score = entry.score;
+
+        if prev_prev != Move::NULL {
+            score += entry.continuation[prev_prev.moved_pc() - 2][prev_prev.to()];
+        }
+
+        score
     }
 
     pub fn get_counter(&self, side: usize, prev: Move) -> Move {
         self.table[side][prev.moved_pc()][prev.to()].counter
     }
 
-    pub fn push(&mut self, mov: Move, side: usize, bonus: i32) {
+    pub fn push(&mut self, mov: Move, prev_prev: Move, side: usize, bonus: i32) {
         let entry = &mut self.table[side][mov.moved_pc()][mov.to()];
-        entry.score += bonus - entry.score * bonus.abs() / MoveScore::HISTORY_MAX
+        entry.score += bonus - entry.score * bonus.abs() / MoveScore::HISTORY_MAX;
+
+        if prev_prev != Move::NULL {
+            let cont_entry = &mut entry.continuation[prev_prev.moved_pc() - 2][prev_prev.to()];
+            *cont_entry += bonus - *cont_entry * bonus.abs() / MoveScore::HISTORY_MAX;
+        }
     }
 
     pub fn push_counter(&mut self, side: usize, prev: Move, mov: Move) {
