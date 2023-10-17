@@ -185,9 +185,13 @@ impl HistoryTable {
         *self = Self::default();
     }
 
-    pub fn get_score(&self, side: usize, mov: Move, prev_prev: Move) -> i32 {
+    pub fn get_score(&self, side: usize, mov: Move, prev: Move, prev_prev: Move) -> i32 {
         let entry = &self.table[side][mov.moved_pc()][mov.to()];
         let mut score = entry.score;
+
+        if prev != Move::NULL {
+            score += entry.continuation[prev.moved_pc() - 2][prev.to()];
+        }
 
         if prev_prev != Move::NULL {
             score += entry.continuation[prev_prev.moved_pc() - 2][prev_prev.to()];
@@ -200,9 +204,14 @@ impl HistoryTable {
         self.table[side][prev.moved_pc()][prev.to()].counter
     }
 
-    pub fn push(&mut self, mov: Move, prev_prev: Move, side: usize, bonus: i32) {
+    pub fn push(&mut self, mov: Move, prev: Move, prev_prev: Move, side: usize, bonus: i32) {
         let entry = &mut self.table[side][mov.moved_pc()][mov.to()];
         entry.score += bonus - entry.score * bonus.abs() / MoveScore::HISTORY_MAX;
+
+        if prev != Move::NULL {
+            let cont_entry = &mut entry.continuation[prev.moved_pc() - 2][prev.to()];
+            *cont_entry += bonus - *cont_entry * bonus.abs() / MoveScore::HISTORY_MAX;
+        }
 
         if prev_prev != Move::NULL {
             let cont_entry = &mut entry.continuation[prev_prev.moved_pc() - 2][prev_prev.to()];
