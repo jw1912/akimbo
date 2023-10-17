@@ -185,7 +185,7 @@ impl HistoryTable {
         *self = Self::default();
     }
 
-    pub fn get_score(&self, side: usize, mov: Move, prevs: [Move; 2]) -> i32 {
+    pub fn get_score(&self, side: usize, mov: Move, prevs: [Move; 3]) -> i32 {
         let entry = &self.table[side][mov.moved_pc()][mov.to()];
         let mut score = entry.score;
 
@@ -202,7 +202,7 @@ impl HistoryTable {
         self.table[side][prev.moved_pc()][prev.to()].counter
     }
 
-    pub fn push(&mut self, mov: Move, prevs: [Move; 2], side: usize, bonus: i32) {
+    pub fn push(&mut self, mov: Move, prevs: [Move; 3], side: usize, bonus: i32) {
         let entry = &mut self.table[side][mov.moved_pc()][mov.to()];
         entry.score += bonus - entry.score * bonus.abs() / MoveScore::HISTORY_MAX;
 

@@ -346,8 +346,11 @@ fn pvs(
     let mut moves = pos.movegen::<true>();
 
     let prev = eng.plied.prev_move(eng.ply, 1);
-    let prev_prev = eng.plied.prev_move(eng.ply, 2);
-    let prevs = [prev, prev_prev];
+    let prevs = [
+        prev,
+        eng.plied.prev_move(eng.ply, 2),
+        eng.plied.prev_move(eng.ply, 4),
+    ];
 
     let killers = eng.plied[eng.ply].killers;
     let counter_mov = if prev != Move::NULL {
