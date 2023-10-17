@@ -369,7 +369,7 @@ fn pvs(
         } else if mov == counter_mov {
             MoveScore::KILLER
         } else {
-            eng.htable.get_score(pos.stm(), mov, prev_prev)
+            eng.htable.get_score(pos.stm(), mov, prev, prev_prev)
         }
     });
 
@@ -532,9 +532,9 @@ fn pvs(
         eng.plied.push_killer(mov, eng.ply);
 
         let bonus = 1600.min(350 * (depth - 1));
-        eng.htable.push(mov, prev_prev, pos.stm(), bonus);
+        eng.htable.push(mov, prev, prev_prev, pos.stm(), bonus);
         for &quiet in quiets_tried.iter().take(quiets_tried.len() - 1) {
-            eng.htable.push(quiet, prev_prev, pos.stm(), -bonus)
+            eng.htable.push(quiet, prev, prev_prev, pos.stm(), -bonus)
         }
 
         eng.htable.push_counter(pos.stm(), prev, mov);
