@@ -185,16 +185,14 @@ impl HistoryTable {
         *self = Self::default();
     }
 
-    pub fn get_score(&self, side: usize, mov: Move, prev: Move, prev_prev: Move) -> i32 {
+    pub fn get_score(&self, side: usize, mov: Move, prevs: [Move; 2]) -> i32 {
         let entry = &self.table[side][mov.moved_pc()][mov.to()];
         let mut score = entry.score;
 
-        if prev != Move::NULL {
-            score += entry.continuation[prev.moved_pc() - 2][prev.to()];
-        }
-
-        if prev_prev != Move::NULL {
-            score += entry.continuation[prev_prev.moved_pc() - 2][prev_prev.to()];
+        for prev in prevs {
+            if prev != Move::NULL {
+                score += entry.continuation[prev.moved_pc() - 2][prev.to()];
+            }
         }
 
         score
@@ -204,18 +202,15 @@ impl HistoryTable {
         self.table[side][prev.moved_pc()][prev.to()].counter
     }
 
-    pub fn push(&mut self, mov: Move, prev: Move, prev_prev: Move, side: usize, bonus: i32) {
+    pub fn push(&mut self, mov: Move, prevs: [Move; 2], side: usize, bonus: i32) {
         let entry = &mut self.table[side][mov.moved_pc()][mov.to()];
         entry.score += bonus - entry.score * bonus.abs() / MoveScore::HISTORY_MAX;
 
-        if prev != Move::NULL {
-            let cont_entry = &mut entry.continuation[prev.moved_pc() - 2][prev.to()];
-            *cont_entry += bonus - *cont_entry * bonus.abs() / MoveScore::HISTORY_MAX;
-        }
-
-        if prev_prev != Move::NULL {
-            let cont_entry = &mut entry.continuation[prev_prev.moved_pc() - 2][prev_prev.to()];
-            *cont_entry += bonus - *cont_entry * bonus.abs() / MoveScore::HISTORY_MAX;
+        for prev in prevs {
+            if prev != Move::NULL {
+                let cont_entry = &mut entry.continuation[prev.moved_pc() - 2][prev.to()];
+                *cont_entry += bonus - *cont_entry * bonus.abs() / MoveScore::HISTORY_MAX;
+            }
         }
     }
 
@@ -254,6 +249,7 @@ pub struct PlyEntry {
     pub pv_line: MoveList,
     pub cutoffs: i32,
     pub dbl_exts: i32,
+    pub played: Move,
 }
 
 pub struct PlyTable {
@@ -282,15 +278,27 @@ impl std::ops::IndexMut<i32> for PlyTable {
 }
 
 impl PlyTable {
-    pub fn clear_killers(&mut self) {
+    pub fn clear(&mut self) {
         self.table
             .iter_mut()
-            .for_each(|ply| ply.killers = [Move::NULL; 2]);
+            .for_each(|ply| {
+                ply.killers = [Move::NULL; 2];
+                ply.played = Move::NULL;
+            });
     }
 
     pub fn push_killer(&mut self, m: Move, mut ply: i32) {
         ply -= 1;
         self[ply].killers[1] = self[ply].killers[0];
         self[ply].killers[0] = m;
+    }
+
+    pub fn prev_move(&self, ply: i32, n: i32) -> Move {
+        let idx = ply + 1 - n;
+        if idx >= 0 {
+            self[idx].played
+        } else {
+            Move::NULL
+        }
     }
 }

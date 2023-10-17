@@ -22,7 +22,7 @@ pub fn go(
 ) -> (Move, i32) {
     // reset engine
     eng.ntable = NodeTable::default();
-    eng.plied.clear_killers();
+    eng.plied.clear();
     eng.htable.age();
     eng.timing = Instant::now();
     eng.nodes = 0;
@@ -40,7 +40,7 @@ pub fn go(
     // iterative deepening loop
     for d in 1..=max_depth {
         eval = if d < 7 {
-            pvs(&pos, eng, -Score::MAX, Score::MAX, d, false, Move::NULL, Move::NULL)
+            pvs(&pos, eng, -Score::MAX, Score::MAX, d, false)
         } else {
             aspiration(&pos, eng, eval, d, &mut best_move)
         };
@@ -109,7 +109,7 @@ fn aspiration(
     let mut depth = max_depth;
 
     loop {
-        score = pvs(pos, eng, alpha, beta, depth, false, Move::NULL, Move::NULL);
+        score = pvs(pos, eng, alpha, beta, depth, false);
 
         if eng.stop_is_set() {
             return 0;
@@ -214,8 +214,6 @@ fn pvs(
     mut beta: i32,
     mut depth: i32,
     null: bool,
-    prev: Move,
-    prev_prev: Move,
 ) -> i32 {
     // stopping search
     if eng.stop_is_set() {
@@ -323,8 +321,9 @@ fn pvs(
 
             eng.push(hash);
             new.make_null();
+            eng.plied[eng.ply].played = Move::NULL;
 
-            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false, Move::NULL, prev);
+            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false);
 
             eng.pop();
 
@@ -345,6 +344,10 @@ fn pvs(
 
     // generating moves
     let mut moves = pos.movegen::<true>();
+
+    let prev = eng.plied.prev_move(eng.ply, 1);
+    let prev_prev = eng.plied.prev_move(eng.ply, 2);
+    let prevs = [prev, prev_prev];
 
     let killers = eng.plied[eng.ply].killers;
     let counter_mov = if prev != Move::NULL {
@@ -369,7 +372,7 @@ fn pvs(
         } else if mov == counter_mov {
             MoveScore::KILLER
         } else {
-            eng.htable.get_score(pos.stm(), mov, prev, prev_prev)
+            eng.htable.get_score(pos.stm(), mov, prevs)
         }
     });
 
@@ -427,7 +430,7 @@ fn pvs(
             eng.pop();
             eng.plied[eng.ply].singular = mov;
 
-            let s_score = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false, prev, prev_prev);
+            let s_score = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false);
 
             eng.plied[eng.ply].singular = Move::NULL;
             eng.push(hash);
@@ -480,15 +483,16 @@ fn pvs(
         };
 
         let pre_nodes = eng.nodes + eng.qnodes;
+        eng.plied[eng.ply].played = mov;
 
         // pvs
         let score = if legal == 1 {
-            -pvs(&new, eng, -beta, -alpha, depth + ext - 1, false, mov, prev)
+            -pvs(&new, eng, -beta, -alpha, depth + ext - 1, false)
         } else {
-            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true, mov, prev);
+            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true);
 
             if zw > alpha && (pv_node || reduce > 0) {
-                -pvs(&new, eng, -beta, -alpha, depth - 1, false, mov, prev)
+                -pvs(&new, eng, -beta, -alpha, depth - 1, false)
             } else {
                 zw
             }
@@ -532,9 +536,9 @@ fn pvs(
         eng.plied.push_killer(mov, eng.ply);
 
         let bonus = 1600.min(350 * (depth - 1));
-        eng.htable.push(mov, prev, prev_prev, pos.stm(), bonus);
+        eng.htable.push(mov, prevs, pos.stm(), bonus);
         for &quiet in quiets_tried.iter().take(quiets_tried.len() - 1) {
-            eng.htable.push(quiet, prev, prev_prev, pos.stm(), -bonus)
+            eng.htable.push(quiet, prevs, pos.stm(), -bonus)
         }
 
         eng.htable.push_counter(pos.stm(), prev, mov);
