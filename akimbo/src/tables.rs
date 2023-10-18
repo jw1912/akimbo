@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU64, AtomicU8, Ordering::Relaxed};
 use crate::{
     consts::{MoveScore, Score},
     moves::{Move, MoveList},
-    position::Position,
+    position::Position, boxed_and_zeroed,
 };
 
 pub struct HashView<'a> {
@@ -168,7 +168,7 @@ pub struct HistoryTable {
 impl Default for HistoryTable {
     fn default() -> Self {
         Self {
-            table: Box::new([[[Default::default(); 64]; 8]; 2]),
+            table: boxed_and_zeroed(),
         }
     }
 }
