@@ -349,7 +349,6 @@ fn pvs(
     let prevs = [
         prev,
         eng.plied.prev_move(eng.ply, 2),
-        eng.plied.prev_move(eng.ply, 3),
     ];
 
     let killers = eng.plied[eng.ply].killers;
