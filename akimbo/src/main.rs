@@ -4,12 +4,12 @@ use akimbo::{
     search::go,
     tables::{HashTable, HistoryTable},
     thread::ThreadData,
+    STARTPOS,
 };
 
-use std::{io, process, time::Instant, sync::atomic::AtomicBool};
+use std::{io, process, sync::atomic::AtomicBool, time::Instant};
 
 const FEN_STRING: &str = include_str!("../../resources/fens.txt");
-const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 fn main() {
     println!("akimbo, created by Jamie Whiting");
@@ -64,7 +64,15 @@ fn main() {
                 ["setoption", "name", "Threads", "value", x] => threads = x.parse().unwrap(),
                 _ => {}
             },
-            "go" => handle_go(commands, &pos, stack.clone(), &mut htable, &mut stored_message, &tt, threads),
+            "go" => handle_go(
+                commands,
+                &pos,
+                stack.clone(),
+                &mut htable,
+                &mut stored_message,
+                &tt,
+                threads,
+            ),
             "position" => set_position(commands, &mut pos, &mut stack),
             "perft" => run_perft(commands, &pos),
             "quit" => process::exit(0),
@@ -273,9 +281,7 @@ fn handle_go(
         for _ in 0..(threads - 1) {
             let mut sub = ThreadData::new(&abort, tt, stack.clone(), htable.clone());
             sub.max_time = hard_bound;
-            s.spawn(move || {
-                go(pos, &mut sub, false, depth, soft_bound as f64, u64::MAX)
-            });
+            s.spawn(move || go(pos, &mut sub, false, depth, soft_bound as f64, u64::MAX));
         }
 
         *stored_message = handle_search_input(&abort);

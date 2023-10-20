@@ -346,10 +346,7 @@ fn pvs(
     let mut moves = pos.movegen::<true>();
 
     let prev = eng.plied.prev_move(eng.ply, 1);
-    let prevs = [
-        prev,
-        eng.plied.prev_move(eng.ply, 2),
-    ];
+    let prevs = [prev, eng.plied.prev_move(eng.ply, 2)];
 
     let killers = eng.plied[eng.ply].killers;
     let counter_mov = if prev != Move::NULL {
@@ -438,10 +435,7 @@ fn pvs(
             eng.push(hash);
 
             if s_score < s_beta {
-                if !pv_node
-                    && s_score < s_beta - 25
-                    && eng.plied[eng.ply].dbl_exts < 5
-                {
+                if !pv_node && s_score < s_beta - 25 && eng.plied[eng.ply].dbl_exts < 5 {
                     eng.plied[eng.ply].dbl_exts += 1;
                     2
                 } else {

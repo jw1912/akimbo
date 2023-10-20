@@ -1,9 +1,10 @@
 use std::sync::atomic::{AtomicU64, AtomicU8, Ordering::Relaxed};
 
 use crate::{
+    boxed_and_zeroed,
     consts::{MoveScore, Score},
     moves::{Move, MoveList},
-    position::Position, boxed_and_zeroed,
+    position::Position,
 };
 
 pub struct HashView<'a> {
@@ -156,7 +157,11 @@ pub struct HistoryEntry {
 
 impl Default for HistoryEntry {
     fn default() -> Self {
-        Self { score: 0, counter: Move::NULL, continuation: [[0; 64]; 6] }
+        Self {
+            score: 0,
+            counter: Move::NULL,
+            continuation: [[0; 64]; 6],
+        }
     }
 }
 
@@ -279,12 +284,10 @@ impl std::ops::IndexMut<i32> for PlyTable {
 
 impl PlyTable {
     pub fn clear(&mut self) {
-        self.table
-            .iter_mut()
-            .for_each(|ply| {
-                ply.killers = [Move::NULL; 2];
-                ply.played = Move::NULL;
-            });
+        self.table.iter_mut().for_each(|ply| {
+            ply.killers = [Move::NULL; 2];
+            ply.played = Move::NULL;
+        });
     }
 
     pub fn push_killer(&mut self, m: Move, mut ply: i32) {

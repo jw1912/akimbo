@@ -1,6 +1,9 @@
 use akimbo::{consts::Side, position::Position};
 
-use std::{time::Instant, sync::atomic::{AtomicU64, Ordering::Relaxed}};
+use std::{
+    sync::atomic::{AtomicU64, Ordering::Relaxed},
+    time::Instant,
+};
 
 pub fn to_fen(pos: &Position, score: i32) -> String {
     const PIECES: [char; 12] = ['P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k'];

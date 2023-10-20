@@ -3,9 +3,10 @@ mod util;
 
 use std::{
     env::args,
-    sync::atomic::{AtomicBool, Ordering, AtomicU64},
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
 };
 
+use akimbo::{position::Position, STARTPOS};
 use thread::DatagenThread;
 
 pub static STOP: AtomicBool = AtomicBool::new(false);
@@ -18,6 +19,7 @@ fn main() {
 
     let mut games = Vec::new();
     let mut fens = Vec::new();
+    let startpos = Position::from_fen(STARTPOS);
 
     for _ in 0..threads {
         games.push(AtomicU64::new(0));
@@ -32,7 +34,7 @@ fn main() {
             std::thread::sleep(std::time::Duration::from_millis(10));
             s.spawn(move || {
                 let mut worker = DatagenThread::new(NODES_PER_MOVE, 8);
-                worker.run_datagen(gpt, num, games, fens);
+                worker.run_datagen(gpt, num, games, fens, startpos);
             });
         }
 

@@ -1,18 +1,8 @@
 use crate::{c_enum, init};
 
-c_enum!(
-    Bound: u8,
-    LOWER = 0,
-    EXACT = 1,
-    UPPER = 2
-);
+c_enum!(Bound: u8, LOWER = 0, EXACT = 1, UPPER = 2);
 
-c_enum!(
-    Score: i32,
-    MAX = 30000,
-    MATE = Self::MAX - 256,
-    DRAW = 0
-);
+c_enum!(Score: i32, MAX = 30000, MATE = Self::MAX - 256, DRAW = 0);
 
 c_enum!(
     MoveScore: i32,
@@ -23,11 +13,7 @@ c_enum!(
     CAPTURE = 8 * Self::HISTORY_MAX
 );
 
-c_enum!(
-    Side: usize,
-    WHITE = 0,
-    BLACK = 1
-);
+c_enum!(Side: usize, WHITE = 0, BLACK = 1);
 
 c_enum!(
     Piece: usize,
@@ -70,11 +56,7 @@ c_enum!(
     DBL = [0xFF000000, 0xFF00000000]
 );
 
-c_enum!(
-    File: u64,
-    A = 0x101010101010101,
-    H = Self::A << 7
-);
+c_enum!(File: u64, A = 0x101010101010101, H = Self::A << 7);
 
 const fn rand(mut seed: u64) -> u64 {
     seed ^= seed << 13;

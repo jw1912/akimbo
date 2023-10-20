@@ -14,7 +14,7 @@ use crate::{
 use std::{
     fs::File,
     io::{BufWriter, Write},
-    sync::atomic::{Ordering, AtomicBool, AtomicU64},
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -83,7 +83,14 @@ impl DatagenThread {
         update_display(self.start_time, games, fens);
     }
 
-    pub fn run_datagen(&mut self, max_games: u64, num: usize, games: &[AtomicU64], fens: &[AtomicU64]) {
+    pub fn run_datagen(
+        &mut self,
+        max_games: u64,
+        num: usize,
+        games: &[AtomicU64],
+        fens: &[AtomicU64],
+        startpos: Position,
+    ) {
         let mut tt = HashTable::default();
         tt.resize(self.hash_size);
 
@@ -92,7 +99,7 @@ impl DatagenThread {
                 break;
             }
 
-            let optional = self.run_game(&tt);
+            let optional = self.run_game(&tt, startpos);
             tt.clear();
 
             let result = if let Some(res) = optional {
@@ -109,7 +116,7 @@ impl DatagenThread {
         self.file.flush().unwrap();
     }
 
-    pub fn run_game(&mut self, tt: &HashTable) -> Option<GameResult> {
+    pub fn run_game(&mut self, tt: &HashTable, mut position: Position) -> Option<GameResult> {
         let abort = AtomicBool::new(false);
         let mut engine = ThreadData {
             mloop: false,
@@ -117,10 +124,6 @@ impl DatagenThread {
             max_time: 10000,
             ..ThreadData::new(&abort, tt, Vec::new(), HistoryTable::default())
         };
-
-        let mut position;
-
-        position = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 
         // play 8 or 9 random moves
         for _ in 0..(8 + (self.rng() % 2)) {

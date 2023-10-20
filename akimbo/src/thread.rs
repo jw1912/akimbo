@@ -33,7 +33,12 @@ pub struct ThreadData<'a> {
 }
 
 impl<'a> ThreadData<'a> {
-    pub fn new(abort: &'a AtomicBool, tt: &'a HashTable, stack: Vec<u64>, htable: HistoryTable) -> Self {
+    pub fn new(
+        abort: &'a AtomicBool,
+        tt: &'a HashTable,
+        stack: Vec<u64>,
+        htable: HistoryTable,
+    ) -> Self {
         Self {
             timing: Instant::now(),
             max_time: 0,
