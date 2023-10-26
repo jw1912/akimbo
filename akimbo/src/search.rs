@@ -23,7 +23,6 @@ pub fn go(
     // reset engine
     eng.ntable = NodeTable::default();
     eng.plied.clear();
-    eng.htable.age();
     eng.timing = Instant::now();
     eng.nodes = 0;
     eng.qnodes = 0;
@@ -348,6 +347,7 @@ fn pvs(
     let prev = eng.plied.prev_move(eng.ply, 1);
     let prevs = [prev, eng.plied.prev_move(eng.ply, 2)];
 
+    let threats = pos.threats();
     let killers = eng.plied[eng.ply].killers;
     let counter_mov = if prev != Move::NULL {
         eng.htable.get_counter(pos.stm(), prev)
@@ -371,7 +371,7 @@ fn pvs(
         } else if mov == counter_mov {
             MoveScore::KILLER
         } else {
-            eng.htable.get_score(pos.stm(), mov, prevs)
+            eng.htable.get_score(pos.stm(), mov, prevs, threats)
         }
     });
 
@@ -532,9 +532,9 @@ fn pvs(
         eng.plied.push_killer(mov, eng.ply);
 
         let bonus = 1600.min(350 * (depth - 1));
-        eng.htable.push(mov, prevs, pos.stm(), bonus);
+        eng.htable.push(mov, prevs, pos.stm(), bonus, threats);
         for &quiet in quiets_tried.iter().take(quiets_tried.len() - 1) {
-            eng.htable.push(quiet, prevs, pos.stm(), -bonus)
+            eng.htable.push(quiet, prevs, pos.stm(), -bonus, threats)
         }
 
         eng.htable.push_counter(pos.stm(), prev, mov);

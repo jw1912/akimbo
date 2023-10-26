@@ -48,6 +48,14 @@ impl Attacks {
     pub fn king(sq: usize) -> u64 {
         KING[sq]
     }
+
+    pub const fn white_pawn_setwise(pawns: u64) -> u64 {
+        ((pawns & !File::A) << 7) | ((pawns & !File::H) << 9)
+    }
+
+    pub const fn black_pawn_setwise(pawns: u64) -> u64 {
+        ((pawns & !File::A) >> 9) | ((pawns & !File::H) >> 7)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -59,14 +67,8 @@ struct Mask {
 }
 
 const PAWN: [[u64; 64]; 2] = [
-    init!(|sq, 64| {
-        let bit = 1 << sq;
-        ((bit & !File::A) << 7) | ((bit & !File::H) << 9)
-    }),
-    init!(|sq, 64| {
-        let bit = 1 << sq;
-        ((bit & !File::A) >> 9) | ((bit & !File::H) >> 7)
-    }),
+    init!(|sq, 64| Attacks::white_pawn_setwise(1 << sq)),
+    init!(|sq, 64| Attacks::black_pawn_setwise(1 << sq)),
 ];
 
 const KNIGHT: [u64; 64] = init!(|sq, 64| {
