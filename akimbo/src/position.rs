@@ -175,6 +175,36 @@ impl Position {
         SPANS[side][sq] & self.bb[Piece::PAWN] & self.bb[side ^ 1] == 0
     }
 
+    pub fn threats(&self) -> u64 {
+        let mut threats = 0;
+
+        let occ = self.bb[Side::WHITE] | self.bb[Side::BLACK];
+
+        let side = self.stm() ^ 1;
+        let opps = self.bb[side];
+
+        let queens = self.bb[Piece::QUEEN];
+
+        let mut rooks = opps & (self.bb[Piece::ROOK] | queens);
+        let mut bishops = opps & (self.bb[Piece::BISHOP] | queens);
+        let mut knights = opps & self.bb[Piece::KNIGHT];
+        let mut kings = opps & self.bb[Piece::KING];
+
+        bitloop!(|rooks, sq| threats |= Attacks::rook(sq as usize, occ));
+        bitloop!(|bishops, sq| threats |= Attacks::bishop(sq as usize, occ));
+        bitloop!(|knights, sq| threats |= Attacks::knight(sq as usize));
+        bitloop!(|kings, sq| threats |= Attacks::king(sq as usize));
+
+        let pawns = opps & self.bb[Piece::PAWN];
+        threats |= if side == Side::WHITE {
+            Attacks::white_pawn_setwise(pawns)
+        } else {
+            Attacks::black_pawn_setwise(pawns)
+        };
+
+        threats
+    }
+
     fn gain(&self, mov: Move) -> i32 {
         if mov.is_en_passant() {
             return SEE_VALS[Piece::PAWN];

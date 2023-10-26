@@ -150,7 +150,7 @@ impl HashTable {
 
 #[derive(Copy, Clone)]
 pub struct HistoryEntry {
-    score: i32,
+    score: [[i32; 2]; 2],
     counter: Move,
     continuation: [[i32; 64]; 6],
 }
@@ -158,7 +158,7 @@ pub struct HistoryEntry {
 impl Default for HistoryEntry {
     fn default() -> Self {
         Self {
-            score: 0,
+            score: [[0; 2]; 2],
             counter: Move::NULL,
             continuation: [[0; 64]; 6],
         }
@@ -178,21 +178,18 @@ impl Default for HistoryTable {
     }
 }
 
-impl HistoryTable {
-    pub fn age(&mut self) {
-        self.table.iter_mut().flatten().flatten().for_each(|entry| {
-            entry.score /= 2;
-            entry.counter = Move::NULL;
-        });
-    }
+fn threatened(sq: usize, threats: u64) -> usize {
+    usize::from(threats & (1 << sq) > 0)
+}
 
+impl HistoryTable {
     pub fn clear(&mut self) {
         *self = Self::default();
     }
 
-    pub fn get_score(&self, side: usize, mov: Move, prevs: [Move; 2]) -> i32 {
+    pub fn get_score(&self, side: usize, mov: Move, prevs: [Move; 2], threats: u64) -> i32 {
         let entry = &self.table[side][mov.moved_pc()][mov.to()];
-        let mut score = entry.score;
+        let mut score = entry.score[threatened(mov.from(), threats)][threatened(mov.to(), threats)];
 
         for prev in prevs {
             if prev != Move::NULL {
@@ -207,9 +204,11 @@ impl HistoryTable {
         self.table[side][prev.moved_pc()][prev.to()].counter
     }
 
-    pub fn push(&mut self, mov: Move, prevs: [Move; 2], side: usize, bonus: i32) {
+    pub fn push(&mut self, mov: Move, prevs: [Move; 2], side: usize, bonus: i32, threats: u64) {
         let entry = &mut self.table[side][mov.moved_pc()][mov.to()];
-        entry.score += bonus - entry.score * bonus.abs() / MoveScore::HISTORY_MAX;
+        let main_entry = &mut entry.score[threatened(mov.from(), threats)][threatened(mov.to(), threats)];
+
+        *main_entry += bonus - *main_entry * bonus.abs() / MoveScore::HISTORY_MAX;
 
         for prev in prevs {
             if prev != Move::NULL {
