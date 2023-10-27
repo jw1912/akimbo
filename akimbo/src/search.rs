@@ -349,11 +349,6 @@ fn pvs(
 
     let threats = pos.threats();
     let killers = eng.plied[eng.ply].killers;
-    let counter_mov = if prev != Move::NULL {
-        eng.htable.get_counter(pos.stm(), prev)
-    } else {
-        Move::NULL
-    };
 
     // scoring moves
     let mut scores = [0; 252];
@@ -367,8 +362,6 @@ fn pvs(
         } else if mov.is_promo() {
             MoveScore::PROMO + i32::from(mov.flag() & 7)
         } else if killers.contains(&mov) {
-            MoveScore::KILLER + 1
-        } else if mov == counter_mov {
             MoveScore::KILLER
         } else {
             eng.htable.get_score(pos.stm(), mov, prevs, threats)
@@ -536,8 +529,6 @@ fn pvs(
         for &quiet in quiets_tried.iter().take(quiets_tried.len() - 1) {
             eng.htable.push(quiet, prevs, pos.stm(), -bonus, threats)
         }
-
-        eng.htable.push_counter(pos.stm(), prev, mov);
 
         break;
     }
