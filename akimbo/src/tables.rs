@@ -151,7 +151,6 @@ impl HashTable {
 #[derive(Copy, Clone)]
 pub struct HistoryEntry {
     score: [[i32; 2]; 2],
-    counter: Move,
     continuation: [[i32; 64]; 6],
 }
 
@@ -159,7 +158,6 @@ impl Default for HistoryEntry {
     fn default() -> Self {
         Self {
             score: [[0; 2]; 2],
-            counter: Move::NULL,
             continuation: [[0; 64]; 6],
         }
     }
@@ -200,10 +198,6 @@ impl HistoryTable {
         score
     }
 
-    pub fn get_counter(&self, side: usize, prev: Move) -> Move {
-        self.table[side][prev.moved_pc()][prev.to()].counter
-    }
-
     pub fn push(&mut self, mov: Move, prevs: [Move; 2], side: usize, bonus: i32, threats: u64) {
         let entry = &mut self.table[side][mov.moved_pc()][mov.to()];
         let main_entry = &mut entry.score[threatened(mov.from(), threats)][threatened(mov.to(), threats)];
@@ -216,10 +210,6 @@ impl HistoryTable {
                 *cont_entry += bonus - *cont_entry * bonus.abs() / MoveScore::HISTORY_MAX;
             }
         }
-    }
-
-    pub fn push_counter(&mut self, side: usize, prev: Move, mov: Move) {
-        self.table[side][prev.moved_pc()][prev.to()].counter = mov;
     }
 }
 
