@@ -237,7 +237,7 @@ impl NodeTable {
 
 #[derive(Clone, Copy, Default)]
 pub struct PlyEntry {
-    pub killers: [Move; 2],
+    pub killer: Move,
     pub eval: i32,
     pub singular: Move,
     pub pv_line: MoveList,
@@ -274,15 +274,14 @@ impl std::ops::IndexMut<i32> for PlyTable {
 impl PlyTable {
     pub fn clear(&mut self) {
         self.table.iter_mut().for_each(|ply| {
-            ply.killers = [Move::NULL; 2];
+            ply.killer = Move::NULL;
             ply.played = Move::NULL;
         });
     }
 
     pub fn push_killer(&mut self, m: Move, mut ply: i32) {
         ply -= 1;
-        self[ply].killers[1] = self[ply].killers[0];
-        self[ply].killers[0] = m;
+        self[ply].killer = m
     }
 
     pub fn prev_move(&self, ply: i32, n: i32) -> Move {

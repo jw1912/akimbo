@@ -348,7 +348,7 @@ fn pvs(
     let prevs = [prev, eng.plied.prev_move(eng.ply, 2)];
 
     let threats = pos.threats();
-    let killers = eng.plied[eng.ply].killers;
+    let killer = eng.plied[eng.ply].killer;
 
     // scoring moves
     let mut scores = [0; 252];
@@ -361,7 +361,7 @@ fn pvs(
             MoveScore::CAPTURE * i32::from(pos.see(mov, 0)) + mvv_lva(mov, pos)
         } else if mov.is_promo() {
             MoveScore::PROMO + i32::from(mov.flag() & 7)
-        } else if killers.contains(&mov) {
+        } else if mov == killer {
             MoveScore::KILLER
         } else {
             eng.htable.get_score(pos.stm(), mov, prevs, threats)
