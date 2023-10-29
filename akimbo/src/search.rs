@@ -205,7 +205,6 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     eval
 }
 
-#[allow(clippy::too_many_arguments)]
 fn pvs(
     pos: &Position,
     eng: &mut ThreadData,
@@ -245,7 +244,7 @@ fn pvs(
             return alpha;
         }
 
-        // check extensions - not on root
+        // check extensions
         depth += i32::from(pos.check);
     }
 
