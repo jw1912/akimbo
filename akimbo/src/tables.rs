@@ -80,16 +80,47 @@ pub struct HashTable {
 }
 
 impl HashTable {
-    pub fn resize(&mut self, size: usize) {
-        self.table = vec![HashEntryInternal::default(); 1 << (80 - (size as u64).leading_zeros())];
+    pub fn resize(&mut self, size: usize, threads: usize) {
         self.age.store(0, Relaxed);
+
+        let num_entries = 1 << (80 - (size as u64).leading_zeros());
+        let chunk_size = num_entries / threads + 1;
+
+        self.table = Vec::new();
+        self.table.reserve_exact(num_entries);
+
+        unsafe {
+            use std::mem::{size_of, MaybeUninit};
+            let ptr = self.table.as_mut_ptr().cast();
+            let uninit: &mut [MaybeUninit<u8>] =
+                std::slice::from_raw_parts_mut(ptr, num_entries * size_of::<HashEntryInternal>());
+
+            std::thread::scope(|s| {
+                for chunk in uninit.chunks_mut(chunk_size) {
+                    s.spawn(|| {
+                        chunk.as_mut_ptr().write_bytes(0, chunk.len());
+                    });
+                }
+            });
+
+            self.table.set_len(num_entries);
+        }
     }
 
-    pub fn clear(&mut self) {
-        self.table
-            .iter_mut()
-            .for_each(|entry| *entry = HashEntryInternal::default());
+    pub fn clear(&mut self, threads: usize) {
         self.age.store(0, Relaxed);
+
+        let chunk_size = self.table.len() / threads + 1;
+
+        std::thread::scope(|s| {
+            for chunk in self.table.chunks_mut(chunk_size) {
+                s.spawn(|| {
+                    for entry in chunk.iter_mut() {
+                        *entry = HashEntryInternal::default();
+                    }
+                });
+            }
+        });
     }
 
     pub fn age_up(&self) {
@@ -200,7 +231,8 @@ impl HistoryTable {
 
     pub fn push(&mut self, mov: Move, prevs: [Move; 2], side: usize, bonus: i32, threats: u64) {
         let entry = &mut self.table[side][mov.moved_pc()][mov.to()];
-        let main_entry = &mut entry.score[threatened(mov.from(), threats)][threatened(mov.to(), threats)];
+        let main_entry =
+            &mut entry.score[threatened(mov.from(), threats)][threatened(mov.to(), threats)];
 
         *main_entry += bonus - *main_entry * bonus.abs() / MoveScore::HISTORY_MAX;
 
