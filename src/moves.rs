@@ -70,7 +70,7 @@ impl Move {
         }
     }
 
-    pub fn to_short(&self) -> u16 {
+    pub fn to_short(self) -> u16 {
         u16::from(self.from) << 6 | u16::from(self.to) | u16::from(self.flag) << 12
     }
 
@@ -120,10 +120,6 @@ impl MoveList {
 
     pub fn len(&self) -> usize {
         self.len
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len == 0
     }
 
     pub fn add(&mut self, mov: Move) {

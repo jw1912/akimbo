@@ -1,21 +1,22 @@
-pub mod attacks;
-pub mod consts;
-pub mod datagen;
-pub mod frc;
-pub mod moves;
-pub mod network;
-pub mod position;
-pub mod search;
-pub mod tables;
-pub mod thread;
-pub mod util;
+mod attacks;
+mod consts;
+mod frc;
+mod moves;
+mod network;
+mod position;
+mod search;
+mod tables;
+mod thread;
+mod util;
+
+#[cfg(feature="datagen")]
+mod datagen;
 
 use consts::SIDE;
 use position::Position;
 use search::go;
 use tables::{HashTable, HistoryTable};
 use thread::ThreadData;
-use datagen::run_datagen;
 use util::STARTPOS;
 
 use std::{io, process, sync::atomic::AtomicBool, time::Instant};
@@ -39,10 +40,11 @@ fn main() {
             run_bench(&tt, stack, &htable);
             return;
         }
+        #[cfg(feature="datagen")]
         Some("datagen") => {
             let threads = std::env::args().nth(2).unwrap().parse().unwrap();
             let gpt = std::env::args().nth(3).unwrap().parse().unwrap();
-            run_datagen(threads, gpt);
+            datagen::run_datagen(threads, gpt);
             return;
         }
         _ => {}
