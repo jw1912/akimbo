@@ -1,12 +1,8 @@
-[workspace]
-resolver = "2"
-members = [
-    "akimbo",
-    "datagen",
-]
+[package]
+name = "akimbo"
+version = "0.6.0"
+edition = "2021"
+authors = ["Jamie Whiting"]
 
-[profile.release]
-panic = 'abort'
-strip = true
-codegen-units = 1
-lto = true
+[features]
+datagen = []
