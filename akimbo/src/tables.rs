@@ -90,12 +90,10 @@ impl HashTable {
         self.table.reserve_exact(num_entries);
 
         unsafe {
-            use std::mem::{MaybeUninit, size_of};
+            use std::mem::{size_of, MaybeUninit};
             let ptr = self.table.as_mut_ptr().cast();
-            let uninit: &mut [MaybeUninit<u8>] = std::slice::from_raw_parts_mut(
-                ptr,
-                num_entries * size_of::<HashEntryInternal>()
-            );
+            let uninit: &mut [MaybeUninit<u8>] =
+                std::slice::from_raw_parts_mut(ptr, num_entries * size_of::<HashEntryInternal>());
 
             std::thread::scope(|s| {
                 for chunk in uninit.chunks_mut(chunk_size) {
@@ -110,9 +108,11 @@ impl HashTable {
     }
 
     pub fn clear(&mut self, threads: usize) {
-        let chunk_size = self.table.len() / threads + 1;
         self.age.store(0, Relaxed);
-        std::thread::scope(|s|
+
+        let chunk_size = self.table.len() / threads + 1;
+
+        std::thread::scope(|s| {
             for chunk in self.table.chunks_mut(chunk_size) {
                 s.spawn(|| {
                     for entry in chunk.iter_mut() {
@@ -120,7 +120,7 @@ impl HashTable {
                     }
                 });
             }
-        );
+        });
     }
 
     pub fn age_up(&self) {
@@ -231,7 +231,8 @@ impl HistoryTable {
 
     pub fn push(&mut self, mov: Move, prevs: [Move; 2], side: usize, bonus: i32, threats: u64) {
         let entry = &mut self.table[side][mov.moved_pc()][mov.to()];
-        let main_entry = &mut entry.score[threatened(mov.from(), threats)][threatened(mov.to(), threats)];
+        let main_entry =
+            &mut entry.score[threatened(mov.from(), threats)][threatened(mov.to(), threats)];
 
         *main_entry += bonus - *main_entry * bonus.abs() / MoveScore::HISTORY_MAX;
 
