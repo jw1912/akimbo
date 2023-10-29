@@ -92,7 +92,7 @@ impl DatagenThread {
         startpos: Position,
     ) {
         let mut tt = HashTable::default();
-        tt.resize(self.hash_size);
+        tt.resize(self.hash_size, 1);
 
         while self.games < max_games {
             if STOP.load(Ordering::SeqCst) {
@@ -100,7 +100,7 @@ impl DatagenThread {
             }
 
             let optional = self.run_game(&tt, startpos);
-            tt.clear();
+            tt.clear(1);
 
             let result = if let Some(res) = optional {
                 res

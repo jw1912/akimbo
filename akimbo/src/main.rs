@@ -20,7 +20,7 @@ fn main() {
     let mut tt = HashTable::default();
     let mut htable = HistoryTable::default();
     let mut threads = 1;
-    tt.resize(16);
+    tt.resize(16, 1);
 
     // bench for OpenBench
     if std::env::args().nth(1).as_deref() == Some("bench") {
@@ -55,12 +55,12 @@ fn main() {
             "isready" => println!("readyok"),
             "ucinewgame" => {
                 pos = Position::from_fen(STARTPOS);
-                tt.clear();
+                tt.clear(threads);
                 htable.clear();
             }
             "setoption" => match commands[..] {
-                ["setoption", "name", "Hash", "value", x] => tt.resize(x.parse().unwrap()),
-                ["setoption", "name", "Clear", "Hash"] => tt.clear(),
+                ["setoption", "name", "Hash", "value", x] => tt.resize(x.parse().unwrap(), threads),
+                ["setoption", "name", "Clear", "Hash"] => tt.clear(threads),
                 ["setoption", "name", "Threads", "value", x] => threads = x.parse().unwrap(),
                 _ => {}
             },
