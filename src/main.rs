@@ -1,15 +1,26 @@
-use akimbo::{
-    consts::SIDE,
-    position::Position,
-    search::go,
-    tables::{HashTable, HistoryTable},
-    thread::ThreadData,
-    STARTPOS,
-};
+pub mod attacks;
+pub mod consts;
+pub mod datagen;
+pub mod frc;
+pub mod moves;
+pub mod network;
+pub mod position;
+pub mod search;
+pub mod tables;
+pub mod thread;
+pub mod util;
+
+use consts::SIDE;
+use position::Position;
+use search::go;
+use tables::{HashTable, HistoryTable};
+use thread::ThreadData;
+use datagen::run_datagen;
+use util::STARTPOS;
 
 use std::{io, process, sync::atomic::AtomicBool, time::Instant};
 
-const FEN_STRING: &str = include_str!("../../resources/fens.txt");
+const FEN_STRING: &str = include_str!("../resources/fens.txt");
 
 fn main() {
     println!("akimbo, created by Jamie Whiting");
@@ -23,9 +34,18 @@ fn main() {
     tt.resize(16, 1);
 
     // bench for OpenBench
-    if std::env::args().nth(1).as_deref() == Some("bench") {
-        run_bench(&tt, stack, &htable);
-        return;
+    match std::env::args().nth(1).as_deref() {
+        Some("bench") => {
+            run_bench(&tt, stack, &htable);
+            return;
+        }
+        Some("datagen") => {
+            let threads = std::env::args().nth(2).unwrap().parse().unwrap();
+            let gpt = std::env::args().nth(3).unwrap().parse().unwrap();
+            run_datagen(threads, gpt);
+            return;
+        }
+        _ => {}
     }
 
     let mut stored_message: Option<String> = None;

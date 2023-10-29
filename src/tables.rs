@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicU64, AtomicU8, Ordering::Relaxed};
 
 use crate::{
-    boxed_and_zeroed,
+    util::boxed_and_zeroed,
     consts::{MoveScore, Score},
     moves::{Move, MoveList},
     position::Position,

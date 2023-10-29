@@ -1,13 +1,3 @@
-pub mod attacks;
-pub mod consts;
-pub mod frc;
-pub mod moves;
-pub mod network;
-pub mod position;
-pub mod search;
-pub mod tables;
-pub mod thread;
-
 pub const STARTPOS: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 #[macro_export]
