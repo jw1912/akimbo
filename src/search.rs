@@ -523,10 +523,12 @@ fn pvs(
 
         eng.plied.push_killer(mov, eng.ply);
 
-        let bonus = 1600.min(350 * (depth - 1));
-        eng.htable.push(mov, prevs, pos.stm(), bonus, threats);
-        for &quiet in quiets_tried.iter().take(quiets_tried.len() - 1) {
-            eng.htable.push(quiet, prevs, pos.stm(), -bonus, threats)
+        if quiets_tried.len() > 1 || depth > 2 {
+            let bonus = 1600.min(350 * (depth - 1));
+            eng.htable.push(mov, prevs, pos.stm(), bonus, threats);
+            for &quiet in quiets_tried.iter().take(quiets_tried.len() - 1) {
+                eng.htable.push(quiet, prevs, pos.stm(), -bonus, threats)
+            }
         }
 
         break;
