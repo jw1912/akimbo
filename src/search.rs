@@ -102,7 +102,7 @@ fn aspiration(
     max_depth: i32,
     best_move: &mut Move,
 ) -> i32 {
-    let mut delta = 25;
+    let mut delta = 16;
     let mut alpha = (-Score::MAX).max(score - delta);
     let mut beta = Score::MAX.min(score + delta);
     let mut depth = max_depth;
