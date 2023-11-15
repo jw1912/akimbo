@@ -1,4 +1,4 @@
-const HIDDEN: usize = 512;
+const HIDDEN: usize = 768;
 const SCALE: i32 = 400;
 const QA: i32 = 255;
 const QB: i32 = 64;
@@ -7,7 +7,7 @@ const OUTPUT_BUCKETS: usize = 8;
 
 #[inline]
 fn activate(x: i16) -> i32 {
-    i32::from(x.clamp(0, QA as i16))
+    i32::from(x.clamp(0, QA as i16)).pow(2)
 }
 
 #[repr(C)]
@@ -18,12 +18,12 @@ pub struct Network {
     output_bias: [i16; OUTPUT_BUCKETS],
 }
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/giuseppe.bin")) };
+static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-epoch30.bin")) };
 
 impl Network {
     pub fn out(boys: &Accumulator, opps: &Accumulator, occ: u64) -> i32 {
         let bucket = (occ.count_ones() - 2) as usize / 4;
-        let mut sum = i32::from(NNUE.output_bias[bucket]);
+        let mut sum = 0;
 
         for (&x, &w) in boys.vals.iter().zip(&NNUE.output_weights[bucket][0].vals) {
             sum += activate(x) * i32::from(w);
@@ -33,7 +33,7 @@ impl Network {
             sum += activate(x) * i32::from(w);
         }
 
-        sum * SCALE / QAB
+        (sum / QA + i32::from(NNUE.output_bias[bucket])) * SCALE / QAB
     }
 }
 
