@@ -315,7 +315,7 @@ fn pvs(
         // null move pruning
         if null && depth >= 3 && pos.phase > 2 && eval >= beta {
             let mut new = *pos;
-            let r = 3 + depth / 3 + 3.min((eval - beta) / 200);
+            let r = 3 + depth / 3 + 3.min((eval - beta) / 200) + i32::from(improving);
 
             eng.push(hash);
             new.make_null();
