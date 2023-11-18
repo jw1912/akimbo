@@ -256,19 +256,22 @@ fn pvs(
     let pv_node = beta > alpha + 1;
     let s_mov = eng.plied[eng.ply].singular;
     let singular = s_mov != Move::NULL;
+    let pc_beta = beta + 256;
 
     let mut eval = pos.eval();
     let mut tt_move = Move::NULL;
     let mut tt_score = -Score::MAX;
     let mut try_singular = !singular && depth >= 8 && eng.ply > 0;
+    let mut can_probcut = true;
 
     // probing hash table
     if let Some(entry) = eng.tt.probe(hash, eng.ply) {
         let bound = entry.bound();
+        let depth_cond = entry.depth() >= depth - 3;
         tt_move = entry.best_move(pos);
         tt_score = entry.score();
-        try_singular &=
-            entry.depth() >= depth - 3 && bound != Bound::UPPER && tt_score.abs() < Score::MATE;
+        try_singular &= depth_cond && bound != Bound::UPPER && tt_score.abs() < Score::MATE;
+        can_probcut = !(depth_cond && tt_score < pc_beta);
 
         // tt cutoffs
         if !singular
@@ -338,6 +341,51 @@ fn pvs(
     // internal iterative reduction
     if depth >= 4 && tt_move == Move::NULL {
         depth -= 1
+    }
+
+    // probcut
+    if depth > 4
+        && beta.abs() < Score::MATE
+        && can_probcut
+    {
+        let mut caps = pos.movegen::<false>();
+        let mut scores = [0; 252];
+
+        caps.iter()
+            .enumerate()
+            .for_each(|(i, &cap)| scores[i] = mvv_lva(cap, pos));
+
+        eng.push(hash);
+
+        while let Some((mov, _)) = caps.pick(&mut scores) {
+            // static exchange eval pruning
+            if !pos.see(mov, 1) {
+                continue;
+            }
+
+            let mut new = *pos;
+            if new.make(mov) {
+                continue;
+            }
+
+            eng.nodes += 1;
+
+            let mut pc_score = -qs(&new, eng, -beta, -alpha);
+
+            if pc_score >= pc_beta {
+                pc_score = -pvs(&new, eng, -pc_beta, -pc_beta + 1, depth - 4, true)
+            }
+
+            if pc_score >= pc_beta {
+                eng.pop();
+                eng.tt
+                    .push(hash, mov, depth as i8 - 3, Bound::LOWER, pc_beta, eng.ply);
+
+                return pc_beta;
+            }
+        }
+
+        eng.pop();
     }
 
     // generating moves
