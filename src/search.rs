@@ -370,10 +370,10 @@ fn pvs(
 
             eng.nodes += 1;
 
-            let mut pc_score = -qs(&new, eng, -beta, -alpha);
+            let mut pc_score = -qs(&new, eng, -pc_beta, -pc_beta + 1);
 
             if pc_score >= pc_beta {
-                pc_score = -pvs(&new, eng, -pc_beta, -pc_beta + 1, depth - 4, true)
+                pc_score = -pvs(&new, eng, -pc_beta, -pc_beta + 1, depth - 4, false)
             }
 
             if pc_score >= pc_beta {
