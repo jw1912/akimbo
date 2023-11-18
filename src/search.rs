@@ -344,7 +344,8 @@ fn pvs(
     }
 
     // probcut
-    if depth > 4
+    if can_prune
+        && depth > 4
         && beta.abs() < Score::MATE
         && can_probcut
     {
