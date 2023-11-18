@@ -83,6 +83,7 @@ pub fn go(
             if eng.timing.elapsed().as_millis() as f64
                 >= soft_bound * if d > 8 { (1.5 - frac) * 1.35 } else { 1.0 }
             {
+                eng.store_stop(true);
                 break;
             }
         }
