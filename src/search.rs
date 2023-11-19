@@ -259,7 +259,8 @@ fn pvs(
     let singular = s_mov != Move::NULL;
     let pc_beta = beta + 256;
 
-    let mut eval = pos.eval();
+    let static_eval = pos.eval();
+    let mut eval = static_eval;
     let mut tt_move = Move::NULL;
     let mut tt_score = -Score::MAX;
     let mut try_singular = !singular && depth >= 8 && eng.ply > 0;
@@ -296,7 +297,7 @@ fn pvs(
     }
 
     // improving heuristic
-    eng.plied[eng.ply].eval = eval;
+    eng.plied[eng.ply].eval = static_eval;
     let improving = eng.ply > 1 && eval > eng.plied[eng.ply - 2].eval;
 
     // pruning
