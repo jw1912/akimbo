@@ -298,7 +298,7 @@ fn pvs(
 
     // improving heuristic
     eng.plied[eng.ply].eval = static_eval;
-    let improving = eng.ply > 1 && eval > eng.plied[eng.ply - 2].eval;
+    let improving = eng.ply > 1 && static_eval > eng.plied[eng.ply - 2].eval;
 
     // pruning
     let mut can_prune = !pv_node && !pos.check;
