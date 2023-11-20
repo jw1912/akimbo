@@ -21,6 +21,7 @@ pub fn go(
     soft_nodes: u64,
 ) -> (Move, i32) {
     // reset engine
+    eng.store_stop(false);
     eng.ntable = NodeTable::default();
     eng.plied.clear();
     eng.timing = Instant::now();
