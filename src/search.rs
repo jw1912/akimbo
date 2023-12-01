@@ -426,7 +426,10 @@ fn pvs(
     let mut quiets_tried = MoveList::ZEROED;
 
     let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
+    let can_fp = !singular && depth < 6;
     let lmr_base = (depth as f64).ln() / 2.67;
+    let lmp_margin = 2 + depth * depth / if improving { 1 } else { 2 };
+    let fp_margin = eval + 250 + 80 * depth;
     can_prune &= eng.mloop;
 
     eng.push(hash);
@@ -441,8 +444,16 @@ fn pvs(
         // pre-move pruning
         if can_prune && best_score.abs() < Score::MATE {
             // late move pruning
-            if ms < MoveScore::KILLER && legal > 2 + depth * depth / if improving { 1 } else { 2 } {
-                break;
+            if ms < MoveScore::KILLER {
+                // late move pruning
+                if legal > lmp_margin {
+                    break;
+                }
+
+                // futility pruning
+                if can_fp && alpha < Score::MATE && fp_margin < alpha {
+                    break;
+                }
             }
 
             // static exchange eval pruning
