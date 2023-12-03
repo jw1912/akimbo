@@ -429,7 +429,7 @@ fn pvs(
     let can_fp = !singular && depth < 6;
     let lmr_base = (depth as f64).ln() / 2.67;
     let lmp_margin = 2 + depth * depth / if improving { 1 } else { 2 };
-    let fp_margin = eval + 250 + 80 * depth;
+    let fp_margin = eval + 160 + 80 * depth * depth;
     can_prune &= eng.mloop;
 
     eng.push(hash);
@@ -451,7 +451,7 @@ fn pvs(
                 }
 
                 // futility pruning
-                if can_fp && alpha < Score::MATE && fp_margin < alpha {
+                if can_fp && alpha < Score::MATE && fp_margin <= alpha {
                     break;
                 }
             }
