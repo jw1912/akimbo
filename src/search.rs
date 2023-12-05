@@ -454,6 +454,9 @@ fn pvs(
                 if can_fp && alpha < Score::MATE && fp_margin <= alpha {
                     break;
                 }
+
+                // history pruning
+                if depth < 3 && ms < -1024 * depth { break }
             }
 
             // static exchange eval pruning
