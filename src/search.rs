@@ -425,7 +425,7 @@ fn pvs(
     let mut best_move = tt_move;
     let mut quiets_tried = MoveList::ZEROED;
 
-    let can_lmr = depth > 1 && eng.ply > 0 && !pos.check;
+    let can_lmr = depth > 1 && !pos.check;
     let can_fp = !singular && depth < 6;
     let lmr_base = (depth as f64).ln() / 2.67;
     let lmp_margin = 2 + depth * depth / if improving { 1 } else { 2 };
