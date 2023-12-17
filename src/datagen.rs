@@ -1,5 +1,4 @@
 use crate::{
-    consts::Side,
     moves::Move,
     position::Position,
     search::go,
@@ -8,10 +7,15 @@ use crate::{
     STARTPOS,
 };
 
+const SEND_RATE: u64 = 16;
+
+use bulletformat::{BulletFormat, ChessBoard};
+
 use std::{
     fs::File,
     io::{BufWriter, Write},
-    sync::atomic::{AtomicBool, AtomicU64, Ordering::{Relaxed, SeqCst}},
+    net::TcpStream,
+    sync::atomic::{AtomicBool, Ordering::SeqCst},
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -19,25 +23,21 @@ static STOP: AtomicBool = AtomicBool::new(false);
 
 const NODES_PER_MOVE: u64 = 5_000;
 
-pub fn run_datagen(threads: usize, gpt: u64) {
-    let mut games = Vec::new();
-    let mut fens = Vec::new();
+pub fn run_datagen(threads: usize, gpt: u64, tcp_ip: Option<&str>) {
     let startpos = Position::from_fen(STARTPOS);
 
-    for _ in 0..threads {
-        games.push(AtomicU64::new(0));
-        fens.push(AtomicU64::new(0));
-    }
+    let tcp_ip = tcp_ip.map(|ip| {
+        println!("#[Connecting] {ip}");
+        TcpStream::connect(ip).expect("Couldn't connect.")
+    });
 
     std::thread::scope(|s| {
-        let games = &games;
-        let fens = &fens;
-
         for num in 0..threads {
             std::thread::sleep(std::time::Duration::from_millis(10));
+            let this_ip = tcp_ip.as_ref().map(|ip| ip.try_clone().expect("Couldn't Clone!"));
             s.spawn(move || {
-                let mut worker = DatagenThread::new(NODES_PER_MOVE, 8);
-                worker.run_datagen(gpt, num, games, fens, startpos);
+                let mut worker = DatagenThread::new(NODES_PER_MOVE, 8, num, this_ip);
+                worker.run_datagen(gpt, startpos);
             });
         }
 
@@ -54,16 +54,21 @@ pub fn run_datagen(threads: usize, gpt: u64) {
 }
 
 #[derive(Default)]
-pub struct GameResult {
-    fens: Vec<String>,
+struct GameResult {
+    fens: Vec<([u64; 8], usize, i16)>,
     result: f32,
 }
 
-pub struct DatagenThread {
+enum Destination {
+    BinFile(BufWriter<File>),
+    TcpStream(TcpStream),
+}
+
+struct DatagenThread {
     hash_size: usize,
-    id: u64,
+    id: usize,
     rng: u64,
-    file: BufWriter<File>,
+    dest: Destination,
     games: u64,
     fens: u64,
     start_time: Instant,
@@ -71,63 +76,50 @@ pub struct DatagenThread {
 }
 
 impl DatagenThread {
-    pub fn new(nodes_per_move: u64, hash_size: usize) -> Self {
+    fn new(nodes_per_move: u64, hash_size: usize, id: usize, tcp_ip: Option<TcpStream>) -> Self {
         let seed = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Guaranteed increasing.")
             .as_micros() as u64
             & 0xFFFF_FFFF;
 
+        let dest = if let Some(ip) = tcp_ip {
+            Destination::TcpStream(ip.try_clone().unwrap())
+        } else {
+            Destination::BinFile(BufWriter::new(File::create(format!("resources/akimbo-{seed}.data")).unwrap()))
+        };
+
         let res = Self {
             hash_size,
-            id: seed,
+            id,
             rng: seed,
-            file: BufWriter::new(File::create(format!("resources/akimbo-{seed}.epd")).unwrap()),
+            dest,
             games: 0,
             fens: 0,
             start_time: Instant::now(),
             nodes_per_move,
         };
 
-        println!("thread id {} created", res.id);
+        println!("#[{}] created", res.id);
         res
     }
 
-    pub fn write(&mut self, result: GameResult) {
-        self.games += 1;
-        let num_taken = result
-            .fens
-            .len()
-            .saturating_sub(if result.result == 0.5 { 8 } else { 0 });
-        for fen in result.fens.iter().take(num_taken) {
-            writeln!(&mut self.file, "{} | {:.1}", fen, result.result).unwrap();
-            self.fens += 1;
-        }
-    }
-
-    pub fn rng(&mut self) -> u64 {
+    fn rng(&mut self) -> u64 {
         self.rng ^= self.rng << 13;
         self.rng ^= self.rng >> 7;
         self.rng ^= self.rng << 17;
         self.rng
     }
 
-    fn update_display(&self, num: usize, games: &[AtomicU64], fens: &[AtomicU64]) {
-        games[num].store(self.games, Relaxed);
-        fens[num].store(self.fens, Relaxed);
-        update_display(self.start_time, games, fens);
-    }
-
-    pub fn run_datagen(
+    fn run_datagen(
         &mut self,
         max_games: u64,
-        num: usize,
-        games: &[AtomicU64],
-        fens: &[AtomicU64],
         startpos: Position,
     ) {
         let mut tt = HashTable::default();
         tt.resize(self.hash_size, 1);
+
+        let mut data = Vec::new();
 
         while self.games < max_games {
             if STOP.load(SeqCst) {
@@ -143,15 +135,53 @@ impl DatagenThread {
                 continue;
             };
 
-            self.write(result);
-            if self.games % 10 == 0 {
-                self.update_display(num, games, fens);
+            self.games += 1;
+            let num_taken = result
+                .fens
+                .len()
+                .saturating_sub(if result.result == 0.5 { 8 } else { 0 });
+
+            for &(bbs, stm, score) in result.fens.iter().take(num_taken) {
+                let board = ChessBoard::from_raw(bbs, stm, score, result.result).unwrap();
+                data.push(board);
+                self.fens += 1;
+            }
+
+            if self.games % SEND_RATE == 0 {
+                self.write(&mut data);
             }
         }
-        self.file.flush().unwrap();
+
+        if !data.is_empty() {
+            self.write(&mut data);
+        }
+
+        if let Destination::BinFile(file) = &mut self.dest {
+            file.flush().unwrap();
+        }
     }
 
-    pub fn run_game(&mut self, tt: &HashTable, mut position: Position) -> Option<GameResult> {
+    fn write(&mut self, data: &mut Vec<ChessBoard>) {
+        println!(
+            "#[{}] written games {} fens {} fens/sec {:.0}",
+            self.id,
+            self.games,
+            self.fens,
+            self.fens as f32 / self.start_time.elapsed().as_secs_f32(),
+        );
+
+        match &mut self.dest {
+            Destination::BinFile(file) => ChessBoard::write_to_bin(file, data).unwrap(),
+            Destination::TcpStream(stream) => {
+                let buf = ChessBoard::as_bytes_slice(data);
+                stream.write_all(buf).unwrap_or_else(|_| panic!("#[{}] error writing to stream", self.id))
+            }
+        }
+
+        data.clear();
+    }
+
+    fn run_game(&mut self, tt: &HashTable, mut position: Position) -> Option<GameResult> {
         let abort = AtomicBool::new(false);
         let mut engine = ThreadData {
             mloop: false,
@@ -205,7 +235,7 @@ impl DatagenThread {
 
             // position is quiet, can use fen
             if !bm.is_capture() && !position.in_check() {
-                result.fens.push(to_fen(&position, score));
+                result.fens.push((position.bitboards(), position.stm(), score as i16));
             }
 
             // not enough nodes to finish a depth!
@@ -235,46 +265,7 @@ impl DatagenThread {
     }
 }
 
-pub fn to_fen(pos: &Position, score: i32) -> String {
-    const PIECES: [char; 12] = ['P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k'];
-    let mut fen = String::new();
-
-    for rank in (0..8).rev() {
-        let mut clear = 0;
-
-        for file in 0..8 {
-            let sq = 8 * rank + file;
-            let bit = 1 << sq;
-            let pc = pos.get_pc(bit);
-            if pc != 0 {
-                if clear > 0 {
-                    fen.push_str(&format!("{}", clear));
-                }
-                clear = 0;
-                fen.push(PIECES[pc - 2 + 6 * usize::from(pos.side(Side::BLACK) & bit > 0)]);
-            } else {
-                clear += 1;
-            }
-        }
-
-        if clear > 0 {
-            fen.push_str(&format!("{}", clear));
-        }
-
-        if rank > 0 {
-            fen.push('/');
-        }
-    }
-
-    fen.push(' ');
-    fen.push(['w', 'b'][pos.stm()]);
-    fen.push_str(" - - 0 1 | ");
-    fen.push_str(&if pos.stm() > 0 { -score } else { score }.to_string());
-
-    fen
-}
-
-pub fn is_terminal(pos: &Position) -> bool {
+fn is_terminal(pos: &Position) -> bool {
     let moves = pos.movegen::<true>();
     for &mov in moves.iter() {
         let mut new = *pos;
@@ -283,51 +274,4 @@ pub fn is_terminal(pos: &Position) -> bool {
         }
     }
     true
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::position::Position;
-
-    #[test]
-    fn to_fen_test() {
-        let pos = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        assert_eq!(
-            to_fen(&pos, pos.eval()),
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1 6"
-        );
-    }
-}
-
-macro_rules! ansi {
-    ($x:expr, $y:expr) => {
-        format!("\x1b[{}m{}\x1b[0m", $y, $x)
-    };
-    ($x:expr, $y:expr, $esc:expr) => {
-        format!("\x1b[{}m{}\x1b[0m{}", $y, $x, $esc)
-    };
-}
-
-pub fn update_display(timer: Instant, games: &[AtomicU64], fens: &[AtomicU64]) {
-    let elapsed = timer.elapsed().as_secs_f32();
-    println!("\x1b[2J\x1b[H");
-    println!("+--------+-------------+--------------+--------------+");
-    println!("| Thread |    Games    |     Fens     |   Fens/Sec   |");
-    println!("+--------+-------------+--------------+--------------+");
-
-    for (i, (num_games, num_fens)) in games.iter().zip(fens.iter()).enumerate() {
-        let ng = num_games.load(Relaxed);
-        let nf = num_fens.load(Relaxed);
-        let fs = nf as f32 / elapsed;
-        println!(
-            "| {} | {} | {} | {} |",
-            ansi!(format!("{i:^6}"), 36),
-            ansi!(format!("{ng:^11}"), 36),
-            ansi!(format!("{nf:^12}"), 36),
-            ansi!(format!("{fs:^12.0}"), 36),
-        );
-    }
-
-    println!("+--------+-------------+--------------+--------------+");
 }

@@ -21,6 +21,11 @@ pub struct Position {
 }
 
 impl Position {
+    #[cfg(feature = "datagen")]
+    pub fn bitboards(&self) -> [u64; 8] {
+        self.bb
+    }
+
     pub fn side(&self, side: usize) -> u64 {
         self.bb[side]
     }
