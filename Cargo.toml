@@ -9,7 +9,6 @@ strip = true
 panic = "abort"
 
 [features]
-default = ["datagen"]
 datagen = ["bulletformat"]
 
 [dependencies]
