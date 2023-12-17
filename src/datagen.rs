@@ -1,5 +1,4 @@
 use crate::{
-    consts::Side,
     moves::Move,
     position::Position,
     search::go,
@@ -7,6 +6,8 @@ use crate::{
     tables::{HashTable, HistoryTable},
     STARTPOS,
 };
+
+use bulletformat::{BulletFormat, ChessBoard};
 
 use std::{
     fs::File,
@@ -55,7 +56,7 @@ pub fn run_datagen(threads: usize, gpt: u64) {
 
 #[derive(Default)]
 pub struct GameResult {
-    fens: Vec<String>,
+    fens: Vec<([u64; 8], usize, i16)>,
     result: f32,
 }
 
@@ -82,7 +83,7 @@ impl DatagenThread {
             hash_size,
             id: seed,
             rng: seed,
-            file: BufWriter::new(File::create(format!("resources/akimbo-{seed}.epd")).unwrap()),
+            file: BufWriter::new(File::create(format!("resources/akimbo-{seed}.bin")).unwrap()),
             games: 0,
             fens: 0,
             start_time: Instant::now(),
@@ -99,10 +100,16 @@ impl DatagenThread {
             .fens
             .len()
             .saturating_sub(if result.result == 0.5 { 8 } else { 0 });
-        for fen in result.fens.iter().take(num_taken) {
-            writeln!(&mut self.file, "{} | {:.1}", fen, result.result).unwrap();
+
+        let mut data = Vec::with_capacity(num_taken);
+
+        for &(bbs, stm, score) in result.fens.iter().take(num_taken) {
+            let board = ChessBoard::from_raw(bbs, stm, score, result.result).unwrap();
+            data.push(board);
             self.fens += 1;
         }
+
+        ChessBoard::write_to_bin(&mut self.file, data.as_slice()).unwrap();
     }
 
     pub fn rng(&mut self) -> u64 {
@@ -205,7 +212,7 @@ impl DatagenThread {
 
             // position is quiet, can use fen
             if !bm.is_capture() && !position.in_check() {
-                result.fens.push(to_fen(&position, score));
+                result.fens.push((position.bitboards(), position.stm(), score as i16));
             }
 
             // not enough nodes to finish a depth!
@@ -235,45 +242,6 @@ impl DatagenThread {
     }
 }
 
-pub fn to_fen(pos: &Position, score: i32) -> String {
-    const PIECES: [char; 12] = ['P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k'];
-    let mut fen = String::new();
-
-    for rank in (0..8).rev() {
-        let mut clear = 0;
-
-        for file in 0..8 {
-            let sq = 8 * rank + file;
-            let bit = 1 << sq;
-            let pc = pos.get_pc(bit);
-            if pc != 0 {
-                if clear > 0 {
-                    fen.push_str(&format!("{}", clear));
-                }
-                clear = 0;
-                fen.push(PIECES[pc - 2 + 6 * usize::from(pos.side(Side::BLACK) & bit > 0)]);
-            } else {
-                clear += 1;
-            }
-        }
-
-        if clear > 0 {
-            fen.push_str(&format!("{}", clear));
-        }
-
-        if rank > 0 {
-            fen.push('/');
-        }
-    }
-
-    fen.push(' ');
-    fen.push(['w', 'b'][pos.stm()]);
-    fen.push_str(" - - 0 1 | ");
-    fen.push_str(&if pos.stm() > 0 { -score } else { score }.to_string());
-
-    fen
-}
-
 pub fn is_terminal(pos: &Position) -> bool {
     let moves = pos.movegen::<true>();
     for &mov in moves.iter() {
@@ -283,21 +251,6 @@ pub fn is_terminal(pos: &Position) -> bool {
         }
     }
     true
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::position::Position;
-
-    #[test]
-    fn to_fen_test() {
-        let pos = Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        assert_eq!(
-            to_fen(&pos, pos.eval()),
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1 6"
-        );
-    }
 }
 
 macro_rules! ansi {
