@@ -14,6 +14,7 @@ use bulletformat::{BulletFormat, ChessBoard};
 use std::{
     fs::File,
     io::{BufWriter, Write},
+    net::TcpStream,
     sync::atomic::{AtomicBool, Ordering::SeqCst},
     time::{Instant, SystemTime, UNIX_EPOCH},
 };
@@ -22,14 +23,20 @@ static STOP: AtomicBool = AtomicBool::new(false);
 
 const NODES_PER_MOVE: u64 = 5_000;
 
-pub fn run_datagen(threads: usize, gpt: u64) {
+pub fn run_datagen(threads: usize, gpt: u64, tcp_ip: Option<&str>) {
     let startpos = Position::from_fen(STARTPOS);
+
+    let tcp_ip = tcp_ip.map(|ip| {
+        println!("#[Connecting] {ip}");
+        TcpStream::connect(ip).expect("Couldn't connect.")
+    });
 
     std::thread::scope(|s| {
         for num in 0..threads {
             std::thread::sleep(std::time::Duration::from_millis(10));
+            let this_ip = tcp_ip.as_ref().map(|ip| ip.try_clone().expect("Couldn't Clone!"));
             s.spawn(move || {
-                let mut worker = DatagenThread::new(NODES_PER_MOVE, 8, num);
+                let mut worker = DatagenThread::new(NODES_PER_MOVE, 8, num, this_ip);
                 worker.run_datagen(gpt, startpos);
             });
         }
@@ -52,11 +59,16 @@ struct GameResult {
     result: f32,
 }
 
+enum Destination {
+    BinFile(BufWriter<File>),
+    TcpStream(TcpStream),
+}
+
 struct DatagenThread {
     hash_size: usize,
     id: usize,
     rng: u64,
-    file: BufWriter<File>,
+    dest: Destination,
     games: u64,
     fens: u64,
     start_time: Instant,
@@ -64,18 +76,24 @@ struct DatagenThread {
 }
 
 impl DatagenThread {
-    fn new(nodes_per_move: u64, hash_size: usize, id: usize) -> Self {
+    fn new(nodes_per_move: u64, hash_size: usize, id: usize, tcp_ip: Option<TcpStream>) -> Self {
         let seed = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Guaranteed increasing.")
             .as_micros() as u64
             & 0xFFFF_FFFF;
 
+        let dest = if let Some(ip) = tcp_ip {
+            Destination::TcpStream(ip.try_clone().unwrap())
+        } else {
+            Destination::BinFile(BufWriter::new(File::create(format!("resources/akimbo-{seed}.data")).unwrap()))
+        };
+
         let res = Self {
             hash_size,
             id,
             rng: seed,
-            file: BufWriter::new(File::create(format!("resources/akimbo-{seed}.data")).unwrap()),
+            dest,
             games: 0,
             fens: 0,
             start_time: Instant::now(),
@@ -138,7 +156,9 @@ impl DatagenThread {
             self.write(&mut data);
         }
 
-        self.file.flush().unwrap();
+        if let Destination::BinFile(file) = &mut self.dest {
+            file.flush().unwrap();
+        }
     }
 
     fn write(&mut self, data: &mut Vec<ChessBoard>) {
@@ -150,7 +170,14 @@ impl DatagenThread {
             self.fens as f32 / self.start_time.elapsed().as_secs_f32(),
         );
 
-        ChessBoard::write_to_bin(&mut self.file, data).unwrap();
+        match &mut self.dest {
+            Destination::BinFile(file) => ChessBoard::write_to_bin(file, data).unwrap(),
+            Destination::TcpStream(stream) => {
+                let buf = ChessBoard::as_bytes_slice(data);
+                stream.write_all(buf).unwrap_or_else(|_| panic!("#[{}] error writing to stream", self.id))
+            }
+        }
+
         data.clear();
     }
 

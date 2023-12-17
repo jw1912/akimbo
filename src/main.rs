@@ -44,7 +44,9 @@ fn main() {
         Some("datagen") => {
             let threads = std::env::args().nth(2).unwrap().parse().unwrap();
             let gpt = std::env::args().nth(3).unwrap().parse().unwrap();
-            datagen::run_datagen(threads, gpt);
+            let tcp = std::env::args().nth(4);
+            let tcp_ip = tcp.as_deref();
+            datagen::run_datagen(threads, gpt, tcp_ip);
             return;
         }
         _ => {}
