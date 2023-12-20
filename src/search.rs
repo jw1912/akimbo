@@ -135,19 +135,10 @@ fn aspiration(
 fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     eng.seldepth = eng.seldepth.max(eng.ply);
 
-    let mut eval = pos.eval();
-
-    // stand-pat
-    if eval >= beta {
-        return eval;
-    }
-
-    alpha = alpha.max(eval);
-
     let hash = pos.hash();
 
     // probe hash table for cutoff
-    if let Some(entry) = eng.tt.probe(hash, eng.ply) {
+    let mut eval = if let Some(entry) = eng.tt.probe(hash, eng.ply) {
         let tt_score = entry.score();
         if match entry.bound() {
             Bound::LOWER => tt_score >= beta,
@@ -156,7 +147,18 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
         } {
             return tt_score;
         }
+
+        tt_score
+    } else {
+        pos.eval()
+    };
+
+    // stand-pat
+    if eval >= beta {
+        return eval;
     }
+
+    alpha = alpha.max(eval);
 
     let mut caps = pos.movegen::<false>();
     let mut scores = [0; 252];
