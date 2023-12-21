@@ -136,11 +136,13 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     eng.seldepth = eng.seldepth.max(eng.ply);
 
     let hash = pos.hash();
+    let mut eval = pos.eval();
 
     // probe hash table for cutoff
-    let mut eval = if let Some(entry) = eng.tt.probe(hash, eng.ply) {
+    if let Some(entry) = eng.tt.probe(hash, eng.ply) {
         let tt_score = entry.score();
-        if match entry.bound() {
+        let bound = entry.bound();
+        if match bound {
             Bound::LOWER => tt_score >= beta,
             Bound::UPPER => tt_score <= alpha,
             _ => true,
@@ -148,10 +150,13 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
             return tt_score;
         }
 
-        tt_score
-    } else {
-        pos.eval()
-    };
+        // use tt score instead of static eval
+        if !((eval > tt_score && bound == Bound::LOWER)
+            || (eval < tt_score && bound == Bound::UPPER))
+        {
+            eval = tt_score;
+        }
+    }
 
     // stand-pat
     if eval >= beta {
