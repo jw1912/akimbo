@@ -1,4 +1,7 @@
-use std::{fmt::Write, time::Instant};
+use std::{fmt::Write, time::Instant, sync::atomic::{AtomicU64, Ordering::Relaxed}};
+
+// used for displaying accurate node counts when multithreading
+static DISPLAY_NODES: AtomicU64 = AtomicU64::new(0);
 
 use super::{
     consts::{Bound, MoveScore, Piece, Score},
@@ -20,6 +23,8 @@ pub fn go(
     soft_bound: f64,
     soft_nodes: u64,
 ) -> (Move, i32) {
+    DISPLAY_NODES.store(0, Relaxed);
+
     // reset engine
     eng.store_stop(false);
     eng.ntable = NodeTable::default();
@@ -69,14 +74,15 @@ pub fn go(
                 format!("score cp {eval}")
             };
             let t = eng.timing.elapsed().as_millis();
-            let nps = (1000.0 * nodes as f64 / t as f64) as u32;
+            let display_nodes = DISPLAY_NODES.load(Relaxed);
+            let nps = (1000.0 * display_nodes as f64 / t as f64) as u32;
             let pv_line = &eng.plied[0].pv_line;
             let pv = pv_line.iter().fold(String::new(), |mut pv_str, mov| {
                 write!(&mut pv_str, "{} ", mov.to_uci()).unwrap();
                 pv_str
             });
             println!(
-                "info depth {d} seldepth {} {score} time {t} nodes {nodes} nps {nps:.0} pv {pv}",
+                "info depth {d} seldepth {} {score} time {t} nodes {display_nodes} nps {nps:.0} pv {pv}",
                 eng.seldepth
             );
 
@@ -227,12 +233,15 @@ fn pvs(
         return 0;
     }
 
-    if eng.nodes & 1023 == 0
-        && (eng.timing.elapsed().as_millis() >= eng.max_time
-            || eng.nodes + eng.qnodes >= eng.max_nodes)
-    {
-        eng.store_stop(true);
-        return 0;
+    if eng.nodes & 1023 == 0 {
+        DISPLAY_NODES.fetch_add(1024, Relaxed);
+
+        if eng.timing.elapsed().as_millis() >= eng.max_time
+            || eng.nodes + eng.qnodes >= eng.max_nodes
+        {
+            eng.store_stop(true);
+            return 0;
+        }
     }
 
     let hash = pos.hash();
