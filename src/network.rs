@@ -45,33 +45,44 @@ fn flatten(acc: &Accumulator, weights: &Accumulator) -> i32 {
     unsafe {
         use std::arch::x86_64::*;
 
-        const CHUNK: usize = 16;
+        const CHUNK: usize = 8;
 
         let mut sum = _mm256_setzero_si256();
-        let min = _mm256_set1_epi16(0);
+        let min = _mm256_setzero_si256();
         let max = _mm256_set1_epi16(QA as i16);
 
         for i in 0..HIDDEN / CHUNK {
-            let mut v = _mm256_load_si256(acc.vals.as_ptr().add(i * CHUNK).cast());
-            v = _mm256_min_epi16(_mm256_max_epi16(v, min), max);
-            v = _mm256_mullo_epi16(v, v);
+            let mut v = _mm256_cvtepi16_epi32(_mm_load_si128(acc.vals.as_ptr().add(i * CHUNK).cast()));
+            v = _mm256_min_epu32(_mm256_max_epi32(v, min), max);
+            v = _mm256_mullo_epi32(v, v);
 
-            let w = _mm256_load_si256(weights.vals.as_ptr().add(i * CHUNK).cast());
+            let w = _mm256_cvtepi16_epi32(_mm_load_si128(weights.vals.as_ptr().add(i * CHUNK).cast()));
 
-            let product = _mm256_madd_epi16(v, w);
+            let product = _mm256_mullo_epi32(v, w);
 
             sum = _mm256_add_epi32(sum, product);
         }
 
+        let mut res = 0;
+        res += _mm256_extract_epi32::<0>(sum);
+        res += _mm256_extract_epi32::<1>(sum);
+        res += _mm256_extract_epi32::<2>(sum);
+        res += _mm256_extract_epi32::<3>(sum);
+        res += _mm256_extract_epi32::<4>(sum);
+        res += _mm256_extract_epi32::<5>(sum);
+        res += _mm256_extract_epi32::<6>(sum);
+        res += _mm256_extract_epi32::<7>(sum);
+        res
+        /*
         let upper_128 = _mm256_extracti128_si256::<1>(sum);
         let lower_128 = _mm256_castsi256_si128(sum);
-        let sum_128 = _mm_add_epi32(upper_128, lower_128);
+        let sum_128 = _mm_add_epi64(upper_128, lower_128);
         let upper_64 = _mm_unpackhi_epi64(sum_128, sum_128);
-        let sum_64 = _mm_add_epi32(upper_64, sum_128);
-        let upper_32 = _mm_shuffle_epi32::<0b10_11_10_11>(sum_64);
+        let sum_64 = _mm_add_epi64(upper_64, sum_128);
+        let upper_32 = _mm_shuffle_epi32::<0b10_11_00_01>(sum_64);
         let sum_32 = _mm_add_epi32(upper_32, sum_64);
 
-        _mm_cvtsi128_si32(sum_32)
+        _mm_cvtsi128_si32(sum_32)*/
     }
 }
 
