@@ -63,25 +63,15 @@ fn flatten(acc: &Accumulator, weights: &Accumulator) -> i32 {
             sum = _mm256_add_epi32(sum, product);
         }
 
-        let mut res = _mm256_extract_epi32::<0>(sum);
-        res += _mm256_extract_epi32::<1>(sum);
-        res += _mm256_extract_epi32::<2>(sum);
-        res += _mm256_extract_epi32::<3>(sum);
-        res += _mm256_extract_epi32::<4>(sum);
-        res += _mm256_extract_epi32::<5>(sum);
-        res += _mm256_extract_epi32::<6>(sum);
-        res += _mm256_extract_epi32::<7>(sum);
-        res
-        /*
         let upper_128 = _mm256_extracti128_si256::<1>(sum);
         let lower_128 = _mm256_castsi256_si128(sum);
-        let sum_128 = _mm_add_epi64(upper_128, lower_128);
+        let sum_128 = _mm_add_epi32(upper_128, lower_128);
         let upper_64 = _mm_unpackhi_epi64(sum_128, sum_128);
-        let sum_64 = _mm_add_epi64(upper_64, sum_128);
+        let sum_64 = _mm_add_epi32(upper_64, sum_128);
         let upper_32 = _mm_shuffle_epi32::<0b10_11_00_01>(sum_64);
         let sum_32 = _mm_add_epi32(upper_32, sum_64);
 
-        _mm_cvtsi128_si32(sum_32)*/
+        _mm_cvtsi128_si32(sum_32)
     }
 }
 
