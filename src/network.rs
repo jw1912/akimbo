@@ -1,6 +1,6 @@
 const HIDDEN: usize = 768;
 const SCALE: i32 = 400;
-const QA: i32 = 255;
+const QA: i32 = 181;
 const QB: i32 = 64;
 const QAB: i32 = QA * QB;
 const OUTPUT_BUCKETS: usize = 8;
@@ -13,7 +13,7 @@ pub struct Network {
     output_bias: [i16; OUTPUT_BUCKETS],
 }
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-epoch30.bin")) };
+static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/requant.bin")) };
 
 impl Network {
     pub fn out(boys: &Accumulator, opps: &Accumulator, occ: u64) -> i32 {
