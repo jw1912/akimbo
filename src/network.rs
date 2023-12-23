@@ -89,14 +89,14 @@ mod avx2 {
     pub unsafe fn flatten(acc: &Accumulator, weights: &Accumulator) -> i32 {
         use std::arch::x86_64::*;
 
-        const CHUNK: usize = 8;
+        const CHUNK: usize = 16;
 
         let mut sum = _mm256_setzero_si256();
 
         for i in 0..HIDDEN / CHUNK {
-            let v = screlu(load_and_extend_i32(acc, i * CHUNK));
-            let w = load_and_extend_i32(weights, i * CHUNK);
-            let product = _mm256_mullo_epi32(v, w);
+            let v = screlu(load_i16s(acc, i * CHUNK));
+            let w = load_i16s(weights, i * CHUNK);
+            let product = _mm256_madd_epi16(v, w);
             sum = _mm256_add_epi32(sum, product);
         }
 
@@ -106,14 +106,14 @@ mod avx2 {
     #[inline]
     unsafe fn screlu(mut v: __m256i) -> __m256i {
         let min = _mm256_setzero_si256();
-        let max = _mm256_set1_epi32(QA);
-        v = _mm256_min_epi32(_mm256_max_epi32(v, min), max);
-        _mm256_mullo_epi32(v, v)
+        let max = _mm256_set1_epi16(QA as i16);
+        v = _mm256_min_epi16(_mm256_max_epi16(v, min), max);
+        _mm256_mullo_epi16(v, v)
     }
 
     #[inline]
-    unsafe fn load_and_extend_i32(acc: &Accumulator, start_idx: usize) -> __m256i {
-        _mm256_cvtepi16_epi32(_mm_load_si128(acc.vals.as_ptr().add(start_idx).cast()))
+    unsafe fn load_i16s(acc: &Accumulator, start_idx: usize) -> __m256i {
+        _mm256_load_si256(acc.vals.as_ptr().add(start_idx).cast())
     }
 
     #[inline]
