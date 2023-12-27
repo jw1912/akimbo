@@ -13,7 +13,7 @@ pub struct Network {
     output_bias: [i16; OUTPUT_BUCKETS],
 }
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/requant.bin")) };
+static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-27.12.23.bin")) };
 
 impl Network {
     pub fn out(boys: &Accumulator, opps: &Accumulator, occ: u64) -> i32 {
