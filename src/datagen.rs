@@ -4,7 +4,7 @@ use crate::{
     search::go,
     thread::ThreadData,
     tables::{HashTable, HistoryTable},
-    STARTPOS,
+    util::STARTPOS,
 };
 
 const SEND_RATE: u64 = 16;
@@ -23,7 +23,7 @@ static STOP: AtomicBool = AtomicBool::new(false);
 
 const NODES_PER_MOVE: u64 = 5_000;
 
-pub fn run_datagen(threads: usize, gpt: u64, tcp_ip: Option<&str>) {
+pub fn run_datagen(threads: usize, tcp_ip: Option<&str>) {
     let startpos = Position::from_fen(STARTPOS);
 
     let tcp_ip = tcp_ip.map(|ip| {
@@ -37,7 +37,7 @@ pub fn run_datagen(threads: usize, gpt: u64, tcp_ip: Option<&str>) {
             let this_ip = tcp_ip.as_ref().map(|ip| ip.try_clone().expect("Couldn't Clone!"));
             s.spawn(move || {
                 let mut worker = DatagenThread::new(NODES_PER_MOVE, 8, num, this_ip);
-                worker.run_datagen(gpt, startpos);
+                worker.run_datagen(startpos);
             });
         }
 
@@ -113,7 +113,6 @@ impl DatagenThread {
 
     fn run_datagen(
         &mut self,
-        max_games: u64,
         startpos: Position,
     ) {
         let mut tt = HashTable::default();
@@ -121,7 +120,7 @@ impl DatagenThread {
 
         let mut data = Vec::new();
 
-        while self.games < max_games {
+        loop {
             if STOP.load(SeqCst) {
                 break;
             }
@@ -184,7 +183,6 @@ impl DatagenThread {
     fn run_game(&mut self, tt: &HashTable, mut position: Position) -> Option<GameResult> {
         let abort = AtomicBool::new(false);
         let mut engine = ThreadData {
-            mloop: false,
             max_nodes: 1_000_000,
             max_time: 10000,
             ..ThreadData::new(&abort, tt, Vec::new(), HistoryTable::default())
@@ -221,6 +219,8 @@ impl DatagenThread {
                 1000.0,
                 self.nodes_per_move,
             );
+
+            engine.tt.age_up();
 
             // adjudicate large scores
             if score.abs() > 1000 {

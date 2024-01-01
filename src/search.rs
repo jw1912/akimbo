@@ -318,7 +318,7 @@ fn pvs(
     let improving = eng.ply > 1 && static_eval > eng.plied[eng.ply - 2].eval;
 
     // pruning
-    let mut can_prune = !pv_node && !pos.check;
+    let can_prune = !pv_node && !pos.check;
     if can_prune && beta.abs() < Score::MATE {
         // reverse futility pruning
         if depth <= 8 && eval >= beta + 80 * depth / if improving { 2 } else { 1 } {
@@ -442,11 +442,16 @@ fn pvs(
     let mut quiets_tried = MoveList::ZEROED;
 
     let can_lmr = depth > 1 && !pos.check;
-    let can_fp = !singular && depth < 6;
     let lmr_base = (depth as f64).ln() / 2.67;
+
+    #[cfg(not(feature = "datagen"))]
+    let can_fp = !singular && depth < 6;
+
+    #[cfg(not(feature = "datagen"))]
     let lmp_margin = 2 + depth * depth / if improving { 1 } else { 2 };
+
+    #[cfg(not(feature = "datagen"))]
     let fp_margin = eval + 160 + 80 * depth * depth;
-    can_prune &= eng.mloop;
 
     eng.push(hash);
     eng.plied[eng.ply].dbl_exts = eng.plied[eng.ply - 1].dbl_exts;
@@ -458,6 +463,7 @@ fn pvs(
         }
 
         // pre-move pruning
+        #[cfg(not(feature = "datagen"))]
         if can_prune && best_score.abs() < Score::MATE {
             // late move pruning
             if ms < MoveScore::KILLER {

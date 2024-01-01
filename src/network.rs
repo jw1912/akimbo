@@ -3,24 +3,22 @@ const SCALE: i32 = 400;
 const QA: i32 = 181;
 const QB: i32 = 64;
 const QAB: i32 = QA * QB;
-const OUTPUT_BUCKETS: usize = 1;
 
 #[repr(C)]
 pub struct Network {
     feature_weights: [Accumulator; 768],
     feature_bias: Accumulator,
-    output_weights: [[Accumulator; 2]; OUTPUT_BUCKETS],
-    output_bias: [i16; OUTPUT_BUCKETS],
+    output_weights: [Accumulator; 2],
+    output_bias: i16,
 }
 
 static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-01.01.24-epoch17.bin")) };
 
 impl Network {
-    pub fn out(boys: &Accumulator, opps: &Accumulator, _: u64) -> i32 {
-        let bucket = 0;//(occ.count_ones() - 2) as usize / 4;
-        let weights = &NNUE.output_weights[bucket];
+    pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
+        let weights = &NNUE.output_weights;
         let sum = flatten(boys, &weights[0]) + flatten(opps, &weights[1]);
-        (sum / QA + i32::from(NNUE.output_bias[bucket])) * SCALE / QAB
+        (sum / QA + i32::from(NNUE.output_bias)) * SCALE / QAB
     }
 }
 
