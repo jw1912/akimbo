@@ -3,7 +3,7 @@ const SCALE: i32 = 400;
 const QA: i32 = 181;
 const QB: i32 = 64;
 const QAB: i32 = QA * QB;
-const OUTPUT_BUCKETS: usize = 8;
+const OUTPUT_BUCKETS: usize = 1;
 
 #[repr(C)]
 pub struct Network {
@@ -13,11 +13,11 @@ pub struct Network {
     output_bias: [i16; OUTPUT_BUCKETS],
 }
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-27.12.23.bin")) };
+static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-01.01.24-epoch17.bin")) };
 
 impl Network {
-    pub fn out(boys: &Accumulator, opps: &Accumulator, occ: u64) -> i32 {
-        let bucket = (occ.count_ones() - 2) as usize / 4;
+    pub fn out(boys: &Accumulator, opps: &Accumulator, _: u64) -> i32 {
+        let bucket = 0;//(occ.count_ones() - 2) as usize / 4;
         let weights = &NNUE.output_weights[bucket];
         let sum = flatten(boys, &weights[0]) + flatten(opps, &weights[1]);
         (sum / QA + i32::from(NNUE.output_bias[bucket])) * SCALE / QAB
