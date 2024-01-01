@@ -160,13 +160,14 @@ impl Position {
     fn scale(&self, eval: i32) -> i32 {
         #[cfg(not(feature = "datagen"))]
         {
-            let scale = 22400
-                + self.bb[Piece::KNIGHT].count_ones() as i32 * SEE_VALS[Piece::KNIGHT]
+            let mut mat = self.bb[Piece::KNIGHT].count_ones() as i32 * SEE_VALS[Piece::KNIGHT]
                 + self.bb[Piece::BISHOP].count_ones() as i32 * SEE_VALS[Piece::BISHOP]
                 + self.bb[Piece::ROOK].count_ones() as i32 * SEE_VALS[Piece::ROOK]
                 + self.bb[Piece::QUEEN].count_ones() as i32 * SEE_VALS[Piece::QUEEN];
 
-            eval * scale / 32768
+            mat = 700 + mat / 32;
+
+            eval * mat / 1024
         }
         #[cfg(feature = "datagen")]
         {
