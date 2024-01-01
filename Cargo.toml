@@ -12,4 +12,4 @@ panic = "abort"
 datagen = ["bulletformat"]
 
 [dependencies]
-bulletformat = { git = 'https://github.com/jw1912/bulletformat', optional = true}
+bulletformat = { version = "0.1.0", optional = true }
