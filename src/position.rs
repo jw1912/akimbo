@@ -153,7 +153,26 @@ impl Position {
     pub fn eval(&self) -> i32 {
         let boys = &self.acc[usize::from(self.c)];
         let opps = &self.acc[usize::from(!self.c)];
-        Network::out(boys, opps, self.side(Side::WHITE) | self.side(Side::BLACK))
+        let eval = Network::out(boys, opps);
+        self.scale(eval)
+    }
+
+    fn scale(&self, eval: i32) -> i32 {
+        #[cfg(not(feature = "datagen"))]
+        {
+            let mut mat = self.bb[Piece::KNIGHT].count_ones() as i32 * SEE_VALS[Piece::KNIGHT]
+                + self.bb[Piece::BISHOP].count_ones() as i32 * SEE_VALS[Piece::BISHOP]
+                + self.bb[Piece::ROOK].count_ones() as i32 * SEE_VALS[Piece::ROOK]
+                + self.bb[Piece::QUEEN].count_ones() as i32 * SEE_VALS[Piece::QUEEN];
+
+            mat = 700 + mat / 32;
+
+            eval * mat / 1024
+        }
+        #[cfg(feature = "datagen")]
+        {
+            eval
+        }
     }
 
     pub fn draw(&self) -> bool {

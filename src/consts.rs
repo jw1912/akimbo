@@ -122,6 +122,4 @@ pub const SPANS: [[u64; 64]; 2] = [
     init!(|sq, 64| FRONT_SPANS[sq ^ 56].swap_bytes()),
 ];
 
-pub const SIDE: [i32; 2] = [1, -1];
-
 pub const PHASE_VALS: [i32; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
