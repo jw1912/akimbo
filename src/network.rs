@@ -7,8 +7,7 @@ const QA: i32 = 256;
 pub struct Network {
     l1_w: [Accumulator; 768],
     l1_b: Accumulator,
-    l2_w: [[Column<L2>; L1]; 2],
-    l2_b: Column<L2>,
+    l2: Layer<{L1 * 2}, L2>,
     l3: Layer<L2, 1>,
 }
 
@@ -16,10 +15,7 @@ static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resource
 
 impl Network {
     pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
-        let mut l2 = NNUE.l2_b;
-        l2.flatten(boys, &NNUE.l2_w[0]);
-        l2.flatten(opps, &NNUE.l2_w[1]);
-        l2.crelu();
+        let l2 = NNUE.l2.concat_out(boys, opps);
         let l3 = NNUE.l3.out(&l2);
         let out = l3.vals[0] * SCALE as f32;
         out as i32
@@ -35,15 +31,24 @@ fn screlu(x: f32) -> f32 {
 #[repr(C)]
 struct Layer<const M: usize, const N: usize> {
     weights: [Column<N>; M],
-    bias: Column<N>,
+    biases: Column<N>,
+}
+
+impl Layer<{L1 * 2}, L2> {
+    fn concat_out(&self, boys: &Accumulator, opps: &Accumulator) -> Column<L2> {
+        let mut out = self.biases;
+        out.flatten(boys, &self.weights[..L1]);
+        out.flatten(opps, &self.weights[L1..]);
+        out
+    }
 }
 
 impl<const M: usize, const N: usize> Layer<M, N> {
     fn out(&self, inp: &Column<M>) -> Column<N> {
-        let mut out = self.bias;
+        let mut out = self.biases;
 
         for (&mul, col) in inp.vals.iter().zip(self.weights.iter()) {
-            out.madd_assign(mul, col);
+            out.madd_assign(mul.clamp(0.0, 1.0), col);
         }
 
         out
@@ -63,7 +68,7 @@ impl<const N: usize> Default for Column<N> {
 }
 
 impl<const N: usize> Column<N> {
-    fn flatten(&mut self, acc: &Accumulator, weights: &[Column<N>; L1]) {
+    fn flatten(&mut self, acc: &Accumulator, weights: &[Column<N>]) {
         for (&x, col) in acc.vals.iter().zip(weights.iter()) {
             let act = screlu(f32::from(x) / QA as f32);
             self.madd_assign(act, col);
@@ -71,18 +76,8 @@ impl<const N: usize> Column<N> {
     }
 
     fn madd_assign(&mut self, mul: f32, rhs: &Column<N>) {
-        for (i, &j) in self
-            .vals
-            .iter_mut()
-            .zip(rhs.vals.iter())
-        {
+        for (i, &j) in self.vals.iter_mut().zip(rhs.vals.iter()) {
             *i += mul * j;
-        }
-    }
-
-    fn crelu(&mut self) {
-        for val in self.vals.iter_mut() {
-            *val = val.clamp(0.0, 1.0);
         }
     }
 }
