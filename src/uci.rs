@@ -218,6 +218,7 @@ fn handle_go(
     let mut alloc = 1_000_000;
     let mut incs = [0, 0];
     let mut depth = 64;
+    let mut nodes = u64::MAX;
 
     let tokens = [
         "go",
@@ -228,6 +229,7 @@ fn handle_go(
         "winc",
         "binc",
         "depth",
+        "nodes",
     ];
 
     for cmd in commands {
@@ -243,6 +245,7 @@ fn handle_go(
                 4 => mtg = val,
                 5 | 6 => incs[token - 5] = val.max(0),
                 7 => depth = val.clamp(0, 64) as i32,
+                8 => nodes = val as u64,
                 _ => {}
             }
         }
@@ -265,6 +268,7 @@ fn handle_go(
     // main search thread
     let mut eng = ThreadData::new(&abort, tt, stack.clone(), htable.clone());
     eng.max_time = hard_bound;
+    eng.max_nodes = nodes;
 
     std::thread::scope(|s| {
         s.spawn(|| {
