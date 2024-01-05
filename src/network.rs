@@ -1,63 +1,34 @@
 const L1: usize = 768;
 const L2: usize = 16;
 const SCALE: i32 = 400;
-const QA: i32 = 181;
-const QB: i32 = 64;
-const QAB: i32 = QA * QB;
+const QA: i32 = 256;
 
 #[repr(C)]
 pub struct Network {
     l1_w: [Accumulator; 768],
     l1_b: Accumulator,
-    l2_w: [[[i16; L2]; L1]; 2],
-    l2_b: [i16; L2],
+    l2_w: [[Column<L2>; L1]; 2],
+    l2_b: Column<L2>,
     l3: Layer<L2, 1>,
 }
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-05.01.24-epoch17.bin")) };
+static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-05.01.24-epoch1.bin")) };
 
 impl Network {
     pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
-        let mut l2 = [0; L2];
-        flatten(boys, &NNUE.l2_w[0], &mut l2);
-        flatten(opps, &NNUE.l2_w[1], &mut l2);
-
-        let mut l2 = dequantise(&l2);
+        let mut l2 = NNUE.l2_b;
+        l2.flatten(boys, &NNUE.l2_w[0]);
+        l2.flatten(opps, &NNUE.l2_w[1]);
         l2.crelu();
-
         let l3 = NNUE.l3.out(&l2);
-
-        (l3.vals[0] * SCALE as f32) as i32
-    }
-}
-
-fn flatten(acc: &Accumulator, weights: &[[i16; L2]; L1], out: &mut [i32; L2]) {
-    for (&x, &col) in acc.vals.iter().zip(weights.iter()) {
-        let act = screlu(x);
-
-        for (i, &j) in out.iter_mut().zip(col.iter()) {
-            *i += act * i32::from(j);
-        }
+        let out = l3.vals[0] * SCALE as f32;
+        out as i32
     }
 }
 
 #[inline]
-fn screlu(x: i16) -> i32 {
-    i32::from(x.clamp(0, QA as i16)).pow(2)
-}
-
-/// 1 if not SCReLU
-const ACCUMULATED_Q: i32 = QA;
-
-
-fn dequantise<const N: usize>(inp: &[i32; N]) -> Column<N> {
-    let mut out = Column::default();
-
-    for (i, &j) in out.vals.iter_mut().zip(inp.iter()) {
-        *i = (j / ACCUMULATED_Q) as f32 / QAB as f32;
-    }
-
-    out
+fn screlu(x: f32) -> f32 {
+    x.clamp(0.0, 1.0).powi(2)
 }
 
 #[derive(Clone, Copy)]
@@ -79,7 +50,7 @@ impl<const M: usize, const N: usize> Layer<M, N> {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 struct Column<const N: usize> {
     vals: [f32; N],
@@ -92,6 +63,13 @@ impl<const N: usize> Default for Column<N> {
 }
 
 impl<const N: usize> Column<N> {
+    fn flatten(&mut self, acc: &Accumulator, weights: &[Column<N>; L1]) {
+        for (&x, col) in acc.vals.iter().zip(weights.iter()) {
+            let act = screlu(f32::from(x) / QA as f32);
+            self.madd_assign(act, col);
+        }
+    }
+
     fn madd_assign(&mut self, mul: f32, rhs: &Column<N>) {
         for (i, &j) in self
             .vals
@@ -146,10 +124,10 @@ fn _quantise() {
     const SIZE: usize = L1_SIZE + L2_SIZE + L3_SIZE;
 
     static RAW_NET: [f32; SIZE] = unsafe {
-        std::mem::transmute(*include_bytes!("../../bullet/checkpoints/net-05.01.24-epoch17/params.bin"))
+        std::mem::transmute(*include_bytes!("../../bullet/checkpoints/net-05.01.24-epoch1/params.bin"))
     };
 
-    let mut file = File::create("resources/net-05.01.24-epoch17.bin").unwrap();
+    let mut file = File::create("resources/net-05.01.24-epoch1.bin").unwrap();
 
     fn write_buf<T>(buf: &[T], file: &mut File) {
         unsafe {
@@ -169,16 +147,5 @@ fn _quantise() {
     }
 
     write_buf(&buf, &mut file);
-
-    let mut buf = vec![0i16; L2_SIZE];
-    for i in 0..L2_SIZE {
-        let qf = (RAW_NET[L1_SIZE + i] * QB as f32).trunc();
-        let q = qf as i16;
-        assert_eq!(f32::from(q), qf);
-        buf[i] = q;
-    }
-
-    write_buf(&buf, &mut file);
-
-    write_buf(&RAW_NET[L1_SIZE + L2_SIZE..SIZE], &mut file);
+    write_buf(&RAW_NET[L1_SIZE..SIZE], &mut file);
 }
