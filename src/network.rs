@@ -13,7 +13,20 @@ pub struct Network {
     l4: Layer<L3, 1>,
 }
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/morelayers-8-relu-16-relu-epoch17.bin")) };
+pub struct Activation;
+impl Activation {
+    #[inline]
+    fn input(x: f32) -> f32 {
+        x.clamp(0.0, 1.0).powi(2)
+    }
+
+    #[inline]
+    fn output(x: f32) -> f32 {
+        x.clamp(0.0, 1.0)
+    }
+}
+
+static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/morelayers-8-crelu-16-crelu-epoch8.bin")) };
 
 impl Network {
     pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
@@ -46,7 +59,8 @@ impl<const M: usize, const N: usize> Layer<M, N> {
         let mut out = self.biases;
 
         for (&mul, col) in inp.vals.iter().zip(self.weights.iter()) {
-            out.madd_assign(mul.max(0.0), col);
+            let act = Activation::output(mul);
+            out.madd_assign(act, col);
         }
 
         out
@@ -68,8 +82,8 @@ impl<const N: usize> Default for Column<N> {
 impl<const N: usize> Column<N> {
     fn flatten(&mut self, acc: &Accumulator, weights: &[Column<N>]) {
         for (&x, col) in acc.vals.iter().zip(weights.iter()) {
-            let crelu = (f32::from(x) / QA as f32).clamp(0.0, 1.0);
-            self.madd_assign(crelu, col);
+            let act = Activation::input(f32::from(x) / QA as f32);
+            self.madd_assign(act, col);
         }
     }
 
@@ -118,10 +132,10 @@ fn _quantise() {
     const SIZE: usize = L1_SIZE + L2_SIZE + L3_SIZE + OUT_SIZE;
 
     static RAW_NET: [f32; SIZE] = unsafe {
-        std::mem::transmute(*include_bytes!("../../bullet/checkpoints/morelayers-8-relu-16-relu-epoch17/params.bin"))
+        std::mem::transmute(*include_bytes!("../../bullet/checkpoints/morelayers-8-crelu-16-crelu-epoch8/params.bin"))
     };
 
-    let mut file = File::create("resources/morelayers-8-relu-16-relu-epoch17.bin").unwrap();
+    let mut file = File::create("resources/morelayers-8-crelu-16-crelu-epoch8.bin").unwrap();
 
     fn write_buf<T>(buf: &[T], file: &mut File) {
         unsafe {
