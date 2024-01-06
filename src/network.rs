@@ -11,7 +11,7 @@ pub struct Network {
     l3: Layer<L2, 1>,
 }
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-05.01.24-epoch11.bin")) };
+static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-05.01.24-epoch17.bin")) };
 
 impl Network {
     pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
@@ -119,10 +119,10 @@ fn _quantise() {
     const SIZE: usize = L1_SIZE + L2_SIZE + L3_SIZE;
 
     static RAW_NET: [f32; SIZE] = unsafe {
-        std::mem::transmute(*include_bytes!("../../bullet/checkpoints/net-05.01.24-epoch11/params.bin"))
+        std::mem::transmute(*include_bytes!("../../bullet/checkpoints/net-05.01.24-epoch17/params.bin"))
     };
 
-    let mut file = File::create("resources/net-05.01.24-epoch11.bin").unwrap();
+    let mut file = File::create("resources/net-05.01.24-epoch17.bin").unwrap();
 
     fn write_buf<T>(buf: &[T], file: &mut File) {
         unsafe {
