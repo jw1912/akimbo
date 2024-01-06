@@ -13,7 +13,7 @@ pub struct Network {
     l4: Layer<L3, 1>,
 }
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/morelayers-8-relu-16-relu-epoch3.bin")) };
+static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/morelayers-8-relu-16-relu-epoch17.bin")) };
 
 impl Network {
     pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
@@ -118,10 +118,10 @@ fn _quantise() {
     const SIZE: usize = L1_SIZE + L2_SIZE + L3_SIZE + OUT_SIZE;
 
     static RAW_NET: [f32; SIZE] = unsafe {
-        std::mem::transmute(*include_bytes!("../../bullet/checkpoints/morelayers-8-relu-16-relu-epoch3/params.bin"))
+        std::mem::transmute(*include_bytes!("../../bullet/checkpoints/morelayers-8-relu-16-relu-epoch17/params.bin"))
     };
 
-    let mut file = File::create("resources/morelayers-8-relu-16-relu-epoch3.bin").unwrap();
+    let mut file = File::create("resources/morelayers-8-relu-16-relu-epoch17.bin").unwrap();
 
     fn write_buf<T>(buf: &[T], file: &mut File) {
         unsafe {
