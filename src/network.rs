@@ -105,7 +105,7 @@ impl Default for Accumulator {
     }
 }
 
-//#[cfg(feature = "quantise")]
+#[cfg(feature = "quantise")]
 #[test]
 fn _quantise() {
     use std::fs::File;
