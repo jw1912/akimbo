@@ -4,6 +4,8 @@ const L3: usize = 16;
 const SCALE: i32 = 400;
 const QA: i32 = 256;
 
+static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/morelayers-8-crelu-16-crelu-epoch8.bin")) };
+
 #[repr(C)]
 pub struct Network {
     l1_w: [Accumulator; 768],
@@ -13,28 +15,54 @@ pub struct Network {
     l4: Layer<L3, 1>,
 }
 
-pub struct Activation;
-impl Activation {
-    #[inline]
-    fn input(x: f32) -> f32 {
-        x.clamp(0.0, 1.0).powi(2)
+impl Network {
+    pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
+        let l2 = NNUE.l2.concat_out::<SCReLU>(boys, opps);
+        let l3 = NNUE.l3.out::<CReLU>(&l2);
+        let l4 = NNUE.l4.out::<CReLU>(&l3);
+        let out = l4.vals[0] * SCALE as f32;
+        out as i32
     }
+}
 
+pub trait Activation {
+    fn activate(x: f32) -> f32;
+}
+
+pub struct CReLU;
+impl Activation for CReLU {
     #[inline]
-    fn output(x: f32) -> f32 {
+    fn activate(x: f32) -> f32 {
         x.clamp(0.0, 1.0)
     }
 }
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/morelayers-8-crelu-16-crelu-epoch8.bin")) };
+pub struct SCReLU;
+impl Activation for SCReLU {
+    #[inline]
+    fn activate(x: f32) -> f32 {
+        x.clamp(0.0, 1.0).powi(2)
+    }
+}
 
-impl Network {
-    pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
-        let l2 = NNUE.l2.concat_out(boys, opps);
-        let l3 = NNUE.l3.out(&l2);
-        let l4 = NNUE.l4.out(&l3);
-        let out = l4.vals[0] * SCALE as f32;
-        out as i32
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+struct Column<const N: usize> {
+    vals: [f32; N],
+}
+
+impl<const N: usize> Column<N> {
+    fn flatten<T: Activation>(&mut self, acc: &Accumulator, weights: &[Column<N>]) {
+        for (&x, col) in acc.vals.iter().zip(weights.iter()) {
+            let act = T::activate(f32::from(x) / QA as f32);
+            self.madd_assign(act, col);
+        }
+    }
+
+    fn madd_assign(&mut self, mul: f32, rhs: &Column<N>) {
+        for (i, &j) in self.vals.iter_mut().zip(rhs.vals.iter()) {
+            *i += mul * j;
+        }
     }
 }
 
@@ -46,51 +74,24 @@ struct Layer<const M: usize, const N: usize> {
 }
 
 impl Layer<{L1 * 2}, L2> {
-    fn concat_out(&self, boys: &Accumulator, opps: &Accumulator) -> Column<L2> {
+    fn concat_out<T: Activation>(&self, boys: &Accumulator, opps: &Accumulator) -> Column<L2> {
         let mut out = self.biases;
-        out.flatten(boys, &self.weights[..L1]);
-        out.flatten(opps, &self.weights[L1..]);
+        out.flatten::<T>(boys, &self.weights[..L1]);
+        out.flatten::<T>(opps, &self.weights[L1..]);
         out
     }
 }
 
 impl<const M: usize, const N: usize> Layer<M, N> {
-    fn out(&self, inp: &Column<M>) -> Column<N> {
+    fn out<T: Activation>(&self, inp: &Column<M>) -> Column<N> {
         let mut out = self.biases;
 
         for (&mul, col) in inp.vals.iter().zip(self.weights.iter()) {
-            let act = Activation::output(mul);
+            let act = T::activate(mul);
             out.madd_assign(act, col);
         }
 
         out
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(C)]
-struct Column<const N: usize> {
-    vals: [f32; N],
-}
-
-impl<const N: usize> Default for Column<N> {
-    fn default() -> Self {
-        Self { vals: [0.0; N] }
-    }
-}
-
-impl<const N: usize> Column<N> {
-    fn flatten(&mut self, acc: &Accumulator, weights: &[Column<N>]) {
-        for (&x, col) in acc.vals.iter().zip(weights.iter()) {
-            let act = Activation::input(f32::from(x) / QA as f32);
-            self.madd_assign(act, col);
-        }
-    }
-
-    fn madd_assign(&mut self, mul: f32, rhs: &Column<N>) {
-        for (i, &j) in self.vals.iter_mut().zip(rhs.vals.iter()) {
-            *i += mul * j;
-        }
     }
 }
 
