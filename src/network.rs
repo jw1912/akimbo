@@ -4,7 +4,7 @@ const L3: usize = 16;
 const SCALE: i32 = 400;
 const QA: i32 = 256;
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/morelayers-8-crelu-16-crelu-epoch8.bin")) };
+static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/morelayers-8-crelu-16-crelu-epoch9.bin")) };
 
 #[repr(C)]
 pub struct Network {
@@ -133,10 +133,10 @@ fn _quantise() {
     const SIZE: usize = L1_SIZE + L2_SIZE + L3_SIZE + OUT_SIZE;
 
     static RAW_NET: [f32; SIZE] = unsafe {
-        std::mem::transmute(*include_bytes!("../../bullet/checkpoints/morelayers-8-crelu-16-crelu-epoch8/params.bin"))
+        std::mem::transmute(*include_bytes!("../../bullet/checkpoints/morelayers-8-crelu-16-crelu-epoch9/params.bin"))
     };
 
-    let mut file = File::create("resources/morelayers-8-crelu-16-crelu-epoch8.bin").unwrap();
+    let mut file = File::create("resources/morelayers-8-crelu-16-crelu-epoch9.bin").unwrap();
 
     fn write_buf<T>(buf: &[T], file: &mut File) {
         unsafe {
