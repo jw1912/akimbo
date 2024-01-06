@@ -1,5 +1,6 @@
 const L1: usize = 768;
-const L2: usize = 16;
+const L2: usize = 8;
+const L3: usize = 16;
 const SCALE: i32 = 400;
 const QA: i32 = 256;
 
@@ -8,23 +9,20 @@ pub struct Network {
     l1_w: [Accumulator; 768],
     l1_b: Accumulator,
     l2: Layer<{L1 * 2}, L2>,
-    l3: Layer<L2, 1>,
+    l3: Layer<L2, L3>,
+    l4: Layer<L3, 1>,
 }
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-05.01.24-epoch17.bin")) };
+static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/morelayers-8-relu-16-relu-epoch3.bin")) };
 
 impl Network {
     pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
         let l2 = NNUE.l2.concat_out(boys, opps);
         let l3 = NNUE.l3.out(&l2);
-        let out = l3.vals[0] * SCALE as f32;
+        let l4 = NNUE.l4.out(&l3);
+        let out = l4.vals[0] * SCALE as f32;
         out as i32
     }
-}
-
-#[inline]
-fn screlu(x: f32) -> f32 {
-    x.clamp(0.0, 1.0).powi(2)
 }
 
 #[derive(Clone, Copy)]
@@ -48,7 +46,7 @@ impl<const M: usize, const N: usize> Layer<M, N> {
         let mut out = self.biases;
 
         for (&mul, col) in inp.vals.iter().zip(self.weights.iter()) {
-            out.madd_assign(mul.clamp(0.0, 1.0), col);
+            out.madd_assign(mul.max(0.0), col);
         }
 
         out
@@ -70,8 +68,8 @@ impl<const N: usize> Default for Column<N> {
 impl<const N: usize> Column<N> {
     fn flatten(&mut self, acc: &Accumulator, weights: &[Column<N>]) {
         for (&x, col) in acc.vals.iter().zip(weights.iter()) {
-            let act = screlu(f32::from(x) / QA as f32);
-            self.madd_assign(act, col);
+            let crelu = (f32::from(x) / QA as f32).clamp(0.0, 1.0);
+            self.madd_assign(crelu, col);
         }
     }
 
@@ -107,7 +105,7 @@ impl Default for Accumulator {
     }
 }
 
-#[cfg(feature = "quantise")]
+//#[cfg(feature = "quantise")]
 #[test]
 fn _quantise() {
     use std::fs::File;
@@ -115,14 +113,15 @@ fn _quantise() {
 
     const L1_SIZE: usize = 769 * L1;
     const L2_SIZE: usize = (L1 * 2 + 1) * L2;
-    const L3_SIZE: usize = L2 + 1;
-    const SIZE: usize = L1_SIZE + L2_SIZE + L3_SIZE;
+    const L3_SIZE: usize = (L2 + 1) * L3;
+    const OUT_SIZE: usize = L3 + 1;
+    const SIZE: usize = L1_SIZE + L2_SIZE + L3_SIZE + OUT_SIZE;
 
     static RAW_NET: [f32; SIZE] = unsafe {
-        std::mem::transmute(*include_bytes!("../../bullet/checkpoints/net-05.01.24-epoch17/params.bin"))
+        std::mem::transmute(*include_bytes!("../../bullet/checkpoints/morelayers-8-relu-16-relu-epoch3/params.bin"))
     };
 
-    let mut file = File::create("resources/net-05.01.24-epoch17.bin").unwrap();
+    let mut file = File::create("resources/morelayers-8-relu-16-relu-epoch3.bin").unwrap();
 
     fn write_buf<T>(buf: &[T], file: &mut File) {
         unsafe {
@@ -142,5 +141,5 @@ fn _quantise() {
     }
 
     write_buf(&buf, &mut file);
-    write_buf(&RAW_NET[L1_SIZE..SIZE], &mut file);
+    write_buf(&RAW_NET[L1_SIZE..], &mut file);
 }
