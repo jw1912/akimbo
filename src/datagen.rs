@@ -7,7 +7,12 @@ use crate::{
     util::STARTPOS,
 };
 
-const SEND_RATE: u64 = 16;
+// Datagen Settings
+const ADJ_WIN_SCORE: i32 = 3000;
+const SOFT_NODE_LIMIT: u64 = 5_000;
+const HARD_NODE_LIMIT: u64 = 1_000_000;
+const HARD_TIMEOUT_MS: u128 = 10_000;
+const DATA_WRITE_RATE: u64 = 16;
 
 use bulletformat::{BulletFormat, ChessBoard};
 
@@ -20,8 +25,6 @@ use std::{
 };
 
 static STOP: AtomicBool = AtomicBool::new(false);
-
-const NODES_PER_MOVE: u64 = 5_000;
 
 pub fn run_datagen(threads: usize, tcp_ip: Option<&str>) {
     let startpos = Position::from_fen(STARTPOS);
@@ -36,7 +39,7 @@ pub fn run_datagen(threads: usize, tcp_ip: Option<&str>) {
             std::thread::sleep(std::time::Duration::from_millis(10));
             let this_ip = tcp_ip.as_ref().map(|ip| ip.try_clone().expect("Couldn't Clone!"));
             s.spawn(move || {
-                let mut worker = DatagenThread::new(NODES_PER_MOVE, 8, num, this_ip);
+                let mut worker = DatagenThread::new(SOFT_NODE_LIMIT, 8, num, this_ip);
                 worker.run_datagen(startpos);
             });
         }
@@ -135,18 +138,14 @@ impl DatagenThread {
             };
 
             self.games += 1;
-            let num_taken = result
-                .fens
-                .len()
-                .saturating_sub(if result.result == 0.5 { 8 } else { 0 });
 
-            for &(bbs, stm, score) in result.fens.iter().take(num_taken) {
+            for &(bbs, stm, score) in result.fens.iter() {
                 let board = ChessBoard::from_raw(bbs, stm, score, result.result).unwrap();
                 data.push(board);
                 self.fens += 1;
             }
 
-            if self.games % SEND_RATE == 0 {
+            if self.games % DATA_WRITE_RATE == 0 {
                 self.write(&mut data);
             }
         }
@@ -183,8 +182,8 @@ impl DatagenThread {
     fn run_game(&mut self, tt: &HashTable, mut position: Position) -> Option<GameResult> {
         let abort = AtomicBool::new(false);
         let mut engine = ThreadData {
-            max_nodes: 1_000_000,
-            max_time: 10000,
+            max_nodes: HARD_NODE_LIMIT,
+            max_time: HARD_TIMEOUT_MS,
             ..ThreadData::new(&abort, tt, Vec::new(), HistoryTable::default())
         };
 
@@ -223,7 +222,7 @@ impl DatagenThread {
             engine.tt.age_up();
 
             // adjudicate large scores
-            if score.abs() > 1000 {
+            if score.abs() > ADJ_WIN_SCORE {
                 result.result = if score > 0 {
                     1 - position.stm()
                 } else {
