@@ -74,7 +74,7 @@ impl Position {
         }
     }
 
-    pub fn update_accmulators(&self, accs: &mut [Accumulator; 2]) {
+    pub fn update_accumulators(&self, accs: &mut [Accumulator; 2]) {
         self.feats.update_accumulators(accs);
     }
 
@@ -173,6 +173,7 @@ impl Position {
     }
 
     pub fn make_null(&mut self) {
+        self.feats.clear();
         self.c = !self.c;
         self.enp_sq = 0;
     }

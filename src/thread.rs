@@ -96,8 +96,8 @@ impl<'a> ThreadData<'a> {
         self.ply -= 1;
     }
 
-    pub fn update_accmulators(&mut self, pos: &Position) {
+    pub fn update_accumulators(&mut self, pos: &Position) {
         self.plied[self.ply].accumulators = self.plied[self.ply - 1].accumulators;
-        pos.update_accmulators(&mut self.plied[self.ply].accumulators);
+        pos.update_accumulators(&mut self.plied[self.ply].accumulators);
     }
 }
