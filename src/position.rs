@@ -137,7 +137,7 @@ impl Position {
 
         // move piece
         self.toggle::<false>(side, moved, from);
-        if mov.flag() != Flag::PROMO {
+        if mov.flag() < Flag::PROMO {
             self.toggle::<true>(side, moved, to);
         }
 

@@ -19,7 +19,7 @@ pub struct ThreadData<'a> {
     // tables
     pub tt: HashView<'a>,
     pub htable: HistoryTable,
-    pub plied: PlyTable,
+    pub plied: Box<PlyTable>,
     pub ntable: NodeTable,
     pub stack: Vec<u64>,
 
@@ -44,7 +44,7 @@ impl<'a> ThreadData<'a> {
             max_nodes: u64::MAX,
             tt: HashView::new(tt),
             htable,
-            plied: PlyTable::default(),
+            plied: Box::default(),
             ntable: NodeTable::default(),
             stack,
             nodes: 0,
