@@ -95,4 +95,9 @@ impl<'a> ThreadData<'a> {
         self.stack.pop();
         self.ply -= 1;
     }
+
+    pub fn update_accmulators(&mut self, pos: &Position) {
+        self.plied[self.ply].accumulators = self.plied[self.ply - 1].accumulators;
+        pos.update_accmulators(&mut self.plied[self.ply].accumulators);
+    }
 }

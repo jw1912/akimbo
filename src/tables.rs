@@ -4,7 +4,7 @@ use crate::{
     util::boxed_and_zeroed,
     consts::{MoveScore, Score},
     moves::{Move, MoveList},
-    position::Position,
+    position::Position, network::Accumulator,
 };
 
 pub struct HashView<'a> {
@@ -277,16 +277,17 @@ pub struct PlyEntry {
     pub cutoffs: i32,
     pub dbl_exts: i32,
     pub played: Move,
+    pub accumulators: [Accumulator; 2],
 }
 
 pub struct PlyTable {
-    table: Box<[PlyEntry; 96]>,
+    table: Box<[PlyEntry; 128]>,
 }
 
 impl Default for PlyTable {
     fn default() -> Self {
         Self {
-            table: Box::new([Default::default(); 96]),
+            table: Box::new([Default::default(); 128]),
         }
     }
 }

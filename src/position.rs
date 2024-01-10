@@ -4,7 +4,7 @@ use crate::{
     consts::{Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, SPANS, ZVALS},
     frc::Castling,
     moves::{Move, MoveList},
-    network::{Accumulator, Network},
+    network::{Accumulator, FeatureBuffer, Network},
 };
 
 #[derive(Clone, Copy, Default)]
@@ -17,7 +17,7 @@ pub struct Position {
     pub check: bool,
     hash: u64,
     pub phase: i32,
-    acc: [Accumulator; 2],
+    feats: FeatureBuffer,
 }
 
 impl Position {
@@ -63,11 +63,36 @@ impl Position {
         self.hash ^= ZVALS.pcs[side][pc][sq];
 
         // update accumulators
-        let start = 384 * side + 64 * pc + sq - 128;
-        self.acc[0].update::<ADD>(start);
+        let piece = 64 * (pc - 2);
+        let wfeat = [0, 384][side] + piece + sq;
+        let bfeat = [384, 0][side] + piece + (sq ^ 56);
 
-        let start = 384 * (side ^ 1) + 64 * pc + (sq ^ 56) - 128;
-        self.acc[1].update::<ADD>(start);
+        if ADD {
+            self.feats.push_add(wfeat, bfeat);
+        } else {
+            self.feats.push_sub(wfeat, bfeat);
+        }
+    }
+
+    pub fn update_accmulators(&self, accs: &mut [Accumulator; 2]) {
+        self.feats.update_accumulators(accs);
+    }
+
+    pub fn refresh(&self, accs: &mut [Accumulator; 2]) {
+        *accs = Default::default();
+
+        for side in [Side::WHITE, Side::BLACK] {
+            for piece in Piece::PAWN..=Piece::KING {
+                let mut bb = self.bb[side] & self.bb[piece];
+                let pc = 64 * (piece - 2);
+
+                bitloop!(|bb, sq| {
+                    let sq = usize::from(sq);
+                    accs[0].update::<true>([0, 384][side] + pc + sq);
+                    accs[1].update::<true>([384, 0][side] + pc + (sq ^ 56));
+                });
+            }
+        }
     }
 
     fn sq_attacked(&self, sq: usize, side: usize, occ: u64) -> bool {
@@ -90,6 +115,7 @@ impl Position {
     }
 
     pub fn make(&mut self, mov: Move) -> bool {
+        self.feats.clear();
         let side = usize::from(self.c);
         let moved = mov.moved_pc();
         let to = mov.to();
@@ -111,7 +137,9 @@ impl Position {
 
         // move piece
         self.toggle::<false>(side, moved, from);
-        self.toggle::<true>(side, moved, to);
+        if mov.flag() != Flag::PROMO {
+            self.toggle::<true>(side, moved, to);
+        }
 
         // captures
         if captured != Piece::EMPTY {
@@ -134,7 +162,6 @@ impl Position {
             Flag::PROMO.. => {
                 let promo = mov.promo_pc();
                 self.phase += PHASE_VALS[promo];
-                self.toggle::<false>(side, Piece::PAWN, to);
                 self.toggle::<true>(side, promo, to);
             }
             _ => {}
@@ -150,9 +177,9 @@ impl Position {
         self.enp_sq = 0;
     }
 
-    pub fn eval(&self) -> i32 {
-        let boys = &self.acc[usize::from(self.c)];
-        let opps = &self.acc[usize::from(!self.c)];
+    pub fn eval(&self, accs: &[Accumulator; 2]) -> i32 {
+        let boys = &accs[usize::from(self.c)];
+        let opps = &accs[usize::from(!self.c)];
         let eval = Network::out(boys, opps);
         self.scale(eval)
     }
@@ -444,6 +471,7 @@ impl Position {
                 let sq = 8 * row + col;
 
                 pos.toggle::<true>(side, pc, sq as usize);
+                pos.feats.clear();
                 pos.phase += PHASE_VALS[pc];
 
                 col += 1;
