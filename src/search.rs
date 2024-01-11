@@ -42,6 +42,10 @@ pub fn go(
     let mut score = 0;
     pos.check = pos.in_check();
 
+    let mut accs = Default::default();
+    pos.refresh(&mut accs);
+    eng.plied[0].accumulators = accs;
+
     // iterative deepening loop
     for d in 1..=max_depth {
         eval = if d < 7 {
@@ -142,7 +146,7 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     eng.seldepth = eng.seldepth.max(eng.ply);
 
     let hash = pos.hash();
-    let mut eval = pos.eval();
+    let mut eval = pos.eval(&eng.plied[eng.ply].accumulators);
 
     // probe hash table for cutoff
     if let Some(entry) = eng.tt.probe(hash, eng.ply) {
@@ -193,6 +197,8 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
         if new.make(mov) {
             continue;
         }
+
+        eng.update_accumulators(&new);
 
         eng.qnodes += 1;
 
@@ -276,7 +282,7 @@ fn pvs(
     let singular = s_mov != Move::NULL;
     let pc_beta = beta + 256;
 
-    let static_eval = pos.eval();
+    let static_eval = pos.eval(&eng.plied[eng.ply].accumulators);
     let mut eval = static_eval;
     let mut tt_move = Move::NULL;
     let mut tt_score = -Score::MAX;
@@ -341,6 +347,7 @@ fn pvs(
 
             eng.push(hash);
             new.make_null();
+            eng.plied[eng.ply].accumulators = eng.plied[eng.ply - 1].accumulators;
             eng.plied[eng.ply].played = Move::NULL;
 
             let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false);
@@ -387,6 +394,8 @@ fn pvs(
             if new.make(mov) {
                 continue;
             }
+
+            eng.update_accumulators(&new);
 
             eng.nodes += 1;
 
@@ -494,6 +503,8 @@ fn pvs(
             continue;
         }
 
+        eng.update_accumulators(&new);
+
         new.check = new.in_check();
         eng.nodes += 1;
         legal += 1;
@@ -506,6 +517,7 @@ fn pvs(
         let ext = if try_singular && mov == tt_move {
             let s_beta = tt_score - depth * 2;
 
+            let curr_accs = eng.plied[eng.ply].accumulators;
             eng.pop();
             eng.plied[eng.ply].singular = mov;
 
@@ -513,6 +525,7 @@ fn pvs(
 
             eng.plied[eng.ply].singular = Move::NULL;
             eng.push(hash);
+            eng.plied[eng.ply].accumulators = curr_accs;
 
             if s_score < s_beta {
                 if !pv_node && s_score < s_beta - 25 && eng.plied[eng.ply].dbl_exts < 5 {

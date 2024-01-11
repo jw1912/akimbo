@@ -71,7 +71,11 @@ pub fn run_uci() {
             "position" => set_position(commands, &mut pos, &mut stack),
             "perft" => run_perft(commands, &pos),
             "quit" => process::exit(0),
-            "eval" => println!("eval: {}cp", pos.eval()),
+            "eval" => {
+                let mut accs = Default::default();
+                pos.refresh(&mut accs);
+                println!("eval: {}cp", pos.eval(&accs));
+            },
             _ => {}
         }
     }
@@ -145,7 +149,9 @@ fn run_bench(tt: &HashTable, stack: Vec<u64>, htable: &HistoryTable) {
     let bench_fens = FEN_STRING.split('\n').collect::<Vec<&str>>();
     for fen in bench_fens {
         let pos = Position::from_fen(fen);
-        eval = eval.wrapping_add([1, -1][pos.stm()] * pos.eval());
+        let mut accs = Default::default();
+        pos.refresh(&mut accs);
+        eval = eval.wrapping_add([1, -1][pos.stm()] * pos.eval(&accs));
         let timer = Instant::now();
         go(&pos, &mut eng, false, 11, 1_000_000.0, u64::MAX);
         total_time += timer.elapsed().as_millis();

@@ -22,6 +22,43 @@ impl Network {
     }
 }
 
+#[derive(Clone, Copy, Default)]
+pub struct FeatureBuffer {
+    adds: [(u16, u16); 2],
+    subs: [(u16, u16); 2],
+    add_count: usize,
+    sub_count: usize,
+}
+
+impl FeatureBuffer {
+    pub fn clear(&mut self) {
+        self.add_count = 0;
+        self.sub_count = 0;
+    }
+
+    pub fn push_add(&mut self, wfeat: usize, bfeat: usize) {
+        self.adds[self.add_count] = (wfeat as u16, bfeat as u16);
+        self.add_count += 1;
+    }
+
+    pub fn push_sub(&mut self, wfeat: usize, bfeat: usize) {
+        self.subs[self.sub_count] = (wfeat as u16, bfeat as u16);
+        self.sub_count += 1;
+    }
+
+    pub fn update_accumulators(&self, accs: &mut [Accumulator; 2]) {
+        for &(wfeat, bfeat) in self.adds.iter().take(self.add_count) {
+            accs[0].update::<true>(usize::from(wfeat));
+            accs[1].update::<true>(usize::from(bfeat));
+        }
+
+        for &(wfeat, bfeat) in self.subs.iter().take(self.sub_count) {
+            accs[0].update::<false>(usize::from(wfeat));
+            accs[1].update::<false>(usize::from(bfeat));
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 #[repr(C, align(64))]
 pub struct Accumulator {

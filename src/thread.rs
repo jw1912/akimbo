@@ -19,7 +19,7 @@ pub struct ThreadData<'a> {
     // tables
     pub tt: HashView<'a>,
     pub htable: HistoryTable,
-    pub plied: PlyTable,
+    pub plied: Box<PlyTable>,
     pub ntable: NodeTable,
     pub stack: Vec<u64>,
 
@@ -44,7 +44,7 @@ impl<'a> ThreadData<'a> {
             max_nodes: u64::MAX,
             tt: HashView::new(tt),
             htable,
-            plied: PlyTable::default(),
+            plied: Box::default(),
             ntable: NodeTable::default(),
             stack,
             nodes: 0,
@@ -94,5 +94,10 @@ impl<'a> ThreadData<'a> {
     pub fn pop(&mut self) {
         self.stack.pop();
         self.ply -= 1;
+    }
+
+    pub fn update_accumulators(&mut self, pos: &Position) {
+        self.plied[self.ply].accumulators = self.plied[self.ply - 1].accumulators;
+        pos.update_accumulators(&mut self.plied[self.ply].accumulators);
     }
 }
