@@ -18,6 +18,7 @@ pub struct Position {
     hash: u64,
     pub phase: i32,
     feats: FeatureBuffer,
+    ksqs: [u8; 2],
 }
 
 impl Position {
@@ -62,10 +63,13 @@ impl Position {
         // update hash
         self.hash ^= ZVALS.pcs[side][pc][sq];
 
-        // update accumulators
-        let piece = 64 * (pc - 2);
-        let wfeat = [0, 384][side] + piece + sq;
-        let bfeat = [384, 0][side] + piece + (sq ^ 56);
+        if ADD && pc == Piece::KING {
+            let flip = if side == Side::BLACK {56} else {0};
+            self.ksqs[side] = (sq ^ flip) as u8;
+        }
+
+        let wfeat = Accumulator::get_white_index(side, pc - 2, sq, usize::from(self.ksqs[0]));
+        let bfeat = Accumulator::get_black_index(side, pc - 2, sq, usize::from(self.ksqs[1]));
 
         if ADD {
             self.feats.push_add(wfeat, bfeat);
@@ -75,7 +79,11 @@ impl Position {
     }
 
     pub fn update_accumulators(&self, accs: &mut [Accumulator; 2]) {
-        self.feats.update_accumulators(accs);
+        if !self.feats.needs_refresh() {
+            self.feats.update_accumulators(accs);
+        } else {
+            self.refresh(accs);
+        }
     }
 
     pub fn refresh(&self, accs: &mut [Accumulator; 2]) {
@@ -84,12 +92,12 @@ impl Position {
         for side in [Side::WHITE, Side::BLACK] {
             for piece in Piece::PAWN..=Piece::KING {
                 let mut bb = self.bb[side] & self.bb[piece];
-                let pc = 64 * (piece - 2);
+                let pc = piece - 2;
 
                 bitloop!(|bb, sq| {
                     let sq = usize::from(sq);
-                    accs[0].update::<true>([0, 384][side] + pc + sq);
-                    accs[1].update::<true>([384, 0][side] + pc + (sq ^ 56));
+                    accs[0].update::<true>(Accumulator::get_white_index(side, pc, sq, usize::from(self.ksqs[0])));
+                    accs[1].update::<true>(Accumulator::get_black_index(side, pc, sq, usize::from(self.ksqs[1])));
                 });
             }
         }
@@ -125,6 +133,15 @@ impl Position {
         } else {
             Piece::EMPTY
         };
+
+        if moved == Piece::KING {
+            let flip = if side == Side::BLACK {56} else {0};
+            let kfr = from ^ flip;
+            let kto = to ^ flip;
+            if Network::bucket(kfr) != Network::bucket(kto) {
+                self.feats.must_refresh();
+            }
+        }
 
         // update state
         self.rights &= Castling::mask(to) & Castling::mask(from);

@@ -14,11 +14,17 @@ pub struct Network {
 
 static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-01.01.24-epoch17.bin")) };
 
+static BUCKETS: [usize; 64] = [0; 64];
+
 impl Network {
     pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
         let weights = &NNUE.output_weights;
         let sum = flatten(boys, &weights[0]) + flatten(opps, &weights[1]);
         (sum / QA + i32::from(NNUE.output_bias)) * SCALE / QAB
+    }
+
+    pub fn bucket(sq: usize) -> usize {
+        BUCKETS[sq]
     }
 }
 
@@ -28,12 +34,22 @@ pub struct FeatureBuffer {
     subs: [(u16, u16); 2],
     add_count: usize,
     sub_count: usize,
+    needs_refresh: bool,
 }
 
 impl FeatureBuffer {
     pub fn clear(&mut self) {
+        self.needs_refresh = false;
         self.add_count = 0;
         self.sub_count = 0;
+    }
+
+    pub fn must_refresh(&mut self) {
+        self.needs_refresh = true;
+    }
+
+    pub fn needs_refresh(&self) -> bool {
+        self.needs_refresh
     }
 
     pub fn push_add(&mut self, wfeat: usize, bfeat: usize) {
@@ -75,6 +91,14 @@ impl Accumulator {
                 *i -= *d
             }
         }
+    }
+
+    pub fn get_white_index(side: usize, pc: usize, sq: usize, ksq: usize) -> usize {
+        768 * Network::bucket(ksq) + [0, 384][side] + 64 * pc + sq
+    }
+
+    pub fn get_black_index(side: usize, pc: usize, sq: usize, ksq: usize) -> usize {
+        768 * Network::bucket(ksq) + [384, 0][side] + 64 * pc + (sq ^ 56)
     }
 }
 
