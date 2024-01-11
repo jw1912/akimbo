@@ -12,7 +12,7 @@ pub struct Network {
     output_bias: i16,
 }
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-11.01.24-epoch13.bin")) };
+static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-11.01.24-epoch17.bin")) };
 
 const NUM_BUCKETS: usize = 4;
 static BUCKETS: [usize; 64] = [
