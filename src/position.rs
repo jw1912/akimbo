@@ -64,12 +64,11 @@ impl Position {
         self.hash ^= ZVALS.pcs[side][pc][sq];
 
         if ADD && pc == Piece::KING {
-            let flip = if side == Side::BLACK {56} else {0};
-            self.ksqs[side] = (sq ^ flip) as u8;
+            self.ksqs[side] = sq as u8;
         }
 
-        let wfeat = Accumulator::get_white_index(side, pc - 2, sq, usize::from(self.ksqs[0]));
-        let bfeat = Accumulator::get_black_index(side, pc - 2, sq, usize::from(self.ksqs[1]));
+        let wfeat = Accumulator::get_white_index(side, pc - 2, sq, self.ksqs[0]);
+        let bfeat = Accumulator::get_black_index(side, pc - 2, sq, self.ksqs[1]);
 
         if ADD {
             self.feats.push_add(wfeat, bfeat);
@@ -96,8 +95,8 @@ impl Position {
 
                 bitloop!(|bb, sq| {
                     let sq = usize::from(sq);
-                    accs[0].update::<true>(Accumulator::get_white_index(side, pc, sq, usize::from(self.ksqs[0])));
-                    accs[1].update::<true>(Accumulator::get_black_index(side, pc, sq, usize::from(self.ksqs[1])));
+                    accs[0].update::<true>(Accumulator::get_white_index(side, pc, sq, self.ksqs[0]));
+                    accs[1].update::<true>(Accumulator::get_black_index(side, pc, sq, self.ksqs[1]));
                 });
             }
         }
@@ -138,7 +137,7 @@ impl Position {
             let flip = if side == Side::BLACK {56} else {0};
             let kfr = from ^ flip;
             let kto = to ^ flip;
-            if Network::bucket(kfr) != Network::bucket(kto) {
+            if Network::bucket(kfr as u8) != Network::bucket(kto as u8) {
                 self.feats.must_refresh();
             }
         }

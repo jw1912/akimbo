@@ -23,8 +23,8 @@ impl Network {
         (sum / QA + i32::from(NNUE.output_bias)) * SCALE / QAB
     }
 
-    pub fn bucket(sq: usize) -> usize {
-        BUCKETS[sq]
+    pub fn bucket(sq: u8) -> usize {
+        BUCKETS[usize::from(sq)]
     }
 }
 
@@ -93,11 +93,18 @@ impl Accumulator {
         }
     }
 
-    pub fn get_white_index(side: usize, pc: usize, sq: usize, ksq: usize) -> usize {
+    pub fn get_white_index(side: usize, pc: usize, mut sq: usize, ksq: u8) -> usize {
+        if ksq % 8 > 3 {
+            sq ^= 7;
+        }
         768 * Network::bucket(ksq) + [0, 384][side] + 64 * pc + sq
     }
 
-    pub fn get_black_index(side: usize, pc: usize, sq: usize, ksq: usize) -> usize {
+    pub fn get_black_index(side: usize, pc: usize, mut sq: usize, mut ksq: u8) -> usize {
+        ksq ^= 56;
+        if ksq % 8 > 3 {
+            sq ^= 7;
+        }
         768 * Network::bucket(ksq) + [384, 0][side] + 64 * pc + (sq ^ 56)
     }
 }
