@@ -6,19 +6,36 @@ const QAB: i32 = QA * QB;
 
 #[repr(C)]
 pub struct Network {
-    feature_weights: [Accumulator; 768],
+    feature_weights: [Accumulator; 768 * NUM_BUCKETS],
     feature_bias: Accumulator,
     output_weights: [Accumulator; 2],
     output_bias: i16,
 }
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-01.01.24-epoch17.bin")) };
+static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-12.01.24-epoch17.bin")) };
+
+const NUM_BUCKETS: usize = 1;
+static BUCKETS: [usize; 64] = [
+    0, 0, 0, 0, 1, 1, 1, 1,
+    0, 0, 0, 0, 1, 1, 1, 1,
+    0, 0, 0, 0, 1, 1, 1, 1,
+    0, 0, 0, 0, 1, 1, 1, 1,
+    0, 0, 0, 0, 1, 1, 1, 1,
+    0, 0, 0, 0, 1, 1, 1, 1,
+    0, 0, 0, 0, 1, 1, 1, 1,
+    0, 0, 0, 0, 1, 1, 1, 1,
+];
 
 impl Network {
     pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
         let weights = &NNUE.output_weights;
         let sum = flatten(boys, &weights[0]) + flatten(opps, &weights[1]);
         (sum / QA + i32::from(NNUE.output_bias)) * SCALE / QAB
+    }
+
+    #[allow(clippy::modulo_one)]
+    pub fn bucket(sq: u8) -> usize {
+        BUCKETS[usize::from(sq)]
     }
 }
 
@@ -28,12 +45,22 @@ pub struct FeatureBuffer {
     subs: [(u16, u16); 2],
     add_count: usize,
     sub_count: usize,
+    needs_refresh: bool,
 }
 
 impl FeatureBuffer {
     pub fn clear(&mut self) {
+        self.needs_refresh = false;
         self.add_count = 0;
         self.sub_count = 0;
+    }
+
+    pub fn must_refresh(&mut self) {
+        self.needs_refresh = true;
+    }
+
+    pub fn needs_refresh(&self) -> bool {
+        self.needs_refresh
     }
 
     pub fn push_add(&mut self, wfeat: usize, bfeat: usize) {
@@ -67,7 +94,7 @@ pub struct Accumulator {
 
 impl Accumulator {
     pub fn update<const ADD: bool>(&mut self, idx: usize) {
-        assert!(idx < 768);
+        assert!(idx < 768 * NUM_BUCKETS);
         for (i, d) in self.vals.iter_mut().zip(&NNUE.feature_weights[idx].vals) {
             if ADD {
                 *i += *d
@@ -75,6 +102,23 @@ impl Accumulator {
                 *i -= *d
             }
         }
+    }
+
+    pub fn get_white_index(side: usize, pc: usize, mut sq: usize, mut ksq: u8) -> usize {
+        if ksq % 8 > 3 {
+            sq ^= 7;
+            ksq ^= 7;
+        }
+        768 * Network::bucket(ksq) + [0, 384][side] + 64 * pc + sq
+    }
+
+    pub fn get_black_index(side: usize, pc: usize, mut sq: usize, mut ksq: u8) -> usize {
+        ksq ^= 56;
+        if ksq % 8 > 3 {
+            sq ^= 7;
+            ksq ^= 7;
+        }
+        768 * Network::bucket(ksq) + [384, 0][side] + 64 * pc + (sq ^ 56)
     }
 }
 
