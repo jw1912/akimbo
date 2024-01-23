@@ -3,38 +3,44 @@ use crate::{
     position::Position,
 };
 
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering::Relaxed};
+#[derive(Clone, Copy)]
+pub struct Castling {
+    chess960: bool,
+    castle_mask: [u8; 64],
+    rook_files: [[u8; 2]; 2],
+}
 
-#[allow(clippy::declare_interior_mutable_const)]
-const ATOMIC_INIT: AtomicU8 = AtomicU8::new(0);
-#[allow(clippy::declare_interior_mutable_const)]
-const ATOMIC_INIT_2: [AtomicU8; 2] = [ATOMIC_INIT; 2];
-static CHESS960: AtomicBool = AtomicBool::new(false);
-static CASTLE_MASK: [AtomicU8; 64] = [ATOMIC_INIT; 64];
-static ROOK_FILES: [[AtomicU8; 2]; 2] = [ATOMIC_INIT_2; 2];
+impl Default for Castling {
+    fn default() -> Self {
+        Self {
+            chess960: false,
+            castle_mask: [0; 64],
+            rook_files: [[0; 2]; 2],
+        }
+    }
+}
 
-pub struct Castling;
 impl Castling {
-    pub fn is_chess960() -> bool {
-        CHESS960.load(Relaxed)
+    pub fn is_chess960(&self) -> bool {
+        self.chess960
     }
 
-    pub fn mask(sq: usize) -> u8 {
-        CASTLE_MASK[sq].load(Relaxed)
+    pub fn mask(&self, sq: usize) -> u8 {
+        self.castle_mask[sq]
     }
 
-    pub fn rook_file(side: usize, ks: usize) -> u8 {
-        ROOK_FILES[side][ks].load(Relaxed)
+    pub fn rook_file(&self, side: usize, ks: usize) -> u8 {
+        self.rook_files[side][ks]
     }
 
-    pub fn parse(pos: &Position, rights_str: &str) -> u8 {
+    pub fn parse(&mut self, pos: &Position, rights_str: &str) -> u8 {
         let mut kings = [4, 4];
 
-        CHESS960.store(false, Relaxed);
-        ROOK_FILES[0][0].store(0, Relaxed);
-        ROOK_FILES[0][1].store(7, Relaxed);
-        ROOK_FILES[1][0].store(0, Relaxed);
-        ROOK_FILES[1][1].store(7, Relaxed);
+        self.chess960 = false;
+        self.rook_files[0][0] = 0;
+        self.rook_files[0][1] = 7;
+        self.rook_files[1][0] = 0;
+        self.rook_files[1][1] = 7;
 
         let rights = rights_str.chars().fold(0, |cr, ch| {
             cr | match ch as u8 {
@@ -42,36 +48,42 @@ impl Castling {
                 b'K' => Rights::WKS,
                 b'q' => Rights::BQS,
                 b'k' => Rights::BKS,
-                b'A'..=b'H' => parse_castle(pos, Side::WHITE, &mut kings, ch),
-                b'a'..=b'h' => parse_castle(pos, Side::BLACK, &mut kings, ch),
+                b'A'..=b'H' => self.parse_castle(pos, Side::WHITE, &mut kings, ch),
+                b'a'..=b'h' => self.parse_castle(pos, Side::BLACK, &mut kings, ch),
                 _ => 0,
             }
         });
 
-        for sq in &CASTLE_MASK {
-            sq.store(15, Relaxed);
+        for sq in self.castle_mask.iter_mut() {
+            *sq = 15;
         }
 
-        CASTLE_MASK[usize::from(Self::rook_file(0, 0))].store(7, Relaxed);
-        CASTLE_MASK[usize::from(Self::rook_file(0, 1))].store(11, Relaxed);
-        CASTLE_MASK[usize::from(Self::rook_file(1, 0)) + 56].store(13, Relaxed);
-        CASTLE_MASK[usize::from(Self::rook_file(1, 1)) + 56].store(14, Relaxed);
-        CASTLE_MASK[kings[0]].store(3, Relaxed);
-        CASTLE_MASK[kings[1] + 56].store(12, Relaxed);
+        self.castle_mask[usize::from(self.rook_file(0, 0))] = 7;
+        self.castle_mask[usize::from(self.rook_file(0, 1))] = 11;
+        self.castle_mask[usize::from(self.rook_file(1, 0)) + 56] = 13;
+        self.castle_mask[usize::from(self.rook_file(1, 1)) + 56] = 14;
+        self.castle_mask[kings[0]] = 3;
+        self.castle_mask[kings[1] + 56] = 12;
 
         rights
     }
-}
 
-fn parse_castle(pos: &Position, side: usize, kings: &mut [usize; 2], ch: char) -> u8 {
-    CHESS960.store(true, Relaxed);
+    fn parse_castle(
+        &mut self,
+        pos: &Position,
+        side: usize,
+        kings: &mut [usize; 2],
+        ch: char,
+    ) -> u8 {
+        self.chess960 = true;
 
-    let wkc = (pos.side(side) & pos.piece(Piece::KING)).trailing_zeros() as u8 & 7;
-    kings[side] = wkc as usize;
-    let rook = ch as u8 - [b'A', b'a'][side];
-    let i = usize::from(rook > wkc);
+        let wkc = (pos.side(side) & pos.piece(Piece::KING)).trailing_zeros() as u8 & 7;
+        kings[side] = wkc as usize;
+        let rook = ch as u8 - [b'A', b'a'][side];
+        let i = usize::from(rook > wkc);
 
-    ROOK_FILES[side][i].store(rook, Relaxed);
+        self.rook_files[side][i] = rook;
 
-    [[Rights::WQS, Rights::WKS], [Rights::BQS, Rights::BKS]][side][i]
+        [[Rights::WQS, Rights::WKS], [Rights::BQS, Rights::BKS]][side][i]
+    }
 }

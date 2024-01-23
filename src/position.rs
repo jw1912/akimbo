@@ -121,7 +121,7 @@ impl Position {
             .wrapping_add(2)
     }
 
-    pub fn make(&mut self, mov: Move) -> bool {
+    pub fn make(&mut self, mov: Move, castling: &Castling) -> bool {
         self.feats.clear();
         let side = usize::from(self.c);
         let moved = mov.moved_pc();
@@ -143,7 +143,7 @@ impl Position {
         }
 
         // update state
-        self.rights &= Castling::mask(to) & Castling::mask(from);
+        self.rights &= castling.mask(to) & castling.mask(from);
         self.halfm += 1;
         self.enp_sq = 0;
         self.c = !self.c;
@@ -169,7 +169,7 @@ impl Position {
             Flag::KS | Flag::QS => {
                 let ks = usize::from(mov.flag() == Flag::KS);
                 let sf = 56 * side;
-                let rfr = sf + Castling::rook_file(side, ks) as usize;
+                let rfr = sf + castling.rook_file(side, ks) as usize;
                 let rto = sf + [3, 5][ks];
                 self.toggle::<false>(side, Piece::ROOK, rfr);
                 self.toggle::<true>(side, Piece::ROOK, rto);
@@ -349,7 +349,7 @@ impl Position {
         self.c != (us == 1)
     }
 
-    pub fn movegen<const QUIETS: bool>(&self) -> MoveList {
+    pub fn movegen<const QUIETS: bool>(&self, castling: &Castling) -> MoveList {
         let mut moves = MoveList::ZEROED;
         let side = usize::from(self.c);
         let occ = self.bb[0] | self.bb[1];
@@ -363,17 +363,17 @@ impl Position {
                 let kbb = self.bb[Piece::KING] & self.bb[side];
                 let ksq = kbb.trailing_zeros() as u8;
                 if self.c {
-                    if self.can_castle(Rights::BQS, 0, occ, kbb, 1 << 58, 1 << 59) {
+                    if self.can_castle(Rights::BQS, occ, kbb, 1 << 58, 1 << 59, castling) {
                         moves.push(ksq, 58, Flag::QS, Piece::KING);
                     }
-                    if self.can_castle(Rights::BKS, 1, occ, kbb, 1 << 62, 1 << 61) {
+                    if self.can_castle(Rights::BKS, occ, kbb, 1 << 62, 1 << 61, castling) {
                         moves.push(ksq, 62, Flag::KS, Piece::KING);
                     }
                 } else {
-                    if self.can_castle(Rights::WQS, 0, occ, kbb, 1 << 2, 1 << 3) {
+                    if self.can_castle(Rights::WQS, occ, kbb, 1 << 2, 1 << 3, castling) {
                         moves.push(ksq, 2, Flag::QS, Piece::KING);
                     }
-                    if self.can_castle(Rights::WKS, 1, occ, kbb, 1 << 6, 1 << 5) {
+                    if self.can_castle(Rights::WKS, occ, kbb, 1 << 6, 1 << 5, castling) {
                         moves.push(ksq, 6, Flag::KS, Piece::KING);
                     }
                 }
@@ -458,16 +458,25 @@ impl Position {
         true
     }
 
-    fn can_castle(&self, right: u8, ks: usize, occ: u64, kbb: u64, kto: u64, rto: u64) -> bool {
+    fn can_castle(
+        &self,
+        right: u8,
+        occ: u64,
+        kbb: u64,
+        kto: u64,
+        rto: u64,
+        castling: &Castling,
+    ) -> bool {
         let side = usize::from(self.c);
-        let bit = 1 << (56 * side + usize::from(Castling::rook_file(side, ks)));
+        let ks = usize::from([Rights::BKS, Rights::WKS].contains(&right));
+        let bit = 1 << (56 * side + usize::from(castling.rook_file(side, ks)));
         self.rights & right > 0
             && (occ ^ bit) & (btwn(kbb, kto) ^ kto) == 0
             && (occ ^ kbb) & (btwn(bit, rto) ^ rto) == 0
             && self.path(side, btwn(kbb, kto), occ)
     }
 
-    pub fn from_fen(fen: &str) -> Self {
+    pub fn from_fen(fen: &str, castling: &mut Castling) -> Self {
         let vec = fen.split_whitespace().collect::<Vec<&str>>();
         let p = vec[0].chars().collect::<Vec<char>>();
 
@@ -507,7 +516,7 @@ impl Position {
 
         pos.halfm = vec.get(4).unwrap_or(&"0").parse::<u8>().unwrap();
 
-        pos.rights = Castling::parse(&pos, vec[2]);
+        pos.rights = castling.parse(&pos, vec[2]);
 
         pos
     }

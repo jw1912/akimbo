@@ -82,7 +82,7 @@ pub fn go(
             let nps = (1000.0 * display_nodes as f64 / t as f64) as u32;
             let pv_line = &eng.plied[0].pv_line;
             let pv = pv_line.iter().fold(String::new(), |mut pv_str, mov| {
-                write!(&mut pv_str, "{} ", mov.to_uci()).unwrap();
+                write!(&mut pv_str, "{} ", mov.to_uci(&eng.castling)).unwrap();
                 pv_str
             });
             println!(
@@ -175,7 +175,7 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
 
     alpha = alpha.max(eval);
 
-    let mut caps = pos.movegen::<false>();
+    let mut caps = pos.movegen::<false>(&eng.castling);
     let mut scores = [0; 252];
 
     caps.iter()
@@ -194,7 +194,7 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
         }
 
         let mut new = *pos;
-        if new.make(mov) {
+        if new.make(mov, &eng.castling) {
             continue;
         }
 
@@ -375,7 +375,7 @@ fn pvs(
         && beta.abs() < Score::MATE
         && can_probcut
     {
-        let mut caps = pos.movegen::<false>();
+        let mut caps = pos.movegen::<false>(&eng.castling);
         let mut scores = [0; 252];
 
         caps.iter()
@@ -391,7 +391,7 @@ fn pvs(
             }
 
             let mut new = *pos;
-            if new.make(mov) {
+            if new.make(mov, &eng.castling) {
                 continue;
             }
 
@@ -418,7 +418,7 @@ fn pvs(
     }
 
     // generating moves
-    let mut moves = pos.movegen::<true>();
+    let mut moves = pos.movegen::<true>(&eng.castling);
 
     let prev = eng.plied.prev_move(eng.ply, 1);
     let prevs = [prev, eng.plied.prev_move(eng.ply, 2)];
@@ -499,7 +499,7 @@ fn pvs(
 
         // make move and skip if not legal
         let mut new = *pos;
-        if new.make(mov) {
+        if new.make(mov, &eng.castling) {
             continue;
         }
 

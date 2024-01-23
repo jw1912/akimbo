@@ -74,7 +74,7 @@ impl Move {
         u16::from(self.from) << 6 | u16::from(self.to) | u16::from(self.flag) << 12
     }
 
-    pub fn to_uci(self) -> String {
+    pub fn to_uci(self, castling: &Castling) -> String {
         let idx_to_sq = |i| format!("{}{}", ((i & 7) + b'a') as char, (i / 8) + 1);
         let promo = if self.flag & 0b1000 > 0 {
             ["n", "b", "r", "q"][(self.flag & 0b11) as usize]
@@ -82,9 +82,9 @@ impl Move {
             ""
         };
 
-        let to = if Castling::is_chess960() && [Flag::QS, Flag::KS].contains(&self.flag) {
+        let to = if castling.is_chess960() && [Flag::QS, Flag::KS].contains(&self.flag) {
             let sf = 56 * (self.to / 56);
-            sf + Castling::rook_file(usize::from(sf > 0), usize::from(self.flag == Flag::KS))
+            sf + castling.rook_file(usize::from(sf > 0), usize::from(self.flag == Flag::KS))
         } else {
             self.to
         };
