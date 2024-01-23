@@ -1,10 +1,5 @@
 use crate::{
-    moves::Move,
-    position::Position,
-    search::go,
-    thread::ThreadData,
-    tables::{HashTable, HistoryTable},
-    util::STARTPOS,
+    frc::Castling, moves::Move, position::Position, search::go, tables::{HashTable, HistoryTable}, thread::ThreadData, util::STARTPOS
 };
 
 // Datagen Settings
@@ -27,7 +22,8 @@ use std::{
 static STOP: AtomicBool = AtomicBool::new(false);
 
 pub fn run_datagen(threads: usize, tcp_ip: Option<&str>) {
-    let startpos = Position::from_fen(STARTPOS);
+    let mut castling = Castling::default();
+    let startpos = Position::from_fen(STARTPOS, &mut castling);
 
     let tcp_ip = tcp_ip.map(|ip| {
         println!("#[Connecting] {ip}");
@@ -40,7 +36,7 @@ pub fn run_datagen(threads: usize, tcp_ip: Option<&str>) {
             let this_ip = tcp_ip.as_ref().map(|ip| ip.try_clone().expect("Couldn't Clone!"));
             s.spawn(move || {
                 let mut worker = DatagenThread::new(SOFT_NODE_LIMIT, 8, num, this_ip);
-                worker.run_datagen(startpos);
+                worker.run_datagen(startpos, castling);
             });
         }
 
@@ -117,6 +113,7 @@ impl DatagenThread {
     fn run_datagen(
         &mut self,
         startpos: Position,
+        castling: Castling,
     ) {
         let mut tt = HashTable::default();
         tt.resize(self.hash_size, 1);
@@ -128,7 +125,7 @@ impl DatagenThread {
                 break;
             }
 
-            let optional = self.run_game(&tt, startpos);
+            let optional = self.run_game(&tt, startpos, castling);
             tt.clear(1);
 
             let result = if let Some(res) = optional {
@@ -179,21 +176,21 @@ impl DatagenThread {
         data.clear();
     }
 
-    fn run_game(&mut self, tt: &HashTable, mut position: Position) -> Option<GameResult> {
+    fn run_game(&mut self, tt: &HashTable, mut position: Position, castling: Castling) -> Option<GameResult> {
         let abort = AtomicBool::new(false);
         let mut engine = ThreadData {
             max_nodes: HARD_NODE_LIMIT,
             max_time: HARD_TIMEOUT_MS,
-            ..ThreadData::new(&abort, tt, Vec::new(), HistoryTable::default())
+            ..ThreadData::new(&abort, tt, Vec::new(), HistoryTable::default(), castling)
         };
 
         // play 8 or 9 random moves
         for _ in 0..(8 + (self.rng() % 2)) {
-            let moves = position.movegen::<true>();
+            let moves = position.movegen::<true>(&castling);
             let mut legals = Vec::new();
             for &mov in moves.iter() {
                 let mut new = position;
-                if !new.make(mov) {
+                if !new.make(mov, &castling) {
                     legals.push(mov);
                 }
             }
@@ -203,7 +200,7 @@ impl DatagenThread {
             }
 
             engine.stack.push(position.hash());
-            position.make(legals[self.rng() as usize % legals.len()]);
+            position.make(legals[self.rng() as usize % legals.len()], &castling);
         }
 
         let mut result = GameResult::default();
@@ -239,12 +236,12 @@ impl DatagenThread {
 
             // not enough nodes to finish a depth!
             engine.stack.push(position.hash());
-            if bm == Move::NULL || position.make(bm) {
+            if bm == Move::NULL || position.make(bm, &castling) {
                 return None;
             }
 
             // check for game end via check/stalemate
-            if is_terminal(&position) {
+            if is_terminal(&position, &castling) {
                 result.result = if position.in_check() {
                     position.stm() as f32
                 } else {
@@ -264,11 +261,11 @@ impl DatagenThread {
     }
 }
 
-fn is_terminal(pos: &Position) -> bool {
-    let moves = pos.movegen::<true>();
+fn is_terminal(pos: &Position, castling: &Castling) -> bool {
+    let moves = pos.movegen::<true>(castling);
     for &mov in moves.iter() {
         let mut new = *pos;
-        if !new.make(mov) {
+        if !new.make(mov, castling) {
             return false;
         }
     }

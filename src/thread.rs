@@ -4,9 +4,7 @@ use std::{
 };
 
 use crate::{
-    moves::Move,
-    position::Position,
-    tables::{HashTable, HashView, HistoryTable, NodeTable, PlyTable},
+    frc::Castling, moves::Move, position::Position, tables::{HashTable, HashView, HistoryTable, NodeTable, PlyTable}
 };
 
 pub struct ThreadData<'a> {
@@ -22,6 +20,7 @@ pub struct ThreadData<'a> {
     pub plied: Box<PlyTable>,
     pub ntable: NodeTable,
     pub stack: Vec<u64>,
+    pub castling: Castling,
 
     // uci output
     pub nodes: u64,
@@ -37,6 +36,7 @@ impl<'a> ThreadData<'a> {
         tt: &'a HashTable,
         stack: Vec<u64>,
         htable: HistoryTable,
+        castling: Castling,
     ) -> Self {
         Self {
             timing: Instant::now(),
@@ -47,6 +47,7 @@ impl<'a> ThreadData<'a> {
             plied: Box::default(),
             ntable: NodeTable::default(),
             stack,
+            castling,
             nodes: 0,
             qnodes: 0,
             ply: 0,

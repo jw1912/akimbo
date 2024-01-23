@@ -1,3 +1,4 @@
+use crate::frc::Castling;
 use crate::position::Position;
 use crate::search::go;
 use crate::tables::{HashTable, HistoryTable};
@@ -10,7 +11,8 @@ const FEN_STRING: &str = include_str!("../resources/fens.txt");
 
 pub fn run_uci() {
     // initialise engine
-    let mut pos = Position::from_fen(STARTPOS);
+    let mut castling = Castling::default();
+    let mut pos = Position::from_fen(STARTPOS, &mut castling);
     let mut stack = Vec::new();
     let mut tt = HashTable::default();
     let mut htable = HistoryTable::default();
@@ -49,7 +51,7 @@ pub fn run_uci() {
             "uci" => preamble(),
             "isready" => println!("readyok"),
             "ucinewgame" => {
-                pos = Position::from_fen(STARTPOS);
+                pos = Position::from_fen(STARTPOS, &mut castling);
                 tt.clear(threads);
                 htable.clear();
             }
@@ -62,14 +64,15 @@ pub fn run_uci() {
             "go" => handle_go(
                 commands,
                 &pos,
+                &castling,
                 stack.clone(),
                 &mut htable,
                 &mut stored_message,
                 &tt,
                 threads,
             ),
-            "position" => set_position(commands, &mut pos, &mut stack),
-            "perft" => run_perft(commands, &pos),
+            "position" => set_position(commands, &mut pos, &mut stack, &mut castling),
+            "perft" => run_perft(commands, &pos, &castling),
             "quit" => process::exit(0),
             "eval" => {
                 let mut accs = Default::default();
@@ -103,23 +106,23 @@ fn handle_search_input(abort: &AtomicBool) -> Option<String> {
     }
 }
 
-fn perft<const ROOT: bool>(pos: &Position, depth: u8) -> u64 {
-    let moves = pos.movegen::<true>();
+fn perft<const ROOT: bool>(pos: &Position, castling: &Castling, depth: u8) -> u64 {
+    let moves = pos.movegen::<true>(castling);
     let mut positions = 0;
     for &m in moves.iter() {
         let mut tmp = *pos;
-        if tmp.make(m) {
+        if tmp.make(m, castling) {
             continue;
         }
 
         let count = if depth > 1 {
-            perft::<false>(&tmp, depth - 1)
+            perft::<false>(&tmp, castling, depth - 1)
         } else {
             1
         };
 
         if ROOT {
-            println!("{}: {count}", m.to_uci());
+            println!("{}: {count}", m.to_uci(castling));
         }
 
         positions += count;
@@ -127,10 +130,10 @@ fn perft<const ROOT: bool>(pos: &Position, depth: u8) -> u64 {
     positions
 }
 
-fn run_perft(commands: Vec<&str>, pos: &Position) {
+fn run_perft(commands: Vec<&str>, pos: &Position, castling: &Castling) {
     let depth = commands[1].parse().unwrap();
     let now = Instant::now();
-    let count = perft::<true>(pos, depth);
+    let count = perft::<true>(pos, castling, depth);
     let time = now.elapsed().as_micros();
     println!(
         "perft {depth} time {} nodes {count} ({:.2} Mnps)",
@@ -141,14 +144,14 @@ fn run_perft(commands: Vec<&str>, pos: &Position) {
 
 fn run_bench(tt: &HashTable, stack: Vec<u64>, htable: &HistoryTable) {
     let abort = AtomicBool::new(false);
-    let mut eng = ThreadData::new(&abort, tt, stack, htable.clone());
+    let mut eng = ThreadData::new(&abort, tt, stack, htable.clone(), Castling::default());
     let mut total_nodes = 0;
     let mut total_time = 0;
     let mut eval = 0i32;
     eng.max_time = 30000;
     let bench_fens = FEN_STRING.split('\n').collect::<Vec<&str>>();
     for fen in bench_fens {
-        let pos = Position::from_fen(fen);
+        let pos = Position::from_fen(fen, &mut eng.castling);
         let mut accs = Default::default();
         pos.refresh(&mut accs);
         eval = eval.wrapping_add([1, -1][pos.stm()] * pos.eval(&accs));
@@ -175,7 +178,7 @@ fn preamble() {
     println!("uciok");
 }
 
-fn set_position(commands: Vec<&str>, pos: &mut Position, stack: &mut Vec<u64>) {
+fn set_position(commands: Vec<&str>, pos: &mut Position, stack: &mut Vec<u64>, castling: &mut Castling) {
     let mut fen = String::new();
     let mut move_list = Vec::new();
     let mut moves = false;
@@ -194,24 +197,26 @@ fn set_position(commands: Vec<&str>, pos: &mut Position, stack: &mut Vec<u64>) {
         }
     }
 
-    *pos = Position::from_fen(if fen.is_empty() { STARTPOS } else { &fen });
+    *pos = Position::from_fen(if fen.is_empty() { STARTPOS } else { &fen }, castling);
     stack.clear();
 
     for m in move_list {
         stack.push(pos.hash());
-        let possible_moves = pos.movegen::<true>();
+        let possible_moves = pos.movegen::<true>(castling);
 
         for mov in possible_moves.iter() {
-            if m == mov.to_uci() {
-                pos.make(*mov);
+            if m == mov.to_uci(castling) {
+                pos.make(*mov, castling);
             }
         }
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn handle_go(
     commands: Vec<&str>,
     pos: &Position,
+    castling: &Castling,
     stack: Vec<u64>,
     htable: &mut HistoryTable,
     stored_message: &mut Option<String>,
@@ -272,7 +277,7 @@ fn handle_go(
     let soft_bound = if mtg == 1 { alloc } else { alloc * 6 / 10 };
 
     // main search thread
-    let mut eng = ThreadData::new(&abort, tt, stack.clone(), htable.clone());
+    let mut eng = ThreadData::new(&abort, tt, stack.clone(), htable.clone(), *castling);
     eng.max_time = hard_bound;
     eng.max_nodes = nodes;
 
@@ -280,11 +285,11 @@ fn handle_go(
         s.spawn(|| {
             let (bm, _) = go(pos, &mut eng, true, depth, soft_bound as f64, u64::MAX);
 
-            println!("bestmove {}", bm.to_uci());
+            println!("bestmove {}", bm.to_uci(castling));
         });
 
         for _ in 0..(threads - 1) {
-            let mut sub = ThreadData::new(&abort, tt, stack.clone(), htable.clone());
+            let mut sub = ThreadData::new(&abort, tt, stack.clone(), htable.clone(), *castling);
             sub.max_time = hard_bound;
             s.spawn(move || go(pos, &mut sub, false, depth, soft_bound as f64, u64::MAX));
         }
