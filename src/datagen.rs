@@ -13,7 +13,7 @@ use bulletformat::{BulletFormat, ChessBoard};
 
 use std::{
     fs::File,
-    io::{BufWriter, Write},
+    io::{BufWriter, Write, BufReader, BufRead},
     net::TcpStream,
     sync::atomic::{AtomicBool, Ordering::SeqCst},
     time::{Instant, SystemTime, UNIX_EPOCH},
@@ -21,22 +21,25 @@ use std::{
 
 static STOP: AtomicBool = AtomicBool::new(false);
 
-pub fn run_datagen(threads: usize, tcp_ip: Option<&str>) {
-    let mut castling = Castling::default();
-    let startpos = Position::from_fen(STARTPOS, &mut castling);
-
+pub fn run_datagen(threads: usize, tcp_ip: Option<&str>, book_path: Option<&str>) {
     let tcp_ip = tcp_ip.map(|ip| {
         println!("#[Connecting] {ip}");
         TcpStream::connect(ip).expect("Couldn't connect.")
     });
 
+    let book = book_path.map(|path| {
+        let file = BufReader::new(File::open(path).unwrap());
+        file.lines().collect::<Vec<Result<String, std::io::Error>>>()
+    });
+
     std::thread::scope(|s| {
         for num in 0..threads {
+            let bref = &book;
             std::thread::sleep(std::time::Duration::from_millis(10));
             let this_ip = tcp_ip.as_ref().map(|ip| ip.try_clone().expect("Couldn't Clone!"));
             s.spawn(move || {
                 let mut worker = DatagenThread::new(SOFT_NODE_LIMIT, 8, num, this_ip);
-                worker.run_datagen(startpos, castling);
+                worker.run_datagen(bref);
             });
         }
 
@@ -112,8 +115,7 @@ impl DatagenThread {
 
     fn run_datagen(
         &mut self,
-        startpos: Position,
-        castling: Castling,
+        book: &Option<Vec<Result<String, std::io::Error>>>,
     ) {
         let mut tt = HashTable::default();
         tt.resize(self.hash_size, 1);
@@ -125,7 +127,7 @@ impl DatagenThread {
                 break;
             }
 
-            let optional = self.run_game(&tt, startpos, castling);
+            let optional = self.run_game(&tt, book);
             tt.clear(1);
 
             let result = if let Some(res) = optional {
@@ -176,7 +178,19 @@ impl DatagenThread {
         data.clear();
     }
 
-    fn run_game(&mut self, tt: &HashTable, mut position: Position, castling: Castling) -> Option<GameResult> {
+    fn run_game(
+        &mut self,
+        tt: &HashTable,
+        book: &Option<Vec<Result<String, std::io::Error>>>,
+    ) -> Option<GameResult> {
+        let mut castling = Castling::default();
+        let mut position = if let Some(list) = book {
+            let rng = self.rng() as usize % list.len();
+            Position::from_fen(list[rng].as_ref().unwrap(), &mut castling)
+        } else {
+            Position::from_fen(STARTPOS, &mut castling)
+        };
+
         let abort = AtomicBool::new(false);
         let mut engine = ThreadData {
             max_nodes: HARD_NODE_LIMIT,

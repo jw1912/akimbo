@@ -21,9 +21,7 @@ fn main() {
     #[cfg(feature = "datagen")]
     {
         let threads = std::env::args().nth(1).unwrap().parse().unwrap();
-        let tcp = std::env::args().nth(3);
-        let tcp_ip = tcp.as_deref();
-        datagen::run_datagen(threads, tcp_ip);
+        datagen::run_datagen(threads, None, None);
     }
 
     #[cfg(not(feature = "datagen"))]
