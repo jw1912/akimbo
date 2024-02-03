@@ -1,5 +1,5 @@
 use crate::{
-    frc::Castling, moves::Move, position::Position, search::go, tables::{HashTable, HistoryTable}, thread::ThreadData, util::STARTPOS
+    consts::Side, frc::Castling, moves::Move, position::Position, search::go, tables::{HashTable, HistoryTable}, thread::ThreadData, util::STARTPOS
 };
 
 // Datagen Settings
@@ -245,7 +245,8 @@ impl DatagenThread {
 
             // position is quiet, can use fen
             if !bm.is_capture() && !position.in_check() {
-                result.fens.push((position.bitboards(), position.stm(), score as i16));
+                let wscore = if position.stm() == Side::BLACK { -score } else { score };
+                result.fens.push((position.bitboards(), position.stm(), wscore as i16));
             }
 
             // not enough nodes to finish a depth!
