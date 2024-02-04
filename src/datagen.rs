@@ -3,7 +3,7 @@ use crate::{
 };
 
 // Datagen Settings
-const ADJ_WIN_SCORE: i32 = 1000;
+const ADJ_WIN_SCORE: i32 = 3000;
 const SOFT_NODE_LIMIT: u64 = 5_000;
 const HARD_NODE_LIMIT: u64 = 1_000_000;
 const HARD_TIMEOUT_MS: u128 = 10_000;
