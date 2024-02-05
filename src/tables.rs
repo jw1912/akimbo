@@ -253,7 +253,7 @@ pub struct NodeTable {
 impl Default for NodeTable {
     fn default() -> Self {
         Self {
-            table: Box::new([[0; 64]; 64]),
+            table: boxed_and_zeroed(),
         }
     }
 }
@@ -287,7 +287,7 @@ pub struct PlyTable {
 impl Default for PlyTable {
     fn default() -> Self {
         Self {
-            table: Box::new([Default::default(); 128]),
+            table: boxed_and_zeroed(),
         }
     }
 }
