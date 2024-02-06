@@ -12,18 +12,18 @@ pub struct Network {
     output_bias: i16,
 }
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-12.01.24-epoch17.bin")) };
+static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-06.02.24-epoch17.bin")) };
 
-const NUM_BUCKETS: usize = 1;
+const NUM_BUCKETS: usize = 4;
 static BUCKETS: [usize; 64] = [
-    0, 0, 0, 0, 1, 1, 1, 1,
-    0, 0, 0, 0, 1, 1, 1, 1,
-    0, 0, 0, 0, 1, 1, 1, 1,
-    0, 0, 0, 0, 1, 1, 1, 1,
-    0, 0, 0, 0, 1, 1, 1, 1,
-    0, 0, 0, 0, 1, 1, 1, 1,
-    0, 0, 0, 0, 1, 1, 1, 1,
-    0, 0, 0, 0, 1, 1, 1, 1,
+    0, 0, 1, 1, 5, 5, 4, 4,
+    2, 2, 2, 2, 6, 6, 6, 6,
+    3, 3, 3, 3, 7, 7, 7, 7,
+    3, 3, 3, 3, 7, 7, 7, 7,
+    3, 3, 3, 3, 7, 7, 7, 7,
+    3, 3, 3, 3, 7, 7, 7, 7,
+    3, 3, 3, 3, 7, 7, 7, 7,
+    3, 3, 3, 3, 7, 7, 7, 7,
 ];
 
 impl Network {
