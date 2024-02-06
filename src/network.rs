@@ -45,22 +45,22 @@ pub struct FeatureBuffer {
     subs: [(u16, u16); 2],
     add_count: usize,
     sub_count: usize,
-    needs_refresh: bool,
+    needs_refresh: [bool; 2],
 }
 
 impl FeatureBuffer {
     pub fn clear(&mut self) {
-        self.needs_refresh = false;
+        self.needs_refresh = [false; 2];
         self.add_count = 0;
         self.sub_count = 0;
     }
 
-    pub fn must_refresh(&mut self) {
-        self.needs_refresh = true;
+    pub fn must_refresh(&mut self, side: usize) {
+        self.needs_refresh[side] = true;
     }
 
-    pub fn needs_refresh(&self) -> bool {
-        self.needs_refresh
+    pub fn needs_refresh(&self, side: usize) -> bool {
+        self.needs_refresh[side]
     }
 
     pub fn push_add(&mut self, wfeat: usize, bfeat: usize) {
@@ -73,15 +73,23 @@ impl FeatureBuffer {
         self.sub_count += 1;
     }
 
-    pub fn update_accumulators(&self, accs: &mut [Accumulator; 2]) {
+    pub fn update_accumulators<const SIDE: usize>(&self, accs: &mut [Accumulator; 2]) {
         for &(wfeat, bfeat) in self.adds.iter().take(self.add_count) {
-            accs[0].update::<true>(usize::from(wfeat));
-            accs[1].update::<true>(usize::from(bfeat));
+            if SIDE & 1 > 0 {
+                accs[0].update::<true>(usize::from(wfeat));
+            }
+            if SIDE & 2 > 0 {
+                accs[1].update::<true>(usize::from(bfeat));
+            }
         }
 
         for &(wfeat, bfeat) in self.subs.iter().take(self.sub_count) {
-            accs[0].update::<false>(usize::from(wfeat));
-            accs[1].update::<false>(usize::from(bfeat));
+            if SIDE & 1 > 0 {
+                accs[0].update::<false>(usize::from(wfeat));
+            }
+            if SIDE & 2 > 0 {
+                accs[1].update::<false>(usize::from(bfeat));
+            }
         }
     }
 }

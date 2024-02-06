@@ -43,7 +43,7 @@ pub fn go(
     pos.check = pos.in_check();
 
     let mut accs = Default::default();
-    pos.refresh(&mut accs);
+    pos.refresh::<3>(&mut accs);
     eng.plied[0].accumulators = accs;
 
     // iterative deepening loop

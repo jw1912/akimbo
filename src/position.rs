@@ -78,15 +78,31 @@ impl Position {
     }
 
     pub fn update_accumulators(&self, accs: &mut [Accumulator; 2]) {
-        if !self.feats.needs_refresh() {
-            self.feats.update_accumulators(accs);
+        let wref = self.feats.needs_refresh(Side::WHITE);
+        let bref = self.feats.needs_refresh(Side::BLACK);
+
+        if wref && bref {
+            self.refresh::<3>(accs);
+        } else if wref || bref {
+            if wref {
+                self.refresh::<1>(accs);
+                self.feats.update_accumulators::<2>(accs);
+            } else {
+                self.refresh::<2>(accs);
+                self.feats.update_accumulators::<1>(accs);
+            }
         } else {
-            self.refresh(accs);
+            self.feats.update_accumulators::<3>(accs);
         }
     }
 
-    pub fn refresh(&self, accs: &mut [Accumulator; 2]) {
-        *accs = Default::default();
+    pub fn refresh<const SIDE: u8>(&self, accs: &mut [Accumulator; 2]) {
+        if SIDE & 1 > 0 {
+            accs[0] = Default::default();
+        }
+        if SIDE & 2 > 0 {
+            accs[1] = Default::default();
+        }
 
         for side in [Side::WHITE, Side::BLACK] {
             for piece in Piece::PAWN..=Piece::KING {
@@ -95,8 +111,12 @@ impl Position {
 
                 bitloop!(|bb, sq| {
                     let sq = usize::from(sq);
-                    accs[0].update::<true>(Accumulator::get_white_index(side, pc, sq, self.ksqs[0]));
-                    accs[1].update::<true>(Accumulator::get_black_index(side, pc, sq, self.ksqs[1]));
+                    if SIDE & 1 > 0 {
+                        accs[0].update::<true>(Accumulator::get_white_index(side, pc, sq, self.ksqs[0]));
+                    }
+                    if SIDE & 2 > 0 {
+                        accs[1].update::<true>(Accumulator::get_black_index(side, pc, sq, self.ksqs[1]));
+                    }
                 });
             }
         }
@@ -138,7 +158,7 @@ impl Position {
             let kfr = from ^ flip;
             let kto = to ^ flip;
             if Network::bucket(kfr as u8) != Network::bucket(kto as u8) {
-                self.feats.must_refresh();
+                self.feats.must_refresh(side);
             }
         }
 
