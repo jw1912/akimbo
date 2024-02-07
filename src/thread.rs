@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    frc::Castling, moves::Move, position::Position, tables::{HashTable, HashView, HistoryTable, NodeTable, PlyTable}
+    frc::Castling, moves::Move, network::KimmyTable, position::Position, tables::{HashTable, HashView, HistoryTable, NodeTable, PlyTable}
 };
 
 pub struct ThreadData<'a> {
@@ -21,6 +21,7 @@ pub struct ThreadData<'a> {
     pub ntable: NodeTable,
     pub stack: Vec<u64>,
     pub castling: Castling,
+    pub kimmy: KimmyTable,
 
     // uci output
     pub nodes: u64,
@@ -52,6 +53,7 @@ impl<'a> ThreadData<'a> {
             qnodes: 0,
             ply: 0,
             best_move: Move::NULL,
+            kimmy: Default::default(),
             seldepth: 0,
             abort,
         }
@@ -99,6 +101,6 @@ impl<'a> ThreadData<'a> {
 
     pub fn update_accumulators(&mut self, pos: &Position) {
         self.plied[self.ply].accumulators = self.plied[self.ply - 1].accumulators;
-        pos.update_accumulators(&mut self.plied[self.ply].accumulators);
+        pos.update_accumulators(&mut self.plied[self.ply].accumulators, &mut self.kimmy);
     }
 }

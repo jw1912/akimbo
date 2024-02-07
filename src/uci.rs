@@ -76,7 +76,7 @@ pub fn run_uci() {
             "quit" => process::exit(0),
             "eval" => {
                 let mut accs = Default::default();
-                pos.refresh::<3>(&mut accs);
+                pos.refresh(&mut accs);
                 println!("eval: {}cp", pos.eval(&accs));
             },
             _ => {}
@@ -153,7 +153,7 @@ fn run_bench(tt: &HashTable, stack: Vec<u64>, htable: &HistoryTable) {
     for fen in bench_fens {
         let pos = Position::from_fen(fen, &mut eng.castling);
         let mut accs = Default::default();
-        pos.refresh::<3>(&mut accs);
+        pos.refresh(&mut accs);
         eval = eval.wrapping_add([1, -1][pos.stm()] * pos.eval(&accs));
         let timer = Instant::now();
         go(&pos, &mut eng, false, 11, 1_000_000.0, u64::MAX);

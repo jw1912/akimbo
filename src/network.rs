@@ -1,3 +1,5 @@
+use crate::util::boxed_and_zeroed;
+
 const HIDDEN: usize = 768;
 const SCALE: i32 = 400;
 const QA: i32 = 181;
@@ -102,7 +104,7 @@ pub struct Accumulator {
 
 impl Accumulator {
     pub fn update<const ADD: bool>(&mut self, idx: usize) {
-        assert!(idx < 768 * NUM_BUCKETS);
+        assert!(idx < 768 * NUM_BUCKETS, "{idx}");
         for (i, d) in self.vals.iter_mut().zip(&NNUE.feature_weights[idx].vals) {
             if ADD {
                 *i += *d
@@ -128,11 +130,50 @@ impl Accumulator {
         }
         768 * Network::bucket(ksq) + [384, 0][side] + 64 * pc + (sq ^ 56)
     }
+
+    pub fn get_bucket<const SIDE: usize>(mut ksq: u8) -> usize {
+        if SIDE == 1 {
+            ksq ^= 56;
+        }
+
+        Network::bucket(ksq)
+    }
+
+    pub fn get_index<const SIDE: usize>(side: usize, pc: usize, sq: usize, ksq: u8) -> usize {
+        if SIDE == 0 {
+            Self::get_white_index(side, pc, sq, ksq)
+        } else {
+            Self::get_black_index(side, pc, sq, ksq)
+        }
+    }
 }
 
 impl Default for Accumulator {
     fn default() -> Self {
         NNUE.feature_bias
+    }
+}
+
+pub struct KimmyEntry {
+    pub bbs: [u64; 8],
+    pub acc: Accumulator,
+}
+
+pub struct KimmyTable {
+    pub table: Box<[[KimmyEntry; 2 * NUM_BUCKETS]; 2]>,
+}
+
+impl Default for KimmyTable {
+    fn default() -> Self {
+        let mut table: Box<[[KimmyEntry; 2 * NUM_BUCKETS]; 2]> = boxed_and_zeroed();
+
+        for side in table.iter_mut() {
+            for entry in side.iter_mut() {
+                entry.acc = Accumulator::default();
+            }
+        }
+
+        Self { table, }
     }
 }
 

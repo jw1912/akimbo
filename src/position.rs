@@ -4,7 +4,7 @@ use crate::{
     consts::{Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, SPANS, ZVALS},
     frc::Castling,
     moves::{Move, MoveList},
-    network::{Accumulator, FeatureBuffer, Network},
+    network::{Accumulator, FeatureBuffer, KimmyTable, Network},
 };
 
 #[derive(Clone, Copy, Default)]
@@ -77,18 +77,18 @@ impl Position {
         }
     }
 
-    pub fn update_accumulators(&self, accs: &mut [Accumulator; 2]) {
+    pub fn update_accumulators(&self, accs: &mut [Accumulator; 2], kimmy: &mut KimmyTable) {
         let wref = self.feats.needs_refresh(Side::WHITE);
         let bref = self.feats.needs_refresh(Side::BLACK);
 
         if wref && bref {
-            self.refresh::<3>(accs);
+            unreachable!();
         } else if wref || bref {
             if wref {
-                self.refresh::<1>(accs);
+                self.refresh_side::<0>(&mut accs[0], kimmy);
                 self.feats.update_accumulators::<2>(accs);
             } else {
-                self.refresh::<2>(accs);
+                self.refresh_side::<1>(&mut accs[1], kimmy);
                 self.feats.update_accumulators::<1>(accs);
             }
         } else {
@@ -96,13 +96,38 @@ impl Position {
         }
     }
 
-    pub fn refresh<const SIDE: u8>(&self, accs: &mut [Accumulator; 2]) {
-        if SIDE & 1 > 0 {
-            accs[0] = Default::default();
+    pub fn refresh_side<const SIDE: usize>(&self, acc: &mut Accumulator, kimmy: &mut KimmyTable) {
+        let ksq = self.ksqs[SIDE];
+        let entry = &mut kimmy.table[SIDE][Accumulator::get_bucket::<SIDE>(ksq)];
+        let bbs = entry.bbs;
+
+        for side in [Side::WHITE, Side::BLACK] {
+            let old_boys = bbs[side];
+            let new_boys = self.bb[side];
+            for (piece, &(mut old_bb)) in bbs.iter().enumerate().take(Piece::KING + 1).skip(Piece::PAWN) {
+                old_bb &= old_boys;
+                let new_bb = self.bb[piece] & new_boys;
+                let mut diff = old_bb ^ new_bb;
+                let pc = piece - 2;
+
+                bitloop!(|diff, sq| {
+                    let sq = usize::from(sq);
+                    if (1 << sq) & new_bb > 0 {
+                        entry.acc.update::<true>(Accumulator::get_index::<SIDE>(side, pc, sq, ksq));
+                    } else {
+                        entry.acc.update::<false>(Accumulator::get_index::<SIDE>(side, pc, sq, ksq));
+                    }
+                });
+            }
         }
-        if SIDE & 2 > 0 {
-            accs[1] = Default::default();
-        }
+
+        entry.bbs = self.bb;
+        *acc = entry.acc;
+    }
+
+    pub fn refresh(&self, accs: &mut [Accumulator; 2]) {
+        accs[0] = Default::default();
+        accs[1] = Default::default();
 
         for side in [Side::WHITE, Side::BLACK] {
             for piece in Piece::PAWN..=Piece::KING {
@@ -111,12 +136,8 @@ impl Position {
 
                 bitloop!(|bb, sq| {
                     let sq = usize::from(sq);
-                    if SIDE & 1 > 0 {
-                        accs[0].update::<true>(Accumulator::get_white_index(side, pc, sq, self.ksqs[0]));
-                    }
-                    if SIDE & 2 > 0 {
-                        accs[1].update::<true>(Accumulator::get_black_index(side, pc, sq, self.ksqs[1]));
-                    }
+                    accs[0].update::<true>(Accumulator::get_white_index(side, pc, sq, self.ksqs[0]));
+                    accs[1].update::<true>(Accumulator::get_black_index(side, pc, sq, self.ksqs[1]));
                 });
             }
         }
