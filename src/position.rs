@@ -242,6 +242,22 @@ impl Position {
         self.scale(eval)
     }
 
+    pub fn key_after(&self, mut curr: u64, mov: Move) -> u64 {
+        let side = self.stm();
+        let opp = side ^ 1;
+        let mpc = mov.moved_pc();
+
+        curr ^= ZVALS.c[opp];
+        curr ^= ZVALS.pcs[side][mpc][mov.from()];
+        curr ^= ZVALS.pcs[side][mpc][mov.to()];
+
+        if mov.is_capture() {
+            curr ^= ZVALS.pcs[opp][self.get_pc(mov.bb_to())][mov.to()];
+        }
+
+        curr
+    }
+
     fn scale(&self, eval: i32) -> i32 {
         #[cfg(not(feature = "datagen"))]
         {

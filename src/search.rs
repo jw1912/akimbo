@@ -497,6 +497,9 @@ fn pvs(
             }
         }
 
+        let after = pos.key_after(hash, mov);
+        eng.tt.prefetch(after);
+
         // make move and skip if not legal
         let mut new = *pos;
         if new.make(mov, &eng.castling) {
