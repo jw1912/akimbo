@@ -22,6 +22,19 @@ impl<'a> HashView<'a> {
     pub fn new(tt: &'a HashTable) -> Self {
         Self { table: tt }
     }
+
+    pub fn prefetch(&self, hash: u64) {
+        #[cfg(target_arch = "x86_64")]
+        unsafe {
+            use std::arch::x86_64::{_mm_prefetch, _MM_HINT_T0};
+
+            let idx = (hash as usize) & (self.table.table.len() - 1);
+            let entry = &self.table.table[idx];
+            let ptr = entry as *const HashEntryInternal;
+
+            _mm_prefetch::<_MM_HINT_T0>(ptr.cast());
+        }
+    }
 }
 
 #[derive(Clone, Copy, Default)]
