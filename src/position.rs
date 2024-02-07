@@ -247,7 +247,7 @@ impl Position {
         let opp = side ^ 1;
         let mpc = mov.moved_pc();
 
-        curr ^= ZVALS.c[opp];
+        curr ^= ZVALS.c[1];
         curr ^= ZVALS.pcs[side][mpc][mov.from()];
         curr ^= ZVALS.pcs[side][mpc][mov.to()];
 
