@@ -4,7 +4,7 @@ use crate::{
     consts::{Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, SPANS, ZVALS},
     frc::Castling,
     moves::{Move, MoveList},
-    network::{Accumulator, FeatureBuffer, Network},
+    network::{Accumulator, FeatureBuffer, KimmyTable, Network},
 };
 
 #[derive(Clone, Copy, Default)]
@@ -77,16 +77,57 @@ impl Position {
         }
     }
 
-    pub fn update_accumulators(&self, accs: &mut [Accumulator; 2]) {
-        if !self.feats.needs_refresh() {
-            self.feats.update_accumulators(accs);
+    pub fn update_accumulators(&self, accs: &mut [Accumulator; 2], kimmy: &mut KimmyTable) {
+        let wref = self.feats.needs_refresh(Side::WHITE);
+        let bref = self.feats.needs_refresh(Side::BLACK);
+
+        if wref && bref {
+            unreachable!();
+        } else if wref || bref {
+            if wref {
+                self.refresh_side::<0>(&mut accs[0], kimmy);
+                self.feats.update_accumulators::<2>(accs);
+            } else {
+                self.refresh_side::<1>(&mut accs[1], kimmy);
+                self.feats.update_accumulators::<1>(accs);
+            }
         } else {
-            self.refresh(accs);
+            self.feats.update_accumulators::<3>(accs);
         }
     }
 
+    pub fn refresh_side<const SIDE: usize>(&self, acc: &mut Accumulator, kimmy: &mut KimmyTable) {
+        let ksq = self.ksqs[SIDE];
+        let entry = &mut kimmy.table[SIDE][Accumulator::get_bucket::<SIDE>(ksq)];
+        let bbs = entry.bbs;
+
+        for side in [Side::WHITE, Side::BLACK] {
+            let old_boys = bbs[side];
+            let new_boys = self.bb[side];
+            for (piece, &(mut old_bb)) in bbs.iter().enumerate().take(Piece::KING + 1).skip(Piece::PAWN) {
+                old_bb &= old_boys;
+                let new_bb = self.bb[piece] & new_boys;
+                let mut diff = old_bb ^ new_bb;
+                let pc = piece - 2;
+
+                bitloop!(|diff, sq| {
+                    let sq = usize::from(sq);
+                    if (1 << sq) & new_bb > 0 {
+                        entry.acc.update::<true>(Accumulator::get_index::<SIDE>(side, pc, sq, ksq));
+                    } else {
+                        entry.acc.update::<false>(Accumulator::get_index::<SIDE>(side, pc, sq, ksq));
+                    }
+                });
+            }
+        }
+
+        entry.bbs = self.bb;
+        *acc = entry.acc;
+    }
+
     pub fn refresh(&self, accs: &mut [Accumulator; 2]) {
-        *accs = Default::default();
+        accs[0] = Default::default();
+        accs[1] = Default::default();
 
         for side in [Side::WHITE, Side::BLACK] {
             for piece in Piece::PAWN..=Piece::KING {
@@ -138,7 +179,7 @@ impl Position {
             let kfr = from ^ flip;
             let kto = to ^ flip;
             if Network::bucket(kfr as u8) != Network::bucket(kto as u8) {
-                self.feats.must_refresh();
+                self.feats.must_refresh(side);
             }
         }
 

@@ -1,3 +1,5 @@
+use crate::util::boxed_and_zeroed;
+
 const HIDDEN: usize = 768;
 const SCALE: i32 = 400;
 const QA: i32 = 181;
@@ -45,22 +47,22 @@ pub struct FeatureBuffer {
     subs: [(u16, u16); 2],
     add_count: usize,
     sub_count: usize,
-    needs_refresh: bool,
+    needs_refresh: [bool; 2],
 }
 
 impl FeatureBuffer {
     pub fn clear(&mut self) {
-        self.needs_refresh = false;
+        self.needs_refresh = [false; 2];
         self.add_count = 0;
         self.sub_count = 0;
     }
 
-    pub fn must_refresh(&mut self) {
-        self.needs_refresh = true;
+    pub fn must_refresh(&mut self, side: usize) {
+        self.needs_refresh[side] = true;
     }
 
-    pub fn needs_refresh(&self) -> bool {
-        self.needs_refresh
+    pub fn needs_refresh(&self, side: usize) -> bool {
+        self.needs_refresh[side]
     }
 
     pub fn push_add(&mut self, wfeat: usize, bfeat: usize) {
@@ -73,15 +75,23 @@ impl FeatureBuffer {
         self.sub_count += 1;
     }
 
-    pub fn update_accumulators(&self, accs: &mut [Accumulator; 2]) {
+    pub fn update_accumulators<const SIDE: usize>(&self, accs: &mut [Accumulator; 2]) {
         for &(wfeat, bfeat) in self.adds.iter().take(self.add_count) {
-            accs[0].update::<true>(usize::from(wfeat));
-            accs[1].update::<true>(usize::from(bfeat));
+            if SIDE & 1 > 0 {
+                accs[0].update::<true>(usize::from(wfeat));
+            }
+            if SIDE & 2 > 0 {
+                accs[1].update::<true>(usize::from(bfeat));
+            }
         }
 
         for &(wfeat, bfeat) in self.subs.iter().take(self.sub_count) {
-            accs[0].update::<false>(usize::from(wfeat));
-            accs[1].update::<false>(usize::from(bfeat));
+            if SIDE & 1 > 0 {
+                accs[0].update::<false>(usize::from(wfeat));
+            }
+            if SIDE & 2 > 0 {
+                accs[1].update::<false>(usize::from(bfeat));
+            }
         }
     }
 }
@@ -94,7 +104,7 @@ pub struct Accumulator {
 
 impl Accumulator {
     pub fn update<const ADD: bool>(&mut self, idx: usize) {
-        assert!(idx < 768 * NUM_BUCKETS);
+        assert!(idx < 768 * NUM_BUCKETS, "{idx}");
         for (i, d) in self.vals.iter_mut().zip(&NNUE.feature_weights[idx].vals) {
             if ADD {
                 *i += *d
@@ -120,11 +130,50 @@ impl Accumulator {
         }
         768 * Network::bucket(ksq) + [384, 0][side] + 64 * pc + (sq ^ 56)
     }
+
+    pub fn get_bucket<const SIDE: usize>(mut ksq: u8) -> usize {
+        if SIDE == 1 {
+            ksq ^= 56;
+        }
+
+        Network::bucket(ksq)
+    }
+
+    pub fn get_index<const SIDE: usize>(side: usize, pc: usize, sq: usize, ksq: u8) -> usize {
+        if SIDE == 0 {
+            Self::get_white_index(side, pc, sq, ksq)
+        } else {
+            Self::get_black_index(side, pc, sq, ksq)
+        }
+    }
 }
 
 impl Default for Accumulator {
     fn default() -> Self {
         NNUE.feature_bias
+    }
+}
+
+pub struct KimmyEntry {
+    pub bbs: [u64; 8],
+    pub acc: Accumulator,
+}
+
+pub struct KimmyTable {
+    pub table: Box<[[KimmyEntry; 2 * NUM_BUCKETS]; 2]>,
+}
+
+impl Default for KimmyTable {
+    fn default() -> Self {
+        let mut table: Box<[[KimmyEntry; 2 * NUM_BUCKETS]; 2]> = boxed_and_zeroed();
+
+        for side in table.iter_mut() {
+            for entry in side.iter_mut() {
+                entry.acc = Accumulator::default();
+            }
+        }
+
+        Self { table, }
     }
 }
 
