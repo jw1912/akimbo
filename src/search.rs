@@ -193,6 +193,9 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
             continue;
         }
 
+        let after = pos.key_after(hash, mov);
+        eng.tt.prefetch(after);
+
         let mut new = *pos;
         if new.make(mov, &eng.castling) {
             continue;
