@@ -2,7 +2,7 @@ use crate::util::boxed_and_zeroed;
 
 const HIDDEN: usize = 768;
 const SCALE: i32 = 400;
-const QA: i32 = 181;
+const QA: i32 = 255;
 const QB: i32 = 64;
 const QAB: i32 = QA * QB;
 
@@ -220,23 +220,18 @@ mod avx2 {
         const CHUNK: usize = 16;
 
         let mut sum = _mm256_setzero_si256();
+        let min = _mm256_setzero_si256();
+        let max = _mm256_set1_epi16(QA as i16);
 
         for i in 0..HIDDEN / CHUNK {
-            let v = screlu(load_i16s(acc, i * CHUNK));
+            let mut v = load_i16s(acc, i * CHUNK);
+            v = _mm256_min_epi16(_mm256_max_epi16(v, min), max);
             let w = load_i16s(weights, i * CHUNK);
-            let product = _mm256_madd_epi16(v, w);
+            let product = _mm256_madd_epi16(v, _mm256_mullo_epi16(v, w));
             sum = _mm256_add_epi32(sum, product);
         }
 
         horizontal_sum_i32(sum)
-    }
-
-    #[inline]
-    unsafe fn screlu(mut v: __m256i) -> __m256i {
-        let min = _mm256_setzero_si256();
-        let max = _mm256_set1_epi16(QA as i16);
-        v = _mm256_min_epi16(_mm256_max_epi16(v, min), max);
-        _mm256_mullo_epi16(v, v)
     }
 
     #[inline]
