@@ -344,7 +344,12 @@ fn pvs(
         }
 
         // null move pruning
-        if null && depth >= 3 && pos.phase > 2 && eval >= beta {
+        if null
+            && eng.ply >= eng.min_nmp_ply
+            && depth >= 3
+            && pos.phase > 2
+            && eval >= beta
+        {
             let mut new = *pos;
             let r = 3 + depth / 3 + 3.min((eval - beta) / 200) + i32::from(improving);
 
@@ -357,12 +362,20 @@ fn pvs(
 
             eng.pop();
 
-            if nw >= Score::MATE {
-                return beta;
-            }
-
             if nw >= beta {
-                return nw;
+                if depth < 12 || eng.min_nmp_ply > 0 {
+                    return if nw > Score::MATE { beta } else { nw };
+                }
+
+                eng.min_nmp_ply = eng.ply + (depth - r) * 3 / 4;
+
+                let verif = pvs(pos, eng, beta - 1, beta, depth - r, false);
+
+                eng.min_nmp_ply = 0;
+
+                if verif >= beta {
+                    return verif;
+                }
             }
         }
     }
