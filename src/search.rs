@@ -1,4 +1,8 @@
-use std::{fmt::Write, time::Instant, sync::atomic::{AtomicU64, Ordering::Relaxed}};
+use std::{
+    fmt::Write,
+    sync::atomic::{AtomicU64, Ordering::Relaxed},
+    time::Instant,
+};
 
 // used for displaying accurate node counts when multithreading
 static DISPLAY_NODES: AtomicU64 = AtomicU64::new(0);
@@ -344,12 +348,7 @@ fn pvs(
         }
 
         // null move pruning
-        if null
-            && eng.ply >= eng.min_nmp_ply
-            && depth >= 3
-            && pos.phase > 2
-            && eval >= beta
-        {
+        if null && eng.ply >= eng.min_nmp_ply && depth >= 3 && pos.phase > 2 && eval >= beta {
             let mut new = *pos;
             let r = 3 + depth / 3 + 3.min((eval - beta) / 200) + i32::from(improving);
 
@@ -386,11 +385,7 @@ fn pvs(
     }
 
     // probcut
-    if can_prune
-        && depth > 4
-        && beta.abs() < Score::MATE
-        && can_probcut
-    {
+    if can_prune && depth > 4 && beta.abs() < Score::MATE && can_probcut {
         let mut caps = pos.movegen::<false>(&eng.castling);
         let mut scores = [0; 252];
 
@@ -503,7 +498,9 @@ fn pvs(
                 }
 
                 // history pruning
-                if depth < 3 && ms < -1024 * depth { break }
+                if depth < 3 && ms < -1024 * depth {
+                    break;
+                }
             }
 
             // static exchange eval pruning

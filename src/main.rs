@@ -9,7 +9,7 @@ mod tables;
 mod thread;
 mod util;
 
-#[cfg(feature="datagen")]
+#[cfg(feature = "datagen")]
 mod datagen;
 
 #[cfg(not(feature = "datagen"))]

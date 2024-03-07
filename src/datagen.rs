@@ -1,5 +1,12 @@
 use crate::{
-    consts::Side, frc::Castling, moves::Move, position::Position, search::go, tables::{HashTable, HistoryTable}, thread::ThreadData, util::STARTPOS
+    consts::Side,
+    frc::Castling,
+    moves::Move,
+    pos::Position,
+    search::go,
+    tables::{HashTable, HistoryTable},
+    thread::ThreadData,
+    util::STARTPOS,
 };
 
 // Datagen Settings
@@ -13,7 +20,7 @@ use bulletformat::{BulletFormat, ChessBoard};
 
 use std::{
     fs::File,
-    io::{BufWriter, Write, BufReader, BufRead},
+    io::{BufRead, BufReader, BufWriter, Write},
     net::TcpStream,
     sync::atomic::{AtomicBool, Ordering::SeqCst},
     time::{Instant, SystemTime, UNIX_EPOCH},
@@ -29,14 +36,17 @@ pub fn run_datagen(threads: usize, tcp_ip: Option<&str>, book_path: Option<&str>
 
     let book = book_path.map(|path| {
         let file = BufReader::new(File::open(path).unwrap());
-        file.lines().collect::<Vec<Result<String, std::io::Error>>>()
+        file.lines()
+            .collect::<Vec<Result<String, std::io::Error>>>()
     });
 
     std::thread::scope(|s| {
         for num in 0..threads {
             let bref = &book;
             std::thread::sleep(std::time::Duration::from_millis(10));
-            let this_ip = tcp_ip.as_ref().map(|ip| ip.try_clone().expect("Couldn't Clone!"));
+            let this_ip = tcp_ip
+                .as_ref()
+                .map(|ip| ip.try_clone().expect("Couldn't Clone!"));
             s.spawn(move || {
                 let mut worker = DatagenThread::new(SOFT_NODE_LIMIT, 8, num, this_ip);
                 worker.run_datagen(bref);
@@ -88,7 +98,9 @@ impl DatagenThread {
         let dest = if let Some(ip) = tcp_ip {
             Destination::TcpStream(ip.try_clone().unwrap())
         } else {
-            Destination::BinFile(BufWriter::new(File::create(format!("resources/akimbo-{seed}.data")).unwrap()))
+            Destination::BinFile(BufWriter::new(
+                File::create(format!("resources/akimbo-{seed}.data")).unwrap(),
+            ))
         };
 
         let res = Self {
@@ -113,10 +125,7 @@ impl DatagenThread {
         self.rng
     }
 
-    fn run_datagen(
-        &mut self,
-        book: &Option<Vec<Result<String, std::io::Error>>>,
-    ) {
+    fn run_datagen(&mut self, book: &Option<Vec<Result<String, std::io::Error>>>) {
         let mut tt = HashTable::default();
         tt.resize(self.hash_size, 1);
 
@@ -171,7 +180,9 @@ impl DatagenThread {
             Destination::BinFile(file) => ChessBoard::write_to_bin(file, data).unwrap(),
             Destination::TcpStream(stream) => {
                 let buf = ChessBoard::as_bytes_slice(data);
-                stream.write_all(buf).unwrap_or_else(|_| panic!("#[{}] error writing to stream", self.id))
+                stream
+                    .write_all(buf)
+                    .unwrap_or_else(|_| panic!("#[{}] error writing to stream", self.id))
             }
         }
 
@@ -184,7 +195,7 @@ impl DatagenThread {
         book: &Option<Vec<Result<String, std::io::Error>>>,
     ) -> Option<GameResult> {
         let mut castling = Castling::default();
-        let mut position = if let Some(list) = book {
+        let mut pos = if let Some(list) = book {
             let rng = self.rng() as usize % list.len();
             Position::from_fen(list[rng].as_ref().unwrap(), &mut castling)
         } else {
@@ -200,10 +211,10 @@ impl DatagenThread {
 
         // play 8 or 9 random moves
         for _ in 0..(8 + (self.rng() % 2)) {
-            let moves = position.movegen::<true>(&castling);
+            let moves = pos.movegen::<true>(&castling);
             let mut legals = Vec::new();
             for &mov in moves.iter() {
-                let mut new = position;
+                let mut new = pos;
                 if !new.make(mov, &castling) {
                     legals.push(mov);
                 }
@@ -213,52 +224,47 @@ impl DatagenThread {
                 return None;
             }
 
-            engine.stack.push(position.hash());
-            position.make(legals[self.rng() as usize % legals.len()], &castling);
+            engine.stack.push(pos.hash());
+            pos.make(legals[self.rng() as usize % legals.len()], &castling);
         }
 
         let mut result = GameResult::default();
 
         // play out game
         loop {
-            let (bm, score) = go(
-                &position,
-                &mut engine,
-                false,
-                32,
-                1000.0,
-                self.nodes_per_move,
-            );
+            let (bm, score) = go(&pos, &mut engine, false, 32, 1000.0, self.nodes_per_move);
 
             engine.tt.age_up();
 
             // adjudicate large scores
             if score.abs() > ADJ_WIN_SCORE {
-                result.result = if score > 0 {
-                    1 - position.stm()
-                } else {
-                    position.stm()
-                } as f32;
+                result.result = if score > 0 { 1 - pos.stm() } else { pos.stm() } as f32;
 
                 break;
             }
 
-            // position is quiet, can use fen
-            if !bm.is_capture() && !position.in_check() {
-                let wscore = if position.stm() == Side::BLACK { -score } else { score };
-                result.fens.push((position.bitboards(), position.stm(), wscore as i16));
+            // pos is quiet, can use fen
+            if !bm.is_capture() && !pos.in_check() {
+                let wscore = if pos.stm() == Side::BLACK {
+                    -score
+                } else {
+                    score
+                };
+                result
+                    .fens
+                    .push((pos.bitboards(), pos.stm(), wscore as i16));
             }
 
             // not enough nodes to finish a depth!
-            engine.stack.push(position.hash());
-            if bm == Move::NULL || position.make(bm, &castling) {
+            engine.stack.push(pos.hash());
+            if bm == Move::NULL || pos.make(bm, &castling) {
                 return None;
             }
 
             // check for game end via check/stalemate
-            if is_terminal(&position, &castling) {
-                result.result = if position.in_check() {
-                    position.stm() as f32
+            if is_terminal(&pos, &castling) {
+                result.result = if pos.in_check() {
+                    pos.stm() as f32
                 } else {
                     0.5
                 };
@@ -266,7 +272,7 @@ impl DatagenThread {
             }
 
             // check for game end via other draw rules
-            if position.draw() || engine.repetition(&position, position.hash(), true) {
+            if pos.draw() || engine.repetition(&pos, pos.hash(), true) {
                 result.result = 0.5;
                 break;
             }

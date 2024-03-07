@@ -4,7 +4,11 @@ use std::{
 };
 
 use crate::{
-    frc::Castling, moves::Move, network::KimmyTable, position::Position, tables::{HashTable, HashView, HistoryTable, NodeTable, PlyTable}
+    frc::Castling,
+    moves::Move,
+    network::KimmyTable,
+    position::Position,
+    tables::{HashTable, HashView, HistoryTable, NodeTable, PlyTable},
 };
 
 pub struct ThreadData<'a> {

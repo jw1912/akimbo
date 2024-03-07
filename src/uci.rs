@@ -78,7 +78,7 @@ pub fn run_uci() {
                 let mut accs = Default::default();
                 pos.refresh(&mut accs);
                 println!("eval: {}cp", pos.eval(&accs));
-            },
+            }
             _ => {}
         }
     }
@@ -178,7 +178,12 @@ fn preamble() {
     println!("uciok");
 }
 
-fn set_position(commands: Vec<&str>, pos: &mut Position, stack: &mut Vec<u64>, castling: &mut Castling) {
+fn set_position(
+    commands: Vec<&str>,
+    pos: &mut Position,
+    stack: &mut Vec<u64>,
+    castling: &mut Castling,
+) {
     let mut fen = String::new();
     let mut move_list = Vec::new();
     let mut moves = false;

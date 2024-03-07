@@ -14,9 +14,12 @@ pub struct Network {
     output_bias: i16,
 }
 
-static NNUE: Network = unsafe { std::mem::transmute(*include_bytes!("../resources/net-20.02.24-epoch17.bin")) };
+static NNUE: Network =
+    unsafe { std::mem::transmute(*include_bytes!("../resources/net-20.02.24-epoch17.bin")) };
 
 const NUM_BUCKETS: usize = 4;
+
+#[rustfmt::skip]
 static BUCKETS: [usize; 64] = [
     0, 0, 1, 1, 5, 5, 4, 4,
     2, 2, 2, 2, 6, 6, 6, 6,
@@ -173,22 +176,22 @@ impl Default for KimmyTable {
             }
         }
 
-        Self { table, }
+        Self { table }
     }
 }
 
 fn flatten(acc: &Accumulator, weights: &Accumulator) -> i32 {
-    #[cfg(not(target_feature="avx2"))]
+    #[cfg(not(target_feature = "avx2"))]
     {
         fallback::flatten(acc, weights)
     }
-    #[cfg(target_feature="avx2")]
+    #[cfg(target_feature = "avx2")]
     unsafe {
         avx2::flatten(acc, weights)
     }
 }
 
-#[cfg(not(target_feature="avx2"))]
+#[cfg(not(target_feature = "avx2"))]
 mod fallback {
     use super::{Accumulator, QA};
 
@@ -209,10 +212,10 @@ mod fallback {
     }
 }
 
-#[cfg(target_feature="avx2")]
+#[cfg(target_feature = "avx2")]
 mod avx2 {
+    use super::{Accumulator, HIDDEN, QA};
     use std::arch::x86_64::*;
-    use super::{Accumulator, QA, HIDDEN};
 
     pub unsafe fn flatten(acc: &Accumulator, weights: &Accumulator) -> i32 {
         use std::arch::x86_64::*;

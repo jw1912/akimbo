@@ -1,10 +1,11 @@
 use std::sync::atomic::{AtomicU64, AtomicU8, Ordering::Relaxed};
 
 use crate::{
-    util::boxed_and_zeroed,
     consts::{MoveScore, Score},
     moves::{Move, MoveList},
-    position::Position, network::Accumulator,
+    network::Accumulator,
+    position::Position,
+    util::boxed_and_zeroed,
 };
 
 pub struct HashView<'a> {

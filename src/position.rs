@@ -104,7 +104,12 @@ impl Position {
         for side in [Side::WHITE, Side::BLACK] {
             let old_boys = bbs[side];
             let new_boys = self.bb[side];
-            for (piece, &(mut old_bb)) in bbs.iter().enumerate().take(Piece::KING + 1).skip(Piece::PAWN) {
+            for (piece, &(mut old_bb)) in bbs
+                .iter()
+                .enumerate()
+                .take(Piece::KING + 1)
+                .skip(Piece::PAWN)
+            {
                 old_bb &= old_boys;
                 let new_bb = self.bb[piece] & new_boys;
                 let mut diff = old_bb ^ new_bb;
@@ -112,10 +117,11 @@ impl Position {
 
                 bitloop!(|diff, sq| {
                     let sq = usize::from(sq);
+                    let idx = Accumulator::get_index::<SIDE>(side, pc, sq, ksq);
                     if (1 << sq) & new_bb > 0 {
-                        entry.acc.update::<true>(Accumulator::get_index::<SIDE>(side, pc, sq, ksq));
+                        entry.acc.update::<true>(idx);
                     } else {
-                        entry.acc.update::<false>(Accumulator::get_index::<SIDE>(side, pc, sq, ksq));
+                        entry.acc.update::<false>(idx);
                     }
                 });
             }
@@ -136,8 +142,18 @@ impl Position {
 
                 bitloop!(|bb, sq| {
                     let sq = usize::from(sq);
-                    accs[0].update::<true>(Accumulator::get_white_index(side, pc, sq, self.ksqs[0]));
-                    accs[1].update::<true>(Accumulator::get_black_index(side, pc, sq, self.ksqs[1]));
+                    accs[0].update::<true>(Accumulator::get_white_index(
+                        side,
+                        pc,
+                        sq,
+                        self.ksqs[0],
+                    ));
+                    accs[1].update::<true>(Accumulator::get_black_index(
+                        side,
+                        pc,
+                        sq,
+                        self.ksqs[1],
+                    ));
                 });
             }
         }
@@ -175,7 +191,7 @@ impl Position {
         };
 
         if moved == Piece::KING {
-            let flip = if side == Side::BLACK {56} else {0};
+            let flip = if side == Side::BLACK { 56 } else { 0 };
             let kfr = from ^ flip;
             let kto = to ^ flip;
             if Network::bucket(kfr as u8) != Network::bucket(kto as u8) {
