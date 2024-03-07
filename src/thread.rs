@@ -13,6 +13,7 @@ pub struct ThreadData<'a> {
     pub max_time: u128,
     pub max_nodes: u64,
     pub abort: &'a AtomicBool,
+    pub min_nmp_ply: i32,
 
     // tables
     pub tt: HashView<'a>,
@@ -43,6 +44,7 @@ impl<'a> ThreadData<'a> {
             timing: Instant::now(),
             max_time: 0,
             max_nodes: u64::MAX,
+            min_nmp_ply: 0,
             tt: HashView::new(tt),
             htable,
             plied: PlyTable::default(),
