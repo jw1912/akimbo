@@ -550,7 +550,7 @@ fn pvs(
                 } else {
                     1
                 }
-            } else if tt_score >= beta {
+            } else if tt_score >= beta || (tt_score <= alpha && null) {
                 -1
             } else {
                 0
