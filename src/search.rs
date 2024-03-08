@@ -258,13 +258,14 @@ fn pvs(
     }
 
     let hash = pos.hash();
+    let is_root = eng.ply == 0;
 
     // clear pv line
     eng.plied[eng.ply].pv_line.clear();
 
-    if eng.ply > 0 {
+    if !is_root {
         // draw detection
-        if pos.draw() || eng.repetition(pos, hash, eng.ply == 0) {
+        if pos.draw() || eng.repetition(pos, hash, false) {
             return Score::DRAW;
         }
 
@@ -288,18 +289,19 @@ fn pvs(
     let s_mov = eng.plied[eng.ply].singular;
     let singular = s_mov != Move::NULL;
     let pc_beta = beta + 256;
-
     let static_eval = pos.eval(&eng.plied[eng.ply].accumulators);
+
     let mut eval = static_eval;
     let mut tt_move = Move::NULL;
     let mut tt_score = -Score::MAX;
-    let mut try_singular = !singular && depth >= 8 && eng.ply > 0;
+    let mut try_singular = !is_root && !singular && depth >= 8;
     let mut can_probcut = true;
 
     // probing hash table
     if let Some(entry) = eng.tt.probe(hash, eng.ply) {
         let bound = entry.bound();
         let depth_cond = entry.depth() >= depth - 3;
+
         tt_move = entry.best_move(pos);
         tt_score = entry.score();
         try_singular &= depth_cond && bound != Bound::UPPER && tt_score.abs() < Score::MATE;
@@ -349,19 +351,21 @@ fn pvs(
 
         // null move pruning
         if null && eng.ply >= eng.min_nmp_ply && depth >= 3 && pos.phase > 2 && eval >= beta {
-            let mut new = *pos;
             let r = 3 + depth / 3 + 3.min((eval - beta) / 200) + i32::from(improving);
 
             eng.push(hash);
-            new.make_null();
             eng.plied[eng.ply].accumulators = eng.plied[eng.ply - 1].accumulators;
             eng.plied[eng.ply].played = Move::NULL;
+
+            let mut new = *pos;
+            new.make_null();
 
             let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false);
 
             eng.pop();
 
             if nw >= beta {
+                // don't bother to verify on low depths
                 if depth < 12 || eng.min_nmp_ply > 0 {
                     return if nw > Score::MATE { beta } else { nw };
                 }
@@ -380,9 +384,7 @@ fn pvs(
     }
 
     // internal iterative reduction
-    if depth >= 4 && tt_move == Move::NULL {
-        depth -= 1
-    }
+    depth -= i32::from(depth >= 4 && tt_move == Move::NULL);
 
     // probcut
     if can_prune && depth > 4 && beta.abs() < Score::MATE && can_probcut {
@@ -439,7 +441,7 @@ fn pvs(
 
     // scoring moves
     let mut scores = [0; 252];
-    moves.iter().enumerate().for_each(|(i, &mov)| {
+    for (i, &mov) in moves.iter().enumerate() {
         scores[i] = if mov == tt_move {
             MoveScore::HASH
         } else if mov.is_en_passant() {
@@ -453,7 +455,7 @@ fn pvs(
         } else {
             eng.htable.get_score(pos.stm(), mov, prevs, threats)
         }
-    });
+    }
 
     let mut legal = 0;
     let mut bound = Bound::UPPER;
@@ -510,6 +512,7 @@ fn pvs(
             }
         }
 
+        // prefetch new tt probe ahead of time
         let after = pos.key_after(hash, mov);
         eng.tt.prefetch(after);
 
@@ -519,6 +522,7 @@ fn pvs(
             continue;
         }
 
+        // update accumulators based on new position
         eng.update_accumulators(&new);
 
         new.check = new.in_check();
@@ -529,8 +533,11 @@ fn pvs(
             quiets_tried.add(mov);
         }
 
+        let mut extend = 0;
+        let mut reduce = 0;
+
         // singular extensions
-        let ext = if try_singular && mov == tt_move {
+        if try_singular && mov == tt_move {
             let s_beta = tt_score - depth * 2;
 
             let curr_accs = eng.plied[eng.ply].accumulators;
@@ -544,47 +551,45 @@ fn pvs(
             eng.plied[eng.ply].accumulators = curr_accs;
 
             if s_score < s_beta {
+                // tt move is singular, extend
+                extend = 1;
+
+                // double extension
                 if !pv_node && s_score < s_beta - 25 && eng.plied[eng.ply].dbl_exts < 5 {
                     eng.plied[eng.ply].dbl_exts += 1;
-                    2
-                } else {
-                    1
+                    extend += 1
                 }
             } else if tt_score >= beta || (tt_score <= alpha && null) {
-                -1
-            } else {
-                0
+                // negative extension
+                extend = -1
             }
-        } else {
-            0
-        };
+        }
 
         // reductions
-        let reduce = if can_lmr && ms < MoveScore::KILLER {
+        if can_lmr && ms < MoveScore::KILLER {
             // late move reductions - Viridithas values used
-            let mut r = (0.77 + lmr_base * (legal as f64).ln()) as i32;
+            reduce = (0.77 + lmr_base * (legal as f64).ln()) as i32;
 
             // reduce pv nodes less
-            r -= i32::from(pv_node);
+            reduce -= i32::from(pv_node);
 
             // reduce checks less
-            r -= i32::from(new.check);
+            reduce -= i32::from(new.check);
 
             // reduce passed pawn moves less
-            r -= i32::from(mov.moved_pc() == Piece::PAWN && pos.is_passer(mov.from(), pos.stm()));
+            reduce -=
+                i32::from(mov.moved_pc() == Piece::PAWN && pos.is_passer(mov.from(), pos.stm()));
 
             // reduce less if next ply had few fail highs
-            r -= i32::from(eng.plied[eng.ply].cutoffs < 4);
+            reduce -= i32::from(eng.plied[eng.ply].cutoffs < 4);
 
             // reduce more/less based on history score
             if ms <= MoveScore::HISTORY_MAX {
-                r -= ms / 8192
+                reduce -= ms / 8192
             }
 
             // don't accidentally extend
-            r.max(0)
-        } else {
-            0
+            reduce = reduce.max(0)
         };
 
         let pre_nodes = eng.nodes + eng.qnodes;
@@ -592,18 +597,19 @@ fn pvs(
 
         // pvs
         let score = if legal == 1 {
-            -pvs(&new, eng, -beta, -alpha, depth + ext - 1, false)
+            -pvs(&new, eng, -beta, -alpha, depth + extend - 1, false)
         } else {
-            let zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true);
+            let mut zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true);
 
             if zw > alpha && (pv_node || reduce > 0) {
-                -pvs(&new, eng, -beta, -alpha, depth - 1, false)
-            } else {
-                zw
+                zw = -pvs(&new, eng, -beta, -alpha, depth - 1, false)
             }
+
+            zw
         };
 
-        if eng.ply == 1 {
+        // update node count table for node tm
+        if is_root {
             eng.ntable.update(mov, eng.nodes + eng.qnodes - pre_nodes);
         }
 
@@ -643,6 +649,7 @@ fn pvs(
         if quiets_tried.len() > 1 || depth > 2 {
             let bonus = 1600.min(350 * (depth - 1));
             eng.htable.push(mov, prevs, pos.stm(), bonus, threats);
+
             for &quiet in quiets_tried.iter().take(quiets_tried.len() - 1) {
                 eng.htable.push(quiet, prevs, pos.stm(), -bonus, threats)
             }
@@ -658,14 +665,17 @@ fn pvs(
         return 0;
     }
 
-    if eng.ply == 0 {
+    // set best move at root
+    if is_root {
         eng.best_move = best_move;
     }
 
+    // checkmate / stalemate
     if legal == 0 {
         return i32::from(pos.check) * (eng.ply - Score::MAX);
     }
 
+    // push new entry to hash table
     eng.tt
         .push(hash, best_move, depth as i8, bound, best_score, eng.ply);
 
