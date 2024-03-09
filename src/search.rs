@@ -350,7 +350,12 @@ fn pvs(
         }
 
         // null move pruning
-        if null && eng.ply >= eng.min_nmp_ply && depth >= 3 && pos.phase > 2 && eval >= beta {
+        if null
+            && eng.ply >= eng.min_nmp_ply
+            && depth >= 3
+            && pos.has_non_pk(pos.stm())
+            && eval >= beta
+        {
             let r = 3 + depth / 3 + 3.min((eval - beta) / 200) + i32::from(improving);
 
             eng.push(hash);
