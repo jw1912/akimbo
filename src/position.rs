@@ -159,6 +159,12 @@ impl Position {
         }
     }
 
+    pub fn has_non_pk(&self, side: usize) -> bool {
+        let occ = self.bb[Side::WHITE] | self.bb[Side::BLACK];
+        let pk = self.bb[Piece::PAWN] | self.bb[Piece::KING];
+        self.bb[side] & (occ ^ pk) > 0
+    }
+
     fn sq_attacked(&self, sq: usize, side: usize, occ: u64) -> bool {
         ((Attacks::knight(sq) & self.bb[Piece::KNIGHT])
             | (Attacks::king(sq) & self.bb[Piece::KING])
