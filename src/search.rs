@@ -13,7 +13,25 @@ use super::{
     position::Position,
     tables::NodeTable,
     thread::ThreadData,
+    tunable_params,
 };
+
+tunable_params! {
+    nmp_base_reduction = 3, 1, 5;
+    nmp_depth_divisor = 3, 1, 8;
+    nmp_eval_divisor = 200, 50, 800;
+    nmp_eval_max = 3, 0, 8;
+    nmp_min_verif_depth = 12, 8, 20;
+    nmp_verif_frac = 12, 1, 16;
+    rfp_margin = 80, 20, 200;
+    razor_margin = 400, 200, 800;
+    lmr_base = 77, 0, 512;
+    lmr_divisor = 267, 128, 512;
+    fp_base = 160, 80, 400;
+    fp_margin = 80, 20, 200;
+    hist_max = 1600, 800, 4000;
+    hist_mul = 350, 100, 500;
+}
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
     8 * pos.get_pc(mov.bb_to()) as i32 - mov.moved_pc() as i32
@@ -336,12 +354,13 @@ fn pvs(
     let can_prune = !pv_node && !pos.check;
     if can_prune && beta.abs() < Score::MATE {
         // reverse futility pruning
-        if depth <= 8 && eval >= beta + 80 * depth / if improving { 2 } else { 1 } {
+        let improving_divisor = if improving { 2 } else { 1 };
+        if depth <= 8 && eval >= beta + rfp_margin() * depth / improving_divisor {
             return eval;
         }
 
         // razoring
-        if depth <= 2 && eval + 400 * depth < alpha {
+        if depth <= 2 && eval + razor_margin() * depth < alpha {
             let qeval = qs(pos, eng, alpha, beta);
 
             if qeval < alpha {
@@ -356,7 +375,10 @@ fn pvs(
             && pos.has_non_pk(pos.stm())
             && eval >= beta
         {
-            let r = 3 + depth / 3 + 3.min((eval - beta) / 200) + i32::from(improving);
+            let r = nmp_base_reduction()
+                + depth / nmp_depth_divisor()
+                + nmp_eval_max().min((eval - beta) / nmp_eval_divisor())
+                + i32::from(improving);
 
             eng.push(hash);
             eng.plied[eng.ply].accumulators = eng.plied[eng.ply - 1].accumulators;
@@ -371,11 +393,11 @@ fn pvs(
 
             if nw >= beta {
                 // don't bother to verify on low depths
-                if depth < 12 || eng.min_nmp_ply > 0 {
+                if depth < nmp_min_verif_depth() || eng.min_nmp_ply > 0 {
                     return if nw > Score::MATE { beta } else { nw };
                 }
 
-                eng.min_nmp_ply = eng.ply + (depth - r) * 3 / 4;
+                eng.min_nmp_ply = eng.ply + (depth - r) * nmp_verif_frac() / 16;
 
                 let verif = pvs(pos, eng, beta - 1, beta, depth - r, false);
 
@@ -469,7 +491,8 @@ fn pvs(
     let mut quiets_tried = MoveList::ZEROED;
 
     let can_lmr = depth > 1 && !pos.check;
-    let lmr_base = (depth as f64).ln() / 2.67;
+    let lmr_base = f64::from(lmr_base()) / 100.0;
+    let lmr_depth = (depth as f64).ln() / (f64::from(lmr_divisor()) / 100.0);
 
     #[cfg(not(feature = "datagen"))]
     let can_fp = !singular && depth < 6;
@@ -478,7 +501,7 @@ fn pvs(
     let lmp_margin = 2 + depth * depth / if improving { 1 } else { 2 };
 
     #[cfg(not(feature = "datagen"))]
-    let fp_margin = eval + 160 + 80 * depth * depth;
+    let fp_margin = eval + fp_base() + fp_margin() * depth * depth;
 
     eng.push(hash);
     eng.plied[eng.ply].dbl_exts = eng.plied[eng.ply - 1].dbl_exts;
@@ -573,7 +596,7 @@ fn pvs(
         // reductions
         if can_lmr && ms < MoveScore::KILLER {
             // late move reductions - Viridithas values used
-            reduce = (0.77 + lmr_base * (legal as f64).ln()) as i32;
+            reduce = (lmr_base + lmr_depth * (legal as f64).ln()) as i32;
 
             // reduce pv nodes less
             reduce -= i32::from(pv_node);
@@ -648,7 +671,7 @@ fn pvs(
         eng.plied.push_killer(mov, eng.ply);
 
         if quiets_tried.len() > 1 || depth > 2 {
-            let bonus = 1600.min(350 * (depth - 1));
+            let bonus = hist_max().min(hist_mul() * (depth - 1));
             eng.htable.push(mov, prevs, pos.stm(), bonus, threats);
 
             for &quiet in quiets_tried.iter().take(quiets_tried.len() - 1) {

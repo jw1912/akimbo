@@ -5,6 +5,9 @@ use crate::tables::{HashTable, HistoryTable};
 use crate::thread::ThreadData;
 use crate::util::STARTPOS;
 
+#[cfg(feature = "tuning")]
+use crate::search::{list_params, set_param};
+
 use std::{io, process, sync::atomic::AtomicBool, time::Instant};
 
 const FEN_STRING: &str = include_str!("../resources/fens.txt");
@@ -59,6 +62,8 @@ pub fn run_uci() {
                 ["setoption", "name", "Hash", "value", x] => tt.resize(x.parse().unwrap(), threads),
                 ["setoption", "name", "Clear", "Hash"] => tt.clear(threads),
                 ["setoption", "name", "Threads", "value", x] => threads = x.parse().unwrap(),
+                #[cfg(feature = "tuning")]
+                ["setoption", "name", name, "value", x] => set_param(name, x.parse().unwrap()),
                 _ => {}
             },
             "go" => handle_go(
@@ -175,6 +180,8 @@ fn preamble() {
     println!("option name Hash type spin default 16 min 1 max 1048576");
     println!("option name Clear Hash type button");
     println!("option name UCI_Chess960 type check default false");
+    #[cfg(feature = "tuning")]
+    list_params();
     println!("uciok");
 }
 
