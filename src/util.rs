@@ -36,7 +36,7 @@ macro_rules! init {
 
 #[macro_export]
 macro_rules! tunable_params {
-    ($($name:ident = $val:expr, $min:expr, $max:expr;)*) => {
+    ($($name:ident = $val:expr, $min:expr, $max:expr, $step:expr;)*) => {
         #[cfg(feature = "tuning")]
         use std::sync::atomic::Ordering;
 
@@ -61,6 +61,20 @@ macro_rules! tunable_params {
                 )*
                 _ => println!("info error unknown option"),
             }
+        }
+
+        #[cfg(feature = "tuning")]
+        pub fn print_params_ob() {
+            $(
+                println!(
+                    "{}, int, {}.0, {}.0, {}.0, {}, 0.002",
+                    stringify!($name),
+                    $name(),
+                    $min,
+                    $max,
+                    $step,
+                );
+            )*
         }
 
         #[cfg(feature = "tuning")]

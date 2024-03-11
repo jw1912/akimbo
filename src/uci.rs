@@ -6,7 +6,7 @@ use crate::thread::ThreadData;
 use crate::util::STARTPOS;
 
 #[cfg(feature = "tuning")]
-use crate::search::{list_params, set_param};
+use crate::search::{list_params, set_param, print_params_ob};
 
 use std::{io, process, sync::atomic::AtomicBool, time::Instant};
 
@@ -84,6 +84,8 @@ pub fn run_uci() {
                 pos.refresh(&mut accs);
                 println!("eval: {}cp", pos.eval(&accs));
             }
+            #[cfg(feature = "tuning")]
+            "params" => print_params_ob(),
             _ => {}
         }
     }

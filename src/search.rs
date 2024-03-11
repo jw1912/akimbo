@@ -17,20 +17,22 @@ use super::{
 };
 
 tunable_params! {
-    nmp_base_reduction = 3, 1, 5;
-    nmp_depth_divisor = 3, 1, 8;
-    nmp_eval_divisor = 200, 50, 800;
-    nmp_eval_max = 3, 0, 8;
-    nmp_min_verif_depth = 12, 8, 20;
-    nmp_verif_frac = 12, 1, 16;
-    rfp_margin = 80, 20, 200;
-    razor_margin = 400, 200, 800;
-    lmr_base = 77, 0, 512;
-    lmr_divisor = 267, 128, 512;
-    fp_base = 160, 80, 400;
-    fp_margin = 80, 20, 200;
-    hist_max = 1600, 800, 4000;
-    hist_mul = 350, 100, 500;
+    nmp_base_reduction = 3, 1, 5, 1;
+    nmp_depth_divisor = 3, 1, 8, 1;
+    nmp_eval_divisor = 200, 50, 800, 100;
+    nmp_eval_max = 3, 0, 8, 1;
+    nmp_min_verif_depth = 12, 8, 20, 4;
+    nmp_verif_frac = 12, 1, 16, 4;
+    rfp_margin = 80, 20, 200, 40;
+    razor_margin = 400, 200, 800, 100;
+    lmr_base = 77, 0, 512, 32;
+    lmr_divisor = 267, 128, 512, 64;
+    fp_base = 160, 80, 400, 40;
+    fp_margin = 80, 20, 200, 40;
+    hist_bonus_max = 1600, 800, 4000, 400;
+    hist_bonus_mul = 350, 100, 500, 100;
+    hist_malus_max = 1600, 800, 4000, 400;
+    hist_malus_mul = 350, 100, 500, 100;
 }
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
@@ -671,11 +673,12 @@ fn pvs(
         eng.plied.push_killer(mov, eng.ply);
 
         if quiets_tried.len() > 1 || depth > 2 {
-            let bonus = hist_max().min(hist_mul() * (depth - 1));
+            let bonus = hist_bonus_max().min(hist_bonus_mul() * (depth - 1));
+            let malus = hist_malus_max().min(hist_malus_mul() * (depth - 1));
             eng.htable.push(mov, prevs, pos.stm(), bonus, threats);
 
             for &quiet in quiets_tried.iter().take(quiets_tried.len() - 1) {
-                eng.htable.push(quiet, prevs, pos.stm(), -bonus, threats)
+                eng.htable.push(quiet, prevs, pos.stm(), -malus, threats)
             }
         }
 
