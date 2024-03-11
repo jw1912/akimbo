@@ -1,7 +1,7 @@
 use crate::{
     attacks::Attacks,
     bitloop,
-    consts::{Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, SPANS, ZVALS},
+    consts::{Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, ZVALS},
     frc::Castling,
     moves::{Move, MoveList},
     network::{Accumulator, FeatureBuffer, KimmyTable, Network},
@@ -316,10 +316,6 @@ impl Position {
     pub fn in_check(&self) -> bool {
         let kidx = (self.bb[Piece::KING] & self.bb[usize::from(self.c)]).trailing_zeros() as usize;
         self.sq_attacked(kidx, usize::from(self.c), self.bb[0] | self.bb[1])
-    }
-
-    pub fn is_passer(&self, sq: usize, side: usize) -> bool {
-        SPANS[side][sq] & self.bb[Piece::PAWN] & self.bb[side ^ 1] == 0
     }
 
     pub fn threats(&self) -> u64 {

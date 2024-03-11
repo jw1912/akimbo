@@ -8,7 +8,7 @@ use std::{
 static DISPLAY_NODES: AtomicU64 = AtomicU64::new(0);
 
 use super::{
-    consts::{Bound, MoveScore, Piece, Score},
+    consts::{Bound, MoveScore, Score},
     moves::{Move, MoveList},
     position::Position,
     tables::NodeTable,
@@ -580,10 +580,6 @@ fn pvs(
 
             // reduce checks less
             reduce -= i32::from(new.check);
-
-            // reduce passed pawn moves less
-            reduce -=
-                i32::from(mov.moved_pc() == Piece::PAWN && pos.is_passer(mov.from(), pos.stm()));
 
             // reduce less if next ply had few fail highs
             reduce -= i32::from(eng.plied[eng.ply].cutoffs < 4);

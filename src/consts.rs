@@ -109,17 +109,4 @@ pub static ZVALS: ZobristVals = {
 
 pub const SEE_VALS: [i32; 8] = [0, 0, 100, 450, 450, 650, 1250, 0];
 
-const FRONT_SPANS: [u64; 64] = init!(|sq, 64| {
-    let mut bb = (1 << sq) << 8;
-    bb |= bb << 8;
-    bb |= bb << 16;
-    bb |= bb << 32;
-    bb | (bb & !File::H) << 1 | (bb & !File::A) >> 1
-});
-
-pub const SPANS: [[u64; 64]; 2] = [
-    FRONT_SPANS,
-    init!(|sq, 64| FRONT_SPANS[sq ^ 56].swap_bytes()),
-];
-
 pub const PHASE_VALS: [i32; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
