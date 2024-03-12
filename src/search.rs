@@ -41,7 +41,7 @@ fn mvv_lva(mov: Move, pos: &Position) -> i32 {
 
 pub fn go(
     start: &Position,
-    eng: &mut ThreadData,
+    td: &mut ThreadData,
     main_thread: bool,
     max_depth: i32,
     soft_bound: f64,
@@ -50,15 +50,15 @@ pub fn go(
     DISPLAY_NODES.store(0, Relaxed);
 
     // reset engine
-    eng.store_stop(false);
-    eng.ntable = NodeTable::default();
-    eng.plied.clear();
-    eng.timing = Instant::now();
-    eng.nodes = 0;
-    eng.qnodes = 0;
-    eng.ply = 0;
-    eng.best_move = Move::NULL;
-    eng.seldepth = 0;
+    td.store_stop(false);
+    td.ntable = NodeTable::default();
+    td.plied.clear();
+    td.timing = Instant::now();
+    td.nodes = 0;
+    td.qnodes = 0;
+    td.ply = 0;
+    td.best_move = Move::NULL;
+    td.seldepth = 0;
 
     let mut best_move = Move::NULL;
     let mut pos = *start;
@@ -68,24 +68,24 @@ pub fn go(
 
     let mut accs = Default::default();
     pos.refresh(&mut accs);
-    eng.plied[0].accumulators = accs;
+    td.plied[0].accumulators = accs;
 
     // iterative deepening loop
     for d in 1..=max_depth {
         eval = if d < 7 {
-            pvs(&pos, eng, -Score::MAX, Score::MAX, d, false)
+            pvs(&pos, td, -Score::MAX, Score::MAX, d, false)
         } else {
-            aspiration(&pos, eng, eval, d, &mut best_move)
+            aspiration(&pos, td, eval, d, &mut best_move)
         };
 
-        if eng.stop_is_set() {
+        if td.stop_is_set() {
             break;
         }
 
-        best_move = eng.best_move;
+        best_move = td.best_move;
         score = eval;
 
-        let nodes = eng.nodes + eng.qnodes;
+        let nodes = td.nodes + td.qnodes;
 
         // UCI output
         if main_thread {
@@ -101,24 +101,24 @@ pub fn go(
             } else {
                 format!("score cp {eval}")
             };
-            let t = eng.timing.elapsed().as_millis();
+            let t = td.timing.elapsed().as_millis();
             let display_nodes = DISPLAY_NODES.load(Relaxed);
             let nps = (1000.0 * display_nodes as f64 / t as f64) as u32;
-            let pv_line = &eng.plied[0].pv_line;
+            let pv_line = &td.plied[0].pv_line;
             let pv = pv_line.iter().fold(String::new(), |mut pv_str, mov| {
-                write!(&mut pv_str, "{} ", mov.to_uci(&eng.castling)).unwrap();
+                write!(&mut pv_str, "{} ", mov.to_uci(&td.castling)).unwrap();
                 pv_str
             });
             println!(
                 "info depth {d} seldepth {} {score} time {t} nodes {display_nodes} nps {nps:.0} pv {pv}",
-                eng.seldepth
+                td.seldepth
             );
 
-            let frac = eng.ntable.get(best_move) as f64 / nodes as f64;
-            if eng.timing.elapsed().as_millis() as f64
+            let frac = td.ntable.get(best_move) as f64 / nodes as f64;
+            if td.timing.elapsed().as_millis() as f64
                 >= soft_bound * if d > 8 { (1.5 - frac) * 1.35 } else { 1.0 }
             {
-                eng.store_stop(true);
+                td.store_stop(true);
                 break;
             }
         }
@@ -133,7 +133,7 @@ pub fn go(
 
 fn aspiration(
     pos: &Position,
-    eng: &mut ThreadData,
+    td: &mut ThreadData,
     mut score: i32,
     max_depth: i32,
     best_move: &mut Move,
@@ -144,9 +144,9 @@ fn aspiration(
     let mut depth = max_depth;
 
     loop {
-        score = pvs(pos, eng, alpha, beta, depth, false);
+        score = pvs(pos, td, alpha, beta, depth, false);
 
-        if eng.stop_is_set() {
+        if td.stop_is_set() {
             return 0;
         }
 
@@ -156,7 +156,7 @@ fn aspiration(
             depth = max_depth;
         } else if score >= beta {
             beta = Score::MAX.min(beta + delta);
-            *best_move = eng.best_move;
+            *best_move = td.best_move;
             depth -= 1;
         } else {
             return score;
@@ -166,14 +166,14 @@ fn aspiration(
     }
 }
 
-fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
-    eng.seldepth = eng.seldepth.max(eng.ply);
+fn qs(pos: &Position, td: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
+    td.seldepth = td.seldepth.max(td.ply);
 
     let hash = pos.hash();
-    let mut eval = pos.eval(&eng.plied[eng.ply].accumulators);
+    let mut eval = pos.eval(&td.plied[td.ply].accumulators);
 
     // probe hash table for cutoff
-    if let Some(entry) = eng.tt.probe(hash, eng.ply) {
+    if let Some(entry) = td.tt.probe(hash, td.ply) {
         let tt_score = entry.score();
         let bound = entry.bound();
         if match bound {
@@ -199,7 +199,7 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
 
     alpha = alpha.max(eval);
 
-    let mut caps = pos.movegen::<false>(&eng.castling);
+    let mut caps = pos.movegen::<false>(&td.castling);
     let mut scores = [0; 252];
 
     caps.iter()
@@ -209,7 +209,7 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     let mut best_move = Move::NULL;
     let mut bound = Bound::UPPER;
 
-    eng.ply += 1;
+    td.ply += 1;
 
     while let Some((mov, _)) = caps.pick(&mut scores) {
         // static exchange eval pruning
@@ -218,18 +218,18 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
         }
 
         let after = pos.key_after(hash, mov);
-        eng.tt.prefetch(after);
+        td.tt.prefetch(after);
 
         let mut new = *pos;
-        if new.make(mov, &eng.castling) {
+        if new.make(mov, &td.castling) {
             continue;
         }
 
-        eng.update_accumulators(&new);
+        td.update_accumulators(&new);
 
-        eng.qnodes += 1;
+        td.qnodes += 1;
 
-        let score = -qs(&new, eng, -beta, -alpha);
+        let score = -qs(&new, td, -beta, -alpha);
 
         if score <= eval {
             continue;
@@ -246,52 +246,52 @@ fn qs(pos: &Position, eng: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
         alpha = alpha.max(eval);
     }
 
-    eng.ply -= 1;
+    td.ply -= 1;
 
-    eng.tt.push(hash, best_move, 0, bound, eval, eng.ply);
+    td.tt.push(hash, best_move, 0, bound, eval, td.ply);
 
     eval
 }
 
 fn pvs(
     pos: &Position,
-    eng: &mut ThreadData,
+    td: &mut ThreadData,
     mut alpha: i32,
     mut beta: i32,
     mut depth: i32,
     null: bool,
 ) -> i32 {
     // stopping search
-    if eng.stop_is_set() {
+    if td.stop_is_set() {
         return 0;
     }
 
-    if eng.nodes & 1023 == 0 {
+    if td.nodes & 1023 == 0 {
         DISPLAY_NODES.fetch_add(1024, Relaxed);
 
-        if eng.timing.elapsed().as_millis() >= eng.max_time
-            || eng.nodes + eng.qnodes >= eng.max_nodes
+        if td.timing.elapsed().as_millis() >= td.max_time
+            || td.nodes + td.qnodes >= td.max_nodes
         {
-            eng.store_stop(true);
+            td.store_stop(true);
             return 0;
         }
     }
 
     let hash = pos.hash();
-    let is_root = eng.ply == 0;
+    let is_root = td.ply == 0;
 
     // clear pv line
-    eng.plied[eng.ply].pv_line.clear();
+    td.plied[td.ply].pv_line.clear();
 
     if !is_root {
         // draw detection
-        if pos.draw() || eng.repetition(pos, hash, false) {
+        if pos.draw() || td.repetition(pos, hash, false) {
             return Score::DRAW;
         }
 
         // mate distance pruning
-        alpha = alpha.max(eng.ply - Score::MAX);
-        beta = beta.min(Score::MAX - eng.ply - 1);
+        alpha = alpha.max(td.ply - Score::MAX);
+        beta = beta.min(Score::MAX - td.ply - 1);
         if alpha >= beta {
             return alpha;
         }
@@ -301,15 +301,15 @@ fn pvs(
     }
 
     // drop into quiescence search
-    if depth <= 0 || eng.ply == 95 {
-        return qs(pos, eng, alpha, beta);
+    if depth <= 0 || td.ply == 95 {
+        return qs(pos, td, alpha, beta);
     }
 
     let pv_node = beta > alpha + 1;
-    let s_mov = eng.plied[eng.ply].singular;
+    let s_mov = td.plied[td.ply].singular;
     let singular = s_mov != Move::NULL;
     let pc_beta = beta + 256;
-    let static_eval = pos.eval(&eng.plied[eng.ply].accumulators);
+    let static_eval = pos.eval(&td.plied[td.ply].accumulators);
 
     let mut eval = static_eval;
     let mut tt_move = Move::NULL;
@@ -318,7 +318,7 @@ fn pvs(
     let mut can_probcut = true;
 
     // probing hash table
-    if let Some(entry) = eng.tt.probe(hash, eng.ply) {
+    if let Some(entry) = td.tt.probe(hash, td.ply) {
         let bound = entry.bound();
         let depth_cond = entry.depth() >= depth - 3;
 
@@ -349,8 +349,8 @@ fn pvs(
     }
 
     // improving heuristic
-    eng.plied[eng.ply].eval = static_eval;
-    let improving = eng.ply > 1 && static_eval > eng.plied[eng.ply - 2].eval;
+    td.plied[td.ply].eval = static_eval;
+    let improving = td.ply > 1 && static_eval > td.plied[td.ply - 2].eval;
 
     // pruning
     let can_prune = !pv_node && !pos.check;
@@ -363,7 +363,7 @@ fn pvs(
 
         // razoring
         if depth <= 2 && eval + razor_margin() * depth < alpha {
-            let qeval = qs(pos, eng, alpha, beta);
+            let qeval = qs(pos, td, alpha, beta);
 
             if qeval < alpha {
                 return qeval;
@@ -372,7 +372,7 @@ fn pvs(
 
         // null move pruning
         if null
-            && eng.ply >= eng.min_nmp_ply
+            && td.ply >= td.min_nmp_ply
             && depth >= 3
             && pos.has_non_pk(pos.stm())
             && eval >= beta
@@ -382,28 +382,28 @@ fn pvs(
                 + nmp_eval_max().min((eval - beta) / nmp_eval_divisor())
                 + i32::from(improving);
 
-            eng.push(hash);
-            eng.plied[eng.ply].accumulators = eng.plied[eng.ply - 1].accumulators;
-            eng.plied[eng.ply].played = Move::NULL;
+            td.push(hash);
+            td.plied[td.ply].accumulators = td.plied[td.ply - 1].accumulators;
+            td.plied[td.ply].played = Move::NULL;
 
             let mut new = *pos;
             new.make_null();
 
-            let nw = -pvs(&new, eng, -beta, -alpha, depth - r, false);
+            let nw = -pvs(&new, td, -beta, -alpha, depth - r, false);
 
-            eng.pop();
+            td.pop();
 
             if nw >= beta {
                 // don't bother to verify on low depths
-                if depth < nmp_min_verif_depth() || eng.min_nmp_ply > 0 {
+                if depth < nmp_min_verif_depth() || td.min_nmp_ply > 0 {
                     return if nw > Score::MATE { beta } else { nw };
                 }
 
-                eng.min_nmp_ply = eng.ply + (depth - r) * nmp_verif_frac() / 16;
+                td.min_nmp_ply = td.ply + (depth - r) * nmp_verif_frac() / 16;
 
-                let verif = pvs(pos, eng, beta - 1, beta, depth - r, false);
+                let verif = pvs(pos, td, beta - 1, beta, depth - r, false);
 
-                eng.min_nmp_ply = 0;
+                td.min_nmp_ply = 0;
 
                 if verif >= beta {
                     return verif;
@@ -417,14 +417,14 @@ fn pvs(
 
     // probcut
     if can_prune && depth > 4 && beta.abs() < Score::MATE && can_probcut {
-        let mut caps = pos.movegen::<false>(&eng.castling);
+        let mut caps = pos.movegen::<false>(&td.castling);
         let mut scores = [0; 252];
 
         caps.iter()
             .enumerate()
             .for_each(|(i, &cap)| scores[i] = mvv_lva(cap, pos));
 
-        eng.push(hash);
+        td.push(hash);
 
         while let Some((mov, _)) = caps.pick(&mut scores) {
             // static exchange eval pruning
@@ -433,40 +433,40 @@ fn pvs(
             }
 
             let mut new = *pos;
-            if new.make(mov, &eng.castling) {
+            if new.make(mov, &td.castling) {
                 continue;
             }
 
-            eng.update_accumulators(&new);
+            td.update_accumulators(&new);
 
-            eng.nodes += 1;
+            td.nodes += 1;
 
-            let mut pc_score = -qs(&new, eng, -pc_beta, -pc_beta + 1);
+            let mut pc_score = -qs(&new, td, -pc_beta, -pc_beta + 1);
 
             if pc_score >= pc_beta {
-                pc_score = -pvs(&new, eng, -pc_beta, -pc_beta + 1, depth - 4, false)
+                pc_score = -pvs(&new, td, -pc_beta, -pc_beta + 1, depth - 4, false)
             }
 
             if pc_score >= pc_beta {
-                eng.pop();
-                eng.tt
-                    .push(hash, mov, depth as i8 - 3, Bound::LOWER, pc_beta, eng.ply);
+                td.pop();
+                td.tt
+                    .push(hash, mov, depth as i8 - 3, Bound::LOWER, pc_beta, td.ply);
 
                 return pc_beta;
             }
         }
 
-        eng.pop();
+        td.pop();
     }
 
     // generating moves
-    let mut moves = pos.movegen::<true>(&eng.castling);
+    let mut moves = pos.movegen::<true>(&td.castling);
 
-    let prev = eng.plied.prev_move(eng.ply, 1);
-    let prevs = [prev, eng.plied.prev_move(eng.ply, 2)];
+    let prev = td.plied.prev_move(td.ply, 1);
+    let prevs = [prev, td.plied.prev_move(td.ply, 2)];
 
     let threats = pos.threats();
-    let killer = eng.plied[eng.ply].killer;
+    let killer = td.plied[td.ply].killer;
 
     // scoring moves
     let mut scores = [0; 252];
@@ -482,7 +482,7 @@ fn pvs(
         } else if mov == killer {
             MoveScore::KILLER
         } else {
-            eng.htable.get_score(pos.stm(), mov, prevs, threats)
+            td.htable.get_score(pos.stm(), mov, prevs, threats)
         }
     }
 
@@ -505,8 +505,8 @@ fn pvs(
     #[cfg(not(feature = "datagen"))]
     let fp_margin = eval + fp_base() + fp_margin() * depth * depth;
 
-    eng.push(hash);
-    eng.plied[eng.ply].dbl_exts = eng.plied[eng.ply - 1].dbl_exts;
+    td.push(hash);
+    td.plied[td.ply].dbl_exts = td.plied[td.ply - 1].dbl_exts;
 
     while let Some((mov, ms)) = moves.pick(&mut scores) {
         // move is singular in a singular search
@@ -544,19 +544,19 @@ fn pvs(
 
         // prefetch new tt probe ahead of time
         let after = pos.key_after(hash, mov);
-        eng.tt.prefetch(after);
+        td.tt.prefetch(after);
 
         // make move and skip if not legal
         let mut new = *pos;
-        if new.make(mov, &eng.castling) {
+        if new.make(mov, &td.castling) {
             continue;
         }
 
         // update accumulators based on new position
-        eng.update_accumulators(&new);
+        td.update_accumulators(&new);
 
         new.check = new.in_check();
-        eng.nodes += 1;
+        td.nodes += 1;
         legal += 1;
 
         if !mov.is_noisy() {
@@ -570,23 +570,23 @@ fn pvs(
         if try_singular && mov == tt_move {
             let s_beta = tt_score - depth * 2;
 
-            let curr_accs = eng.plied[eng.ply].accumulators;
-            eng.pop();
-            eng.plied[eng.ply].singular = mov;
+            let curr_accs = td.plied[td.ply].accumulators;
+            td.pop();
+            td.plied[td.ply].singular = mov;
 
-            let s_score = pvs(pos, eng, s_beta - 1, s_beta, (depth - 1) / 2, false);
+            let s_score = pvs(pos, td, s_beta - 1, s_beta, (depth - 1) / 2, false);
 
-            eng.plied[eng.ply].singular = Move::NULL;
-            eng.push(hash);
-            eng.plied[eng.ply].accumulators = curr_accs;
+            td.plied[td.ply].singular = Move::NULL;
+            td.push(hash);
+            td.plied[td.ply].accumulators = curr_accs;
 
             if s_score < s_beta {
                 // tt move is singular, extend
                 extend = 1;
 
                 // double extension
-                if !pv_node && s_score < s_beta - 25 && eng.plied[eng.ply].dbl_exts < 5 {
-                    eng.plied[eng.ply].dbl_exts += 1;
+                if !pv_node && s_score < s_beta - 25 && td.plied[td.ply].dbl_exts < 5 {
+                    td.plied[td.ply].dbl_exts += 1;
                     extend += 1
                 }
             } else if tt_score >= beta || (tt_score <= alpha && null) {
@@ -607,7 +607,7 @@ fn pvs(
             reduce -= i32::from(new.check);
 
             // reduce less if next ply had few fail highs
-            reduce -= i32::from(eng.plied[eng.ply].cutoffs < 4);
+            reduce -= i32::from(td.plied[td.ply].cutoffs < 4);
 
             // reduce more/less based on history score
             if ms <= MoveScore::HISTORY_MAX {
@@ -618,17 +618,17 @@ fn pvs(
             reduce = reduce.max(0)
         };
 
-        let pre_nodes = eng.nodes + eng.qnodes;
-        eng.plied[eng.ply].played = mov;
+        let pre_nodes = td.nodes + td.qnodes;
+        td.plied[td.ply].played = mov;
 
         // pvs
         let score = if legal == 1 {
-            -pvs(&new, eng, -beta, -alpha, depth + extend - 1, false)
+            -pvs(&new, td, -beta, -alpha, depth + extend - 1, false)
         } else {
-            let mut zw = -pvs(&new, eng, -alpha - 1, -alpha, depth - 1 - reduce, true);
+            let mut zw = -pvs(&new, td, -alpha - 1, -alpha, depth - 1 - reduce, true);
 
             if zw > alpha && (pv_node || reduce > 0) {
-                zw = -pvs(&new, eng, -beta, -alpha, depth - 1, false)
+                zw = -pvs(&new, td, -beta, -alpha, depth - 1, false)
             }
 
             zw
@@ -636,7 +636,7 @@ fn pvs(
 
         // update node count table for node tm
         if is_root {
-            eng.ntable.update(mov, eng.nodes + eng.qnodes - pre_nodes);
+            td.ntable.update(mov, td.nodes + td.qnodes - pre_nodes);
         }
 
         best_score = best_score.max(score);
@@ -652,8 +652,8 @@ fn pvs(
 
         // update pv line
         if pv_node {
-            let sub_line = eng.plied[eng.ply].pv_line;
-            let line = &mut eng.plied[eng.ply - 1].pv_line;
+            let sub_line = td.plied[td.ply].pv_line;
+            let line = &mut td.plied[td.ply - 1].pv_line;
             line.copy_in(mov, &sub_line);
         }
 
@@ -663,48 +663,48 @@ fn pvs(
         }
 
         bound = Bound::LOWER;
-        eng.plied[eng.ply - 1].cutoffs += 1;
+        td.plied[td.ply - 1].cutoffs += 1;
 
         // quiet cutoffs pushed to tables
-        if mov.is_noisy() || eng.stop_is_set() {
+        if mov.is_noisy() || td.stop_is_set() {
             break;
         }
 
-        eng.plied.push_killer(mov, eng.ply);
+        td.plied.push_killer(mov, td.ply);
 
         if quiets_tried.len() > 1 || depth > 2 {
             let bonus = hist_bonus_max().min(hist_bonus_mul() * (depth - 1));
             let malus = hist_malus_max().min(hist_malus_mul() * (depth - 1));
-            eng.htable.push(mov, prevs, pos.stm(), bonus, threats);
+            td.htable.push(mov, prevs, pos.stm(), bonus, threats);
 
             for &quiet in quiets_tried.iter().take(quiets_tried.len() - 1) {
-                eng.htable.push(quiet, prevs, pos.stm(), -malus, threats)
+                td.htable.push(quiet, prevs, pos.stm(), -malus, threats)
             }
         }
 
         break;
     }
 
-    eng.pop();
+    td.pop();
 
     // end of node shenanigans
-    if eng.stop_is_set() {
+    if td.stop_is_set() {
         return 0;
     }
 
     // set best move at root
     if is_root {
-        eng.best_move = best_move;
+        td.best_move = best_move;
     }
 
     // checkmate / stalemate
     if legal == 0 {
-        return i32::from(pos.check) * (eng.ply - Score::MAX);
+        return i32::from(pos.check) * (td.ply - Score::MAX);
     }
 
     // push new entry to hash table
-    eng.tt
-        .push(hash, best_move, depth as i8, bound, best_score, eng.ply);
+    td.tt
+        .push(hash, best_move, depth as i8, bound, best_score, td.ply);
 
     best_score
 }

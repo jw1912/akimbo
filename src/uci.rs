@@ -151,21 +151,21 @@ fn run_perft(commands: Vec<&str>, pos: &Position, castling: &Castling) {
 
 fn run_bench(tt: &HashTable, stack: Vec<u64>, htable: &HistoryTable) {
     let abort = AtomicBool::new(false);
-    let mut eng = ThreadData::new(&abort, tt, stack, htable.clone(), Castling::default());
+    let mut td = ThreadData::new(&abort, tt, stack, htable.clone(), Castling::default());
     let mut total_nodes = 0;
     let mut total_time = 0;
     let mut eval = 0i32;
-    eng.max_time = 30000;
+    td.max_time = 30000;
     let bench_fens = FEN_STRING.split('\n').collect::<Vec<&str>>();
     for fen in bench_fens {
-        let pos = Position::from_fen(fen, &mut eng.castling);
+        let pos = Position::from_fen(fen, &mut td.castling);
         let mut accs = Default::default();
         pos.refresh(&mut accs);
         eval = eval.wrapping_add([1, -1][pos.stm()] * pos.eval(&accs));
         let timer = Instant::now();
-        go(&pos, &mut eng, false, 11, 1_000_000.0, u64::MAX);
+        go(&pos, &mut td, false, 11, 1_000_000.0, u64::MAX);
         total_time += timer.elapsed().as_millis();
-        total_nodes += eng.nodes + eng.qnodes;
+        total_nodes += td.nodes + td.qnodes;
         tt.age_up();
     }
     println!("Summed Eval: {eval}");
@@ -291,13 +291,13 @@ fn handle_go(
     let soft_bound = if mtg == 1 { alloc } else { alloc * 6 / 10 };
 
     // main search thread
-    let mut eng = ThreadData::new(&abort, tt, stack.clone(), htable.clone(), *castling);
-    eng.max_time = hard_bound;
-    eng.max_nodes = nodes;
+    let mut td = ThreadData::new(&abort, tt, stack.clone(), htable.clone(), *castling);
+    td.max_time = hard_bound;
+    td.max_nodes = nodes;
 
     std::thread::scope(|s| {
         s.spawn(|| {
-            let (bm, _) = go(pos, &mut eng, true, depth, soft_bound as f64, u64::MAX);
+            let (bm, _) = go(pos, &mut td, true, depth, soft_bound as f64, u64::MAX);
 
             println!("bestmove {}", bm.to_uci(castling));
         });
@@ -311,6 +311,6 @@ fn handle_go(
         *stored_message = handle_search_input(&abort);
     });
 
-    *htable = eng.htable;
+    *htable = td.htable;
     tt.age_up();
 }
