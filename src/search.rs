@@ -271,8 +271,7 @@ fn pvs(
     if td.nodes & 1023 == 0 {
         DISPLAY_NODES.fetch_add(1024, Relaxed);
 
-        if td.timer() >= td.max_time || td.nodes() >= td.max_nodes
-        {
+        if td.timer() >= td.max_time || td.nodes() >= td.max_nodes {
             td.store_stop(true);
             return 0;
         }

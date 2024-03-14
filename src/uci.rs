@@ -6,7 +6,7 @@ use crate::thread::ThreadData;
 use crate::util::STARTPOS;
 
 #[cfg(feature = "tuning")]
-use crate::search::{list_params, set_param, print_params_ob};
+use crate::search::{list_params, print_params_ob, set_param};
 
 use std::{io, process, sync::atomic::AtomicBool, time::Instant};
 
