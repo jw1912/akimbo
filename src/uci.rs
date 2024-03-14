@@ -6,7 +6,7 @@ use crate::thread::ThreadData;
 use crate::util::STARTPOS;
 
 #[cfg(feature = "tuning")]
-use crate::search::{list_params, set_param, print_params_ob};
+use crate::search::{list_params, print_params_ob, set_param};
 
 use std::{io, process, sync::atomic::AtomicBool, time::Instant};
 
@@ -165,7 +165,7 @@ fn run_bench(tt: &HashTable, stack: Vec<u64>, htable: &HistoryTable) {
         let timer = Instant::now();
         go(&pos, &mut td, false, 11, 1_000_000.0, u64::MAX);
         total_time += timer.elapsed().as_millis();
-        total_nodes += td.nodes + td.qnodes;
+        total_nodes += td.nodes();
         tt.age_up();
     }
     println!("Summed Eval: {eval}");

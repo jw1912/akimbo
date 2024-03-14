@@ -65,6 +65,14 @@ impl<'a> ThreadData<'a> {
         }
     }
 
+    pub fn timer(&self) -> u128 {
+        self.timing.elapsed().as_millis()
+    }
+
+    pub fn nodes(&self) -> u64 {
+        self.nodes + self.qnodes
+    }
+
     pub fn stop_is_set(&self) -> bool {
         self.abort.load(Relaxed)
     }
