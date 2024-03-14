@@ -1,5 +1,4 @@
 use std::{
-    fmt::Write,
     sync::atomic::{AtomicU64, Ordering::Relaxed},
     time::Instant,
 };
@@ -85,45 +84,48 @@ pub fn go(
         best_move = td.best_move;
         score = eval;
 
-        let nodes = td.nodes + td.qnodes;
-
-        // UCI output
         if main_thread {
-            let score = if eval.abs() >= Score::MATE {
-                format!(
-                    "score mate {}",
-                    if eval < 0 {
-                        eval.abs() - Score::MAX
-                    } else {
-                        Score::MAX - eval + 1
-                    } / 2
-                )
-            } else {
-                format!("score cp {eval}")
-            };
-            let t = td.timing.elapsed().as_millis();
-            let display_nodes = DISPLAY_NODES.load(Relaxed);
-            let nps = (1000.0 * display_nodes as f64 / t as f64) as u32;
-            let pv_line = &td.plied[0].pv_line;
-            let pv = pv_line.iter().fold(String::new(), |mut pv_str, mov| {
-                write!(&mut pv_str, "{} ", mov.to_uci(&td.castling)).unwrap();
-                pv_str
-            });
-            println!(
-                "info depth {d} seldepth {} {score} time {t} nodes {display_nodes} nps {nps:.0} pv {pv}",
-                td.seldepth
-            );
+            // UCI output
+            print!("info depth {d} seldepth {} ", td.seldepth);
 
-            let frac = td.ntable.get(best_move) as f64 / nodes as f64;
-            if td.timing.elapsed().as_millis() as f64
-                >= soft_bound * if d > 8 { (1.5 - frac) * 1.35 } else { 1.0 }
-            {
+            // format mate scores if appropriate
+            if eval.abs() >= Score::MATE {
+                let mate_in = if eval < 0 {
+                    eval.abs() - Score::MAX
+                } else {
+                    Score::MAX - eval + 1
+                };
+
+                print!("score mate {} ", mate_in / 2);
+            } else {
+                print!("score cp {eval} ");
+            };
+
+            let time = td.timer();
+            let nodes = DISPLAY_NODES.load(Relaxed);
+            let nps = (1000.0 * nodes as f64 / time as f64) as u32;
+
+            print!("time {time} nodes {nodes} nps {nps} pv");
+
+            // output pv line
+            for mov in td.plied[0].pv_line.iter() {
+                print!(" {}", mov.to_uci(&td.castling));
+            }
+
+            println!();
+
+            let frac = td.ntable.get(best_move) as f64 / td.nodes() as f64;
+            let multiplier = if d > 8 { (1.5 - frac) * 1.35 } else { 1.0 };
+
+            // soft timeout
+            if time as f64 >= soft_bound * multiplier {
                 td.store_stop(true);
                 break;
             }
         }
 
-        if nodes > soft_nodes {
+        // soft node limit
+        if td.nodes() > soft_nodes {
             break;
         }
     }
@@ -269,8 +271,7 @@ fn pvs(
     if td.nodes & 1023 == 0 {
         DISPLAY_NODES.fetch_add(1024, Relaxed);
 
-        if td.timing.elapsed().as_millis() >= td.max_time
-            || td.nodes + td.qnodes >= td.max_nodes
+        if td.timer() >= td.max_time || td.nodes() >= td.max_nodes
         {
             td.store_stop(true);
             return 0;
@@ -618,7 +619,7 @@ fn pvs(
             reduce = reduce.max(0)
         };
 
-        let pre_nodes = td.nodes + td.qnodes;
+        let pre_nodes = td.nodes();
         td.plied[td.ply].played = mov;
 
         // pvs
@@ -636,7 +637,7 @@ fn pvs(
 
         // update node count table for node tm
         if is_root {
-            td.ntable.update(mov, td.nodes + td.qnodes - pre_nodes);
+            td.ntable.update(mov, td.nodes() - pre_nodes);
         }
 
         best_score = best_score.max(score);
