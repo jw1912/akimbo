@@ -28,10 +28,24 @@ tunable_params! {
     lmr_divisor = 267, 128, 512, 64;
     fp_base = 160, 80, 400, 40;
     fp_margin = 80, 20, 200, 40;
-    hist_bonus_max = 1600, 800, 4000, 400;
+    hist_bonus_max = 1600, 800, 4000, 200;
     hist_bonus_mul = 350, 100, 500, 100;
-    hist_malus_max = 1600, 800, 4000, 400;
+    hist_bonus_offset = 350, 0, 1000, 100;
+    hist_malus_max = 1600, 800, 4000, 200;
     hist_malus_mul = 350, 100, 500, 100;
+    hist_malus_offset = 350, 0, 1000, 100;
+    rfp_depth = 8, 4, 16, 2;
+    razor_depth = 2, 0, 10, 2;
+    nmp_depth = 3, 1, 8, 2;
+    nodetm_offset = 150, 100, 250, 50;
+    nodetm_divisor = 135, 100, 250, 25;
+    iir_depth = 4, 1, 12, 2;
+    pc_depth = 4, 1, 12, 2;
+    see_cap_margin = 90, 30, 150, 30;
+    see_quiet_margin = 50, 10, 150, 30;
+    se_margin = 2, 0, 6, 1;
+    hist_prune_depth = 3, 0, 8, 1;
+    hist_prune_margin = 1024, 512, 2048, 256;
 }
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
@@ -115,7 +129,9 @@ pub fn go(
             println!();
 
             let frac = td.ntable.get(best_move) as f64 / td.nodes() as f64;
-            let multiplier = if d > 8 { (1.5 - frac) * 1.35 } else { 1.0 };
+            let a = f64::from(nodetm_offset()) / 100.0;
+            let b = f64::from(nodetm_divisor()) / 100.0;
+            let multiplier = if d > 8 { (a - frac) * b } else { 1.0 };
 
             // soft timeout
             if time as f64 >= soft_bound * multiplier {
@@ -357,12 +373,12 @@ fn pvs(
     if can_prune && beta.abs() < Score::MATE {
         // reverse futility pruning
         let improving_divisor = if improving { 2 } else { 1 };
-        if depth <= 8 && eval >= beta + rfp_margin() * depth / improving_divisor {
+        if depth <= rfp_depth() && eval >= beta + rfp_margin() * depth / improving_divisor {
             return eval;
         }
 
         // razoring
-        if depth <= 2 && eval + razor_margin() * depth < alpha {
+        if depth <= razor_depth() && eval + razor_margin() * depth < alpha {
             let qeval = qs(pos, td, alpha, beta);
 
             if qeval < alpha {
@@ -373,7 +389,7 @@ fn pvs(
         // null move pruning
         if null
             && td.ply >= td.min_nmp_ply
-            && depth >= 3
+            && depth >= nmp_depth()
             && pos.has_non_pk(pos.stm())
             && eval >= beta
         {
@@ -413,10 +429,10 @@ fn pvs(
     }
 
     // internal iterative reduction
-    depth -= i32::from(depth >= 4 && tt_move == Move::NULL);
+    depth -= i32::from(depth >= iir_depth() && tt_move == Move::NULL);
 
     // probcut
-    if can_prune && depth > 4 && beta.abs() < Score::MATE && can_probcut {
+    if can_prune && depth > pc_depth() && beta.abs() < Score::MATE && can_probcut {
         let mut caps = pos.movegen::<false>(&td.castling);
         let mut scores = [0; 252];
 
@@ -530,13 +546,13 @@ fn pvs(
                 }
 
                 // history pruning
-                if depth < 3 && ms < -1024 * depth {
+                if depth < hist_prune_depth() && ms < -hist_prune_margin() * depth {
                     break;
                 }
             }
 
             // static exchange eval pruning
-            let margin = if mov.is_capture() { -90 } else { -50 };
+            let margin = if mov.is_capture() { -see_cap_margin() } else { -see_quiet_margin() };
             if depth < 7 && ms < MoveScore::CAPTURE && !pos.see(mov, margin * depth) {
                 continue;
             }
@@ -568,7 +584,7 @@ fn pvs(
 
         // singular extensions
         if try_singular && mov == tt_move {
-            let s_beta = tt_score - depth * 2;
+            let s_beta = tt_score - depth * se_margin();
 
             let curr_accs = td.plied[td.ply].accumulators;
             td.pop();
@@ -673,8 +689,8 @@ fn pvs(
         td.plied.push_killer(mov, td.ply);
 
         if quiets_tried.len() > 1 || depth > 2 {
-            let bonus = hist_bonus_max().min(hist_bonus_mul() * (depth - 1));
-            let malus = hist_malus_max().min(hist_malus_mul() * (depth - 1));
+            let bonus = hist_bonus_max().min(hist_bonus_mul() * depth - hist_bonus_offset());
+            let malus = hist_malus_max().min(hist_malus_mul() * depth - hist_malus_offset());
             td.htable.push(mov, prevs, pos.stm(), bonus, threats);
 
             for &quiet in quiets_tried.iter().take(quiets_tried.len() - 1) {
