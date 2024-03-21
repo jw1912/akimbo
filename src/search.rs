@@ -37,8 +37,8 @@ tunable_params! {
     rfp_depth = 7, 4, 16, 2;
     razor_depth = 1, 0, 10, 2;
     nmp_depth = 1, 1, 8, 2;
-    nodetm_offset = 174, 100, 250, 50;
-    nodetm_divisor = 250, 100, 250, 25;
+    nodetm_offset = 150, 100, 250, 50;
+    nodetm_divisor = 135, 100, 250, 25;
     iir_depth = 4, 1, 12, 2;
     pc_depth = 6, 1, 12, 2;
     see_cap_margin = 139, 30, 150, 30;
