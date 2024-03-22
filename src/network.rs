@@ -15,7 +15,7 @@ pub struct Network {
 }
 
 static NNUE: Network =
-    unsafe { std::mem::transmute(*include_bytes!("../resources/net-20.02.24-epoch17.bin")) };
+    unsafe { std::mem::transmute(*include_bytes!(concat!("../", env!("EVALFILE")))) };
 
 const NUM_BUCKETS: usize = 4;
 
