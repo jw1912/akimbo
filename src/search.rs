@@ -16,36 +16,36 @@ use super::{
 };
 
 tunable_params! {
-    nmp_base_reduction = 3, 1, 5, 1;
-    nmp_depth_divisor = 3, 1, 8, 1;
-    nmp_eval_divisor = 200, 50, 800, 100;
-    nmp_eval_max = 3, 0, 8, 1;
-    nmp_min_verif_depth = 12, 8, 20, 4;
-    nmp_verif_frac = 12, 1, 16, 4;
-    rfp_margin = 80, 20, 200, 40;
-    razor_margin = 400, 200, 800, 100;
-    lmr_base = 77, 0, 512, 32;
-    lmr_divisor = 267, 128, 512, 64;
-    fp_base = 160, 80, 400, 40;
-    fp_margin = 80, 20, 200, 40;
-    hist_bonus_max = 1600, 800, 4000, 200;
-    hist_bonus_mul = 350, 100, 500, 100;
-    hist_bonus_offset = 350, 0, 1000, 100;
-    hist_malus_max = 1600, 800, 4000, 200;
-    hist_malus_mul = 350, 100, 500, 100;
-    hist_malus_offset = 350, 0, 1000, 100;
-    rfp_depth = 8, 4, 16, 2;
-    razor_depth = 2, 0, 10, 2;
-    nmp_depth = 3, 1, 8, 2;
+    nmp_base_reduction = 4, 1, 5, 1;
+    nmp_depth_divisor = 5, 1, 8, 1;
+    nmp_eval_divisor = 166, 50, 800, 100;
+    nmp_eval_max = 5, 0, 8, 1;
+    nmp_min_verif_depth = 17, 8, 20, 4;
+    nmp_verif_frac = 11, 1, 16, 4;
+    rfp_margin = 91, 20, 200, 40;
+    razor_margin = 276, 200, 800, 100;
+    lmr_base = 40, 0, 512, 32;
+    lmr_divisor = 256, 128, 512, 64;
+    fp_base = 151, 80, 400, 40;
+    fp_margin = 34, 20, 200, 40;
+    hist_bonus_max = 1703, 800, 4000, 200;
+    hist_bonus_mul = 472, 100, 500, 100;
+    hist_bonus_offset = 180, 0, 1000, 100;
+    hist_malus_max = 1322, 800, 4000, 200;
+    hist_malus_mul = 499, 100, 500, 100;
+    hist_malus_offset = 32, 0, 1000, 100;
+    rfp_depth = 7, 4, 16, 2;
+    razor_depth = 1, 0, 10, 2;
+    nmp_depth = 1, 1, 8, 2;
     nodetm_offset = 150, 100, 250, 50;
     nodetm_divisor = 135, 100, 250, 25;
     iir_depth = 4, 1, 12, 2;
-    pc_depth = 4, 1, 12, 2;
-    see_cap_margin = 90, 30, 150, 30;
-    see_quiet_margin = 50, 10, 150, 30;
-    se_margin = 2, 0, 6, 1;
-    hist_prune_depth = 3, 0, 8, 1;
-    hist_prune_margin = 1024, 512, 2048, 256;
+    pc_depth = 6, 1, 12, 2;
+    see_cap_margin = 139, 30, 150, 30;
+    see_quiet_margin = 66, 10, 150, 30;
+    se_margin = 1, 0, 6, 1;
+    hist_prune_depth = 5, 0, 8, 1;
+    hist_prune_margin = 1419, 512, 2048, 256;
 }
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
