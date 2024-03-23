@@ -37,8 +37,6 @@ tunable_params! {
     rfp_depth = 7, 4, 16, 2;
     razor_depth = 1, 0, 10, 2;
     nmp_depth = 1, 1, 8, 2;
-    nodetm_offset = 150, 100, 250, 50;
-    nodetm_divisor = 135, 100, 250, 25;
     iir_depth = 4, 1, 12, 2;
     pc_depth = 6, 1, 12, 2;
     see_cap_margin = 139, 30, 150, 30;
@@ -129,9 +127,7 @@ pub fn go(
             println!();
 
             let frac = td.ntable.get(best_move) as f64 / td.nodes() as f64;
-            let a = f64::from(nodetm_offset()) / 100.0;
-            let b = f64::from(nodetm_divisor()) / 100.0;
-            let multiplier = if d > 8 { (a - frac) * b } else { 1.0 };
+            let multiplier = if d > 8 { (1.5 - frac) * 1.35 } else { 1.0 };
 
             // soft timeout
             if time as f64 >= soft_bound * multiplier {
