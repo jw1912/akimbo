@@ -43,6 +43,6 @@ Additionally, akimbo uses its own trainer written in Rust and CUDA, [bullet](htt
 ## Compiling
 Run the following command
 ```
-makes EVALFILE=resources/net.bin
+make EVALFILE=resources/net.bin
 ```
 and the executable will be located in `target/release`.
