@@ -118,20 +118,22 @@ impl Default for Accumulator {
 
 pub struct EvalEntry {
     pub bbs: [u64; 8],
-    pub acc: Accumulator,
+    pub white: Accumulator,
+    pub black: Accumulator,
 }
 
 pub struct EvalTable {
-    pub table: Box<[[EvalEntry; 2 * NUM_BUCKETS]; 2]>,
+    pub table: Box<[[EvalEntry; 2 * NUM_BUCKETS]; 2 * NUM_BUCKETS]>,
 }
 
 impl Default for EvalTable {
     fn default() -> Self {
-        let mut table: Box<[[EvalEntry; 2 * NUM_BUCKETS]; 2]> = boxed_and_zeroed();
+        let mut table: Box<[[EvalEntry; 2 * NUM_BUCKETS]; 2 * NUM_BUCKETS]> = boxed_and_zeroed();
 
-        for side in table.iter_mut() {
-            for entry in side.iter_mut() {
-                entry.acc = Accumulator::default();
+        for row in table.iter_mut() {
+            for entry in row.iter_mut() {
+                entry.white = Accumulator::default();
+                entry.black = Accumulator::default();
             }
         }
 

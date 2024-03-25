@@ -4,7 +4,7 @@ use crate::{
     consts::{Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, ZVALS},
     frc::Castling,
     moves::{Move, MoveList},
-    network::{Accumulator, EvalEntry, EvalTable, Network},
+    network::{Accumulator, EvalTable, Network},
 };
 
 #[derive(Clone, Copy, Default)]
@@ -160,16 +160,19 @@ impl Position {
         let wbucket = Network::get_bucket::<0>(wksq);
         let bbucket = Network::get_bucket::<1>(bksq);
 
-        let white = &mut cache.table[Side::WHITE][wbucket];
-        self.refresh_side::<0>(white);
+        let entry = &mut cache.table[wbucket][bbucket];
 
-        let black = &mut cache.table[Side::BLACK][bbucket];
-        self.refresh_side::<1>(black);
+        let mut add_feats = [[0; 32]; 2];
+        let mut sub_feats = [[0; 32]; 2];
 
-        let white = &cache.table[Side::WHITE][wbucket].acc;
-        let black = &cache.table[Side::BLACK][bbucket].acc;
+        let (adds, subs) = self.fill_diff(&entry.bbs, &mut add_feats, &mut sub_feats);
 
-        self.eval_from_accs(white, black)
+        entry.white.update_multi(&add_feats[0][..adds], &sub_feats[0][..subs]);
+        entry.black.update_multi(&add_feats[1][..adds], &sub_feats[1][..subs]);
+
+        entry.bbs = self.bb;
+
+        self.eval_from_accs(&entry.white, &entry.black)
     }
 
     fn eval_from_accs(&self, white: &Accumulator, black: &Accumulator) -> i32 {
@@ -186,43 +189,30 @@ impl Position {
         let mut white = Accumulator::default();
         let mut black = Accumulator::default();
 
-        let mut add_feats = [0; 32];
-        let mut sub_feats = [0; 32];
+        let mut add_feats = [[0; 32]; 2];
+        let mut sub_feats = [[0; 32]; 2];
 
-        let (adds, subs) = self.fill_diff::<0>(&[0; 8], &mut add_feats, &mut sub_feats);
-        white.update_multi(&add_feats[..adds], &sub_feats[..subs]);
-
-        let (adds, subs) = self.fill_diff::<1>(&[0; 8], &mut add_feats, &mut sub_feats);
-        black.update_multi(&add_feats[..adds], &sub_feats[..subs]);
+        let (adds, subs) = self.fill_diff(&[0; 8], &mut add_feats, &mut sub_feats);
+        white.update_multi(&add_feats[0][..adds], &sub_feats[0][..subs]);
+        black.update_multi(&add_feats[1][..adds], &sub_feats[1][..subs]);
 
         self.eval_from_accs(&white, &black)
     }
 
-    fn refresh_side<const SIDE: usize>(&self, entry: &mut EvalEntry) {
-        let bbs = entry.bbs;
-
-        let mut add_feats = [0; 32];
-        let mut sub_feats = [0; 32];
-
-        let (adds, subs) = self.fill_diff::<SIDE>(&bbs, &mut add_feats, &mut sub_feats);
-
-        entry.acc.update_multi(&add_feats[..adds], &sub_feats[..subs]);
-
-        entry.bbs = self.bb;
-    }
-
-    fn fill_diff<const SIDE: usize>(
+    fn fill_diff(
         &self,
         bbs: &[u64; 8],
-        add_feats: &mut [usize; 32],
-        sub_feats: &mut [usize; 32],
+        add_feats: &mut [[usize; 32]; 2],
+        sub_feats: &mut [[usize; 32]; 2],
     ) -> (usize, usize) {
         let mut adds = 0;
         let mut subs = 0;
 
-        let ksq = self.ksq(SIDE);
-        let flip = if ksq % 8 > 3 {7} else {0}
-            ^ if SIDE == Side::BLACK {56} else {0};
+        let wksq = self.ksq(0);
+        let bksq = self.ksq(1);
+
+        let wflip = if wksq % 8 > 3 {7} else {0};
+        let bflip = if bksq % 8 > 3 {7} else {0} ^ 56;
 
         for side in [Side::WHITE, Side::BLACK] {
             let old_boys = bbs[side];
@@ -232,19 +222,22 @@ impl Position {
                 old_bb &= old_boys;
                 let new_bb = self.bb[piece + 2] & new_boys;
 
-                let base = Network::get_base_index::<SIDE>(side, piece, ksq);
+                let wbase = Network::get_base_index::<0>(side, piece, wksq);
+                let bbase = Network::get_base_index::<1>(side, piece, bksq);
 
                 let mut add_diff = new_bb & !old_bb;
                 bitloop!(|add_diff, sq| {
-                    let sq = usize::from(sq ^ flip);
-                    add_feats[adds] = base + sq;
+                    let sq = usize::from(sq);
+                    add_feats[0][adds] = wbase + (sq ^ wflip);
+                    add_feats[1][adds] = bbase + (sq ^ bflip);
                     adds += 1;
                 });
 
                 let mut sub_diff = old_bb & !new_bb;
                 bitloop!(|sub_diff, sq| {
-                    let sq = usize::from(sq ^ flip);
-                    sub_feats[subs] = base + sq;
+                    let sq = usize::from(sq);
+                    sub_feats[0][subs] = wbase + (sq ^ wflip);
+                    sub_feats[1][subs] = bbase + (sq ^ bflip);
                     subs += 1;
                 });
             }
