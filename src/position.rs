@@ -1,7 +1,7 @@
 use crate::{
     attacks::Attacks,
     bitloop,
-    consts::{Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, ZVALS},
+    consts::{Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, ZobristVals},
     frc::Castling,
     moves::{Move, MoveList},
     network::{Accumulator, EvalTable, Network},
@@ -45,10 +45,10 @@ impl Position {
         let mut hash = self.hash;
 
         if self.enp_sq > 0 {
-            hash ^= ZVALS.enp[self.enp_sq as usize & 7];
+            hash ^= ZobristVals::en_passant(self.enp_sq);
         }
 
-        hash ^ ZVALS.cr[usize::from(self.rights)] ^ ZVALS.c[usize::from(self.c)]
+        hash ^ ZobristVals::castling(self.rights) ^ ZobristVals::side(self.stm())
     }
 
     fn ksq(&self, side: usize) -> u8 {
@@ -63,7 +63,7 @@ impl Position {
         self.bb[side] ^= bit;
 
         // update hash
-        self.hash ^= ZVALS.pcs[side][pc][sq];
+        self.hash ^= ZobristVals::piece(side, pc, sq);
     }
 
     pub fn has_non_pk(&self, side: usize) -> bool {
@@ -193,8 +193,8 @@ impl Position {
     fn fill_diff(
         &self,
         bbs: &[u64; 8],
-        add_feats: &mut [[usize; 32]; 2],
-        sub_feats: &mut [[usize; 32]; 2],
+        add_feats: &mut [[u16; 32]; 2],
+        sub_feats: &mut [[u16; 32]; 2],
     ) -> (usize, usize) {
         let mut adds = 0;
         let mut subs = 0;
@@ -213,12 +213,12 @@ impl Position {
                 old_bb &= old_boys;
                 let new_bb = self.bb[piece + 2] & new_boys;
 
-                let wbase = Network::get_base_index::<0>(side, piece, wksq);
-                let bbase = Network::get_base_index::<1>(side, piece, bksq);
+                let wbase = Network::get_base_index::<0>(side, piece, wksq) as u16;
+                let bbase = Network::get_base_index::<1>(side, piece, bksq) as u16;
 
                 let mut add_diff = new_bb & !old_bb;
                 bitloop!(|add_diff, sq| {
-                    let sq = usize::from(sq);
+                    let sq = u16::from(sq);
                     add_feats[0][adds] = wbase + (sq ^ wflip);
                     add_feats[1][adds] = bbase + (sq ^ bflip);
                     adds += 1;
@@ -226,7 +226,7 @@ impl Position {
 
                 let mut sub_diff = old_bb & !new_bb;
                 bitloop!(|sub_diff, sq| {
-                    let sq = usize::from(sq);
+                    let sq = u16::from(sq);
                     sub_feats[0][subs] = wbase + (sq ^ wflip);
                     sub_feats[1][subs] = bbase + (sq ^ bflip);
                     subs += 1;
@@ -242,12 +242,12 @@ impl Position {
         let opp = side ^ 1;
         let mpc = mov.moved_pc();
 
-        curr ^= ZVALS.c[1];
-        curr ^= ZVALS.pcs[side][mpc][mov.from()];
-        curr ^= ZVALS.pcs[side][mpc][mov.to()];
+        curr ^= ZobristVals::side(1);
+        curr ^= ZobristVals::piece(side, mpc, mov.from());
+        curr ^= ZobristVals::piece(side, mpc, mov.to());
 
         if mov.is_capture() {
-            curr ^= ZVALS.pcs[opp][self.get_pc(mov.bb_to())][mov.to()];
+            curr ^= ZobristVals::piece(opp, self.get_pc(mov.bb_to()), mov.to());
         }
 
         curr

@@ -66,7 +66,7 @@ pub struct Accumulator {
 }
 
 impl Accumulator {
-    pub fn update_multi(&mut self, adds: &[usize], subs: &[usize]) {
+    pub fn update_multi(&mut self, adds: &[u16], subs: &[u16]) {
         const REGS: usize = 8;
         const PER: usize = REGS * 16;
 
@@ -80,7 +80,7 @@ impl Accumulator {
             }
 
             for &add in adds {
-                let weights = &NNUE.feature_weights[add];
+                let weights = &NNUE.feature_weights[usize::from(add)];
 
                 for (j, reg) in regs.iter_mut().enumerate() {
                     *reg += weights.vals[offset + j];
@@ -88,7 +88,7 @@ impl Accumulator {
             }
 
             for &sub in subs {
-                let weights = &NNUE.feature_weights[sub];
+                let weights = &NNUE.feature_weights[usize::from(sub)];
 
                 for (j, reg) in regs.iter_mut().enumerate() {
                     *reg -= weights.vals[offset + j];

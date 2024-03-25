@@ -72,7 +72,25 @@ pub struct ZobristVals {
     pub c: [u64; 2],
 }
 
-pub static ZVALS: ZobristVals = {
+impl ZobristVals {
+    pub fn piece(side: usize, piece: usize, square: usize) -> u64 {
+        ZVALS.pcs[side][piece][square]
+    }
+
+    pub fn castling(rights: u8) -> u64 {
+        ZVALS.cr[usize::from(rights)]
+    }
+
+    pub fn en_passant(enp_sq: u8) -> u64 {
+        ZVALS.enp[usize::from(enp_sq % 8)]
+    }
+
+    pub fn side(side: usize) -> u64 {
+        ZVALS.c[side]
+    }
+}
+
+static ZVALS: ZobristVals = {
     let mut seed = 180_620_142;
     seed = rand(seed);
 
