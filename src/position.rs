@@ -4,7 +4,7 @@ use crate::{
     consts::{Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, ZVALS},
     frc::Castling,
     moves::{Move, MoveList},
-    network::{Accumulator, FeatureBuffer, KimmyTable, Network},
+    network::{Accumulator, EvalEntry, EvalTable, Network},
 };
 
 #[derive(Clone, Copy, Default)]
@@ -17,8 +17,6 @@ pub struct Position {
     pub check: bool,
     hash: u64,
     pub phase: i32,
-    feats: FeatureBuffer,
-    ksqs: [u8; 2],
 }
 
 impl Position {
@@ -53,6 +51,10 @@ impl Position {
         hash ^ ZVALS.cr[usize::from(self.rights)] ^ ZVALS.c[usize::from(self.c)]
     }
 
+    fn ksq(&self, side: usize) -> u8 {
+        (self.bb[side] & self.bb[Piece::KING]).trailing_zeros() as u8
+    }
+
     fn toggle<const ADD: bool>(&mut self, side: usize, pc: usize, sq: usize) {
         let bit = 1 << sq;
 
@@ -62,43 +64,10 @@ impl Position {
 
         // update hash
         self.hash ^= ZVALS.pcs[side][pc][sq];
-
-        if ADD && pc == Piece::KING {
-            self.ksqs[side] = sq as u8;
-        }
-
-        let wfeat = Accumulator::get_white_index(side, pc - 2, sq, self.ksqs[0]);
-        let bfeat = Accumulator::get_black_index(side, pc - 2, sq, self.ksqs[1]);
-
-        if ADD {
-            self.feats.push_add(wfeat, bfeat);
-        } else {
-            self.feats.push_sub(wfeat, bfeat);
-        }
     }
 
-    pub fn update_accumulators(&self, accs: &mut [Accumulator; 2], kimmy: &mut KimmyTable) {
-        let wref = self.feats.needs_refresh(Side::WHITE);
-        let bref = self.feats.needs_refresh(Side::BLACK);
-
-        if wref && bref {
-            unreachable!();
-        } else if wref || bref {
-            if wref {
-                self.refresh_side::<0>(&mut accs[0], kimmy);
-                self.feats.update_accumulators::<2>(accs);
-            } else {
-                self.refresh_side::<1>(&mut accs[1], kimmy);
-                self.feats.update_accumulators::<1>(accs);
-            }
-        } else {
-            self.feats.update_accumulators::<3>(accs);
-        }
-    }
-
-    pub fn refresh_side<const SIDE: usize>(&self, acc: &mut Accumulator, kimmy: &mut KimmyTable) {
-        let ksq = self.ksqs[SIDE];
-        let entry = &mut kimmy.table[SIDE][Accumulator::get_bucket::<SIDE>(ksq)];
+    pub fn refresh_side<const SIDE: usize>(&self, entry: &mut EvalEntry) {
+        let ksq = self.ksq(SIDE);
         let bbs = entry.bbs;
 
         for side in [Side::WHITE, Side::BLACK] {
@@ -128,12 +97,14 @@ impl Position {
         }
 
         entry.bbs = self.bb;
-        *acc = entry.acc;
     }
 
     pub fn refresh(&self, accs: &mut [Accumulator; 2]) {
         accs[0] = Default::default();
         accs[1] = Default::default();
+
+        let wksq = self.ksq(Side::WHITE);
+        let bksq = self.ksq(Side::BLACK);
 
         for side in [Side::WHITE, Side::BLACK] {
             for piece in Piece::PAWN..=Piece::KING {
@@ -146,13 +117,13 @@ impl Position {
                         side,
                         pc,
                         sq,
-                        self.ksqs[0],
+                        wksq,
                     ));
                     accs[1].update::<true>(Accumulator::get_black_index(
                         side,
                         pc,
                         sq,
-                        self.ksqs[1],
+                        bksq,
                     ));
                 });
             }
@@ -185,8 +156,7 @@ impl Position {
     }
 
     pub fn make(&mut self, mov: Move, castling: &Castling) -> bool {
-        self.feats.clear();
-        let side = usize::from(self.c);
+        let side = self.stm();
         let moved = mov.moved_pc();
         let to = mov.to();
         let from = mov.from();
@@ -195,15 +165,6 @@ impl Position {
         } else {
             Piece::EMPTY
         };
-
-        if moved == Piece::KING {
-            let flip = if side == Side::BLACK { 56 } else { 0 };
-            let kfr = from ^ flip;
-            let kto = to ^ flip;
-            if Network::bucket(kfr as u8) != Network::bucket(kto as u8) {
-                self.feats.must_refresh(side);
-            }
-        }
 
         // update state
         self.rights &= castling.mask(to) & castling.mask(from);
@@ -252,15 +213,44 @@ impl Position {
     }
 
     pub fn make_null(&mut self) {
-        self.feats.clear();
         self.c = !self.c;
         self.enp_sq = 0;
     }
 
-    pub fn eval(&self, accs: &[Accumulator; 2]) -> i32 {
-        let boys = &accs[usize::from(self.c)];
-        let opps = &accs[usize::from(!self.c)];
-        let eval = Network::out(boys, opps);
+    pub fn eval(&self, cache: &mut EvalTable) -> i32 {
+        let wksq = self.ksq(Side::WHITE);
+        let bksq = self.ksq(Side::BLACK);
+
+        let wbucket = Accumulator::get_bucket::<0>(wksq);
+        let bbucket = Accumulator::get_bucket::<1>(bksq);
+
+        let white = &mut cache.table[Side::WHITE][wbucket];
+        self.refresh_side::<0>(white);
+
+        let black = &mut cache.table[Side::BLACK][bbucket];
+        self.refresh_side::<1>(black);
+
+        let white = &cache.table[Side::WHITE][wbucket].acc;
+        let black = &cache.table[Side::BLACK][bbucket].acc;
+
+        self.eval_from_accs(white, black)
+    }
+
+    pub fn eval_from_scratch(&self) -> i32 {
+        let mut accs = [Accumulator::default(); 2];
+
+        self.refresh(&mut accs);
+
+        self.eval_from_accs(&accs[self.stm()], &accs[self.stm() ^ 1])
+    }
+
+    fn eval_from_accs(&self, white: &Accumulator, black: &Accumulator) -> i32 {
+        let eval = if self.stm() == Side::WHITE {
+            Network::out(white, black)
+        } else {
+            Network::out(black, white)
+        };
+
         self.scale(eval)
     }
 
@@ -572,7 +562,6 @@ impl Position {
                 let sq = 8 * row + col;
 
                 pos.toggle::<true>(side, pc, sq as usize);
-                pos.feats.clear();
                 pos.phase += PHASE_VALS[pc];
 
                 col += 1;

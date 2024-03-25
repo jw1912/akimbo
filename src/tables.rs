@@ -3,7 +3,6 @@ use std::sync::atomic::{AtomicU64, AtomicU8, Ordering::Relaxed};
 use crate::{
     consts::{MoveScore, Score},
     moves::{Move, MoveList},
-    network::Accumulator,
     position::Position,
     util::boxed_and_zeroed,
 };
@@ -291,7 +290,6 @@ pub struct PlyEntry {
     pub cutoffs: i32,
     pub dbl_exts: i32,
     pub played: Move,
-    pub accumulators: [Accumulator; 2],
 }
 
 pub struct PlyTable {

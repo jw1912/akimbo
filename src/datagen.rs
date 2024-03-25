@@ -2,7 +2,7 @@ use crate::{
     consts::Side,
     frc::Castling,
     moves::Move,
-    pos::Position,
+    position::Position,
     search::go,
     tables::{HashTable, HistoryTable},
     thread::ThreadData,
