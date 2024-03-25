@@ -26,7 +26,7 @@ pub struct ThreadData<'a> {
     pub ntable: NodeTable,
     pub stack: Vec<u64>,
     pub castling: Castling,
-    pub kimmy: EvalTable,
+    pub eval_cache: EvalTable,
 
     // uci output
     pub nodes: u64,
@@ -59,7 +59,7 @@ impl<'a> ThreadData<'a> {
             qnodes: 0,
             ply: 0,
             best_move: Move::NULL,
-            kimmy: Default::default(),
+            eval_cache: Default::default(),
             seldepth: 0,
             abort,
         }
