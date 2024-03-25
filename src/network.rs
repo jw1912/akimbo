@@ -38,17 +38,24 @@ impl Network {
         (sum / QA + i32::from(NNUE.output_bias)) * SCALE / QAB
     }
 
-    #[allow(clippy::modulo_one)]
-    pub fn bucket(sq: u8) -> usize {
-        BUCKETS[usize::from(sq)]
-    }
-
     pub fn get_bucket<const SIDE: usize>(mut ksq: u8) -> usize {
         if SIDE == 1 {
             ksq ^= 56;
         }
 
-        Network::bucket(ksq)
+        BUCKETS[usize::from(ksq)]
+    }
+
+    pub fn get_base_index<const SIDE: usize>(side: usize, pc: usize, mut ksq: u8) -> usize {
+        if ksq % 8 > 3 {
+            ksq ^= 7;
+        }
+
+        if SIDE == 0 {
+            768 * Self::get_bucket::<0>(ksq) + [0, 384][side] + 64 * pc
+        } else {
+            768 * Self::get_bucket::<1>(ksq) + [384, 0][side] + 64 * pc
+        }
     }
 }
 
@@ -71,10 +78,14 @@ impl Accumulator {
 
         const PER: usize = REGS * 16;
 
+        let mut regs = [0i16; PER];
+
         for i in 0..HIDDEN / PER {
             let offset = PER * i;
 
-            let mut regs = [0i16; PER];
+            for (j, reg) in regs.iter_mut().enumerate() {
+                *reg = self.vals[offset + j];
+            }
 
             for &add in adds {
                 let weights = &NNUE.feature_weights[add];
@@ -93,20 +104,8 @@ impl Accumulator {
             }
 
             for (j, reg) in regs.iter().enumerate() {
-                self.vals[offset + j] += *reg;
+                self.vals[offset + j] = *reg;
             }
-        }
-    }
-
-    pub fn get_base_index<const SIDE: usize>(side: usize, pc: usize, mut ksq: u8) -> usize {
-        if ksq % 8 > 3 {
-            ksq ^= 7;
-        }
-
-        if SIDE == 0 {
-            768 * Network::bucket(ksq) + [0, 384][side] + 64 * pc
-        } else {
-            768 * Network::bucket(ksq ^ 56) + [384, 0][side] + 64 * pc
         }
     }
 }

@@ -232,7 +232,7 @@ impl Position {
                 old_bb &= old_boys;
                 let new_bb = self.bb[piece + 2] & new_boys;
 
-                let base = Accumulator::get_base_index::<SIDE>(side, piece, ksq);
+                let base = Network::get_base_index::<SIDE>(side, piece, ksq);
 
                 let mut add_diff = new_bb & !old_bb;
                 bitloop!(|add_diff, sq| {
