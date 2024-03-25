@@ -167,8 +167,12 @@ impl Position {
 
         let (adds, subs) = self.fill_diff(&entry.bbs, &mut add_feats, &mut sub_feats);
 
-        entry.white.update_multi(&add_feats[0][..adds], &sub_feats[0][..subs]);
-        entry.black.update_multi(&add_feats[1][..adds], &sub_feats[1][..subs]);
+        entry
+            .white
+            .update_multi(&add_feats[0][..adds], &sub_feats[0][..subs]);
+        entry
+            .black
+            .update_multi(&add_feats[1][..adds], &sub_feats[1][..subs]);
 
         entry.bbs = self.bb;
 
@@ -202,8 +206,8 @@ impl Position {
         let wksq = self.ksq(0);
         let bksq = self.ksq(1);
 
-        let wflip = if wksq % 8 > 3 {7} else {0};
-        let bflip = if bksq % 8 > 3 {7} else {0} ^ 56;
+        let wflip = if wksq % 8 > 3 { 7 } else { 0 };
+        let bflip = if bksq % 8 > 3 { 7 } else { 0 } ^ 56;
 
         for side in [Side::WHITE, Side::BLACK] {
             let old_boys = bbs[side];

@@ -539,7 +539,11 @@ fn pvs(
             }
 
             // static exchange eval pruning
-            let margin = if mov.is_capture() { -see_cap_margin() } else { -see_quiet_margin() };
+            let margin = if mov.is_capture() {
+                -see_cap_margin()
+            } else {
+                -see_quiet_margin()
+            };
             if depth < 7 && ms < MoveScore::CAPTURE && !pos.see(mov, margin * depth) {
                 continue;
             }

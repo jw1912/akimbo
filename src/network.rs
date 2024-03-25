@@ -66,11 +66,7 @@ pub struct Accumulator {
 }
 
 impl Accumulator {
-    pub fn update_multi(
-        &mut self,
-        adds: &[usize],
-        subs: &[usize],
-    ) {
+    pub fn update_multi(&mut self, adds: &[usize], subs: &[usize]) {
         const REGS: usize = 8;
         const PER: usize = REGS * 16;
 
