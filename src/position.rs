@@ -66,70 +66,6 @@ impl Position {
         self.hash ^= ZVALS.pcs[side][pc][sq];
     }
 
-    pub fn refresh_side<const SIDE: usize>(&self, entry: &mut EvalEntry) {
-        let ksq = self.ksq(SIDE);
-        let bbs = entry.bbs;
-
-        for side in [Side::WHITE, Side::BLACK] {
-            let old_boys = bbs[side];
-            let new_boys = self.bb[side];
-            for (piece, &(mut old_bb)) in bbs
-                .iter()
-                .enumerate()
-                .take(Piece::KING + 1)
-                .skip(Piece::PAWN)
-            {
-                old_bb &= old_boys;
-                let new_bb = self.bb[piece] & new_boys;
-                let mut diff = old_bb ^ new_bb;
-                let pc = piece - 2;
-
-                bitloop!(|diff, sq| {
-                    let sq = usize::from(sq);
-                    let idx = Accumulator::get_index::<SIDE>(side, pc, sq, ksq);
-                    if (1 << sq) & new_bb > 0 {
-                        entry.acc.update::<true>(idx);
-                    } else {
-                        entry.acc.update::<false>(idx);
-                    }
-                });
-            }
-        }
-
-        entry.bbs = self.bb;
-    }
-
-    pub fn refresh(&self, accs: &mut [Accumulator; 2]) {
-        accs[0] = Default::default();
-        accs[1] = Default::default();
-
-        let wksq = self.ksq(Side::WHITE);
-        let bksq = self.ksq(Side::BLACK);
-
-        for side in [Side::WHITE, Side::BLACK] {
-            for piece in Piece::PAWN..=Piece::KING {
-                let mut bb = self.bb[side] & self.bb[piece];
-                let pc = piece - 2;
-
-                bitloop!(|bb, sq| {
-                    let sq = usize::from(sq);
-                    accs[0].update::<true>(Accumulator::get_white_index(
-                        side,
-                        pc,
-                        sq,
-                        wksq,
-                    ));
-                    accs[1].update::<true>(Accumulator::get_black_index(
-                        side,
-                        pc,
-                        sq,
-                        bksq,
-                    ));
-                });
-            }
-        }
-    }
-
     pub fn has_non_pk(&self, side: usize) -> bool {
         let occ = self.bb[Side::WHITE] | self.bb[Side::BLACK];
         let pk = self.bb[Piece::PAWN] | self.bb[Piece::KING];
@@ -221,8 +157,8 @@ impl Position {
         let wksq = self.ksq(Side::WHITE);
         let bksq = self.ksq(Side::BLACK);
 
-        let wbucket = Accumulator::get_bucket::<0>(wksq);
-        let bbucket = Accumulator::get_bucket::<1>(bksq);
+        let wbucket = Network::get_bucket::<0>(wksq);
+        let bbucket = Network::get_bucket::<1>(bksq);
 
         let white = &mut cache.table[Side::WHITE][wbucket];
         self.refresh_side::<0>(white);
@@ -252,6 +188,92 @@ impl Position {
         };
 
         self.scale(eval)
+    }
+
+    fn fill_diff<const SIDE: usize>(
+        &self,
+        bbs: &[u64; 8],
+        add_feats: &mut [usize; 32],
+        sub_feats: &mut [usize; 32],
+    ) -> (usize, usize) {
+        let mut adds = 0;
+        let mut subs = 0;
+
+        let ksq = self.ksq(SIDE);
+        let flip = if ksq % 8 > 3 {7} else {0}
+            ^ if SIDE == Side::BLACK {56} else {0};
+
+        for side in [Side::WHITE, Side::BLACK] {
+            let old_boys = bbs[side];
+            let new_boys = self.bb[side];
+
+            for (piece, &(mut old_bb)) in bbs[Piece::PAWN..=Piece::KING].iter().enumerate() {
+                old_bb &= old_boys;
+                let new_bb = self.bb[piece + 2] & new_boys;
+
+                let base = Accumulator::get_base_index::<SIDE>(side, piece, ksq);
+
+                let mut add_diff = new_bb & !old_bb;
+                bitloop!(|add_diff, sq| {
+                    let sq = usize::from(sq ^ flip);
+                    add_feats[adds] = base + sq;
+                    adds += 1;
+                });
+
+                let mut sub_diff = old_bb & !new_bb;
+                bitloop!(|sub_diff, sq| {
+                    let sq = usize::from(sq ^ flip);
+                    sub_feats[subs] = base + sq;
+                    subs += 1;
+                });
+            }
+        }
+
+        (adds, subs)
+    }
+
+    pub fn refresh_side<const SIDE: usize>(&self, entry: &mut EvalEntry) {
+        let bbs = entry.bbs;
+
+        let mut add_feats = [0; 32];
+        let mut sub_feats = [0; 32];
+
+        let (adds, subs) = self.fill_diff::<SIDE>(&bbs, &mut add_feats, &mut sub_feats);
+
+        entry.acc.update_multi(&add_feats[..adds], &sub_feats[..subs]);
+
+        entry.bbs = self.bb;
+    }
+
+    pub fn refresh(&self, accs: &mut [Accumulator; 2]) {
+        accs[0] = Default::default();
+        accs[1] = Default::default();
+
+        let wksq = self.ksq(Side::WHITE);
+        let bksq = self.ksq(Side::BLACK);
+
+        for side in [Side::WHITE, Side::BLACK] {
+            for piece in Piece::PAWN..=Piece::KING {
+                let mut bb = self.bb[side] & self.bb[piece];
+                let pc = piece - 2;
+
+                bitloop!(|bb, sq| {
+                    let sq = usize::from(sq);
+                    accs[0].update::<true>(Accumulator::get_white_index(
+                        side,
+                        pc,
+                        sq,
+                        wksq,
+                    ));
+                    accs[1].update::<true>(Accumulator::get_black_index(
+                        side,
+                        pc,
+                        sq,
+                        bksq,
+                    ));
+                });
+            }
+        }
     }
 
     pub fn key_after(&self, mut curr: u64, mov: Move) -> u64 {

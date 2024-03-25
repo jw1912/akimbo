@@ -42,6 +42,14 @@ impl Network {
     pub fn bucket(sq: u8) -> usize {
         BUCKETS[usize::from(sq)]
     }
+
+    pub fn get_bucket<const SIDE: usize>(mut ksq: u8) -> usize {
+        if SIDE == 1 {
+            ksq ^= 56;
+        }
+
+        Network::bucket(ksq)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -58,6 +66,41 @@ impl Accumulator {
                 *i += *d
             } else {
                 *i -= *d
+            }
+        }
+    }
+
+    pub fn update_multi(
+        &mut self,
+        adds: &[usize],
+        subs: &[usize],
+    ) {
+        const REGS: usize = 16;
+        const PER: usize = REGS * 16;
+
+        for i in 0..HIDDEN / PER {
+            let offset = PER * i;
+
+            let mut regs = [0i16; PER];
+
+            for &add in adds {
+                let weights = &NNUE.feature_weights[add];
+
+                for (j, reg) in regs.iter_mut().enumerate() {
+                    *reg += weights.vals[offset + j];
+                }
+            }
+
+            for &sub in subs {
+                let weights = &NNUE.feature_weights[sub];
+
+                for (j, reg) in regs.iter_mut().enumerate() {
+                    *reg -= weights.vals[offset + j];
+                }
+            }
+
+            for (j, reg) in regs.iter().enumerate() {
+                self.vals[offset + j] += *reg;
             }
         }
     }
@@ -79,19 +122,15 @@ impl Accumulator {
         768 * Network::bucket(ksq) + [384, 0][side] + 64 * pc + (sq ^ 56)
     }
 
-    pub fn get_bucket<const SIDE: usize>(mut ksq: u8) -> usize {
-        if SIDE == 1 {
-            ksq ^= 56;
+    pub fn get_base_index<const SIDE: usize>(side: usize, pc: usize, mut ksq: u8) -> usize {
+        if ksq % 8 > 3 {
+            ksq ^= 7;
         }
 
-        Network::bucket(ksq)
-    }
-
-    pub fn get_index<const SIDE: usize>(side: usize, pc: usize, sq: usize, ksq: u8) -> usize {
         if SIDE == 0 {
-            Self::get_white_index(side, pc, sq, ksq)
+            768 * Network::bucket(ksq) + [0, 384][side] + 64 * pc
         } else {
-            Self::get_black_index(side, pc, sq, ksq)
+            768 * Network::bucket(ksq ^ 56) + [384, 0][side] + 64 * pc
         }
     }
 }
