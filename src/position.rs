@@ -172,14 +172,6 @@ impl Position {
         self.eval_from_accs(white, black)
     }
 
-    pub fn eval_from_scratch(&self) -> i32 {
-        let mut accs = [Accumulator::default(); 2];
-
-        self.refresh(&mut accs);
-
-        self.eval_from_accs(&accs[0], &accs[1])
-    }
-
     fn eval_from_accs(&self, white: &Accumulator, black: &Accumulator) -> i32 {
         let eval = if self.stm() == Side::WHITE {
             Network::out(white, black)
@@ -188,6 +180,35 @@ impl Position {
         };
 
         self.scale(eval)
+    }
+
+    pub fn eval_from_scratch(&self) -> i32 {
+        let mut white = Accumulator::default();
+        let mut black = Accumulator::default();
+
+        let mut add_feats = [0; 32];
+        let mut sub_feats = [0; 32];
+
+        let (adds, subs) = self.fill_diff::<0>(&[0; 8], &mut add_feats, &mut sub_feats);
+        white.update_multi(&add_feats[..adds], &sub_feats[..subs]);
+
+        let (adds, subs) = self.fill_diff::<1>(&[0; 8], &mut add_feats, &mut sub_feats);
+        black.update_multi(&add_feats[..adds], &sub_feats[..subs]);
+
+        self.eval_from_accs(&white, &black)
+    }
+
+    fn refresh_side<const SIDE: usize>(&self, entry: &mut EvalEntry) {
+        let bbs = entry.bbs;
+
+        let mut add_feats = [0; 32];
+        let mut sub_feats = [0; 32];
+
+        let (adds, subs) = self.fill_diff::<SIDE>(&bbs, &mut add_feats, &mut sub_feats);
+
+        entry.acc.update_multi(&add_feats[..adds], &sub_feats[..subs]);
+
+        entry.bbs = self.bb;
     }
 
     fn fill_diff<const SIDE: usize>(
@@ -230,33 +251,6 @@ impl Position {
         }
 
         (adds, subs)
-    }
-
-    pub fn refresh_side<const SIDE: usize>(&self, entry: &mut EvalEntry) {
-        let bbs = entry.bbs;
-
-        let mut add_feats = [0; 32];
-        let mut sub_feats = [0; 32];
-
-        let (adds, subs) = self.fill_diff::<SIDE>(&bbs, &mut add_feats, &mut sub_feats);
-
-        entry.acc.update_multi(&add_feats[..adds], &sub_feats[..subs]);
-
-        entry.bbs = self.bb;
-    }
-
-    pub fn refresh(&self, accs: &mut [Accumulator; 2]) {
-        accs[0] = Default::default();
-        accs[1] = Default::default();
-
-        let mut add_feats = [0; 32];
-        let mut sub_feats = [0; 32];
-
-        let (adds, subs) = self.fill_diff::<0>(&[0; 8], &mut add_feats, &mut sub_feats);
-        accs[0].update_multi(&add_feats[..adds], &sub_feats[..subs]);
-
-        let (adds, subs) = self.fill_diff::<1>(&[0; 8], &mut add_feats, &mut sub_feats);
-        accs[1].update_multi(&add_feats[..adds], &sub_feats[..subs]);
     }
 
     pub fn key_after(&self, mut curr: u64, mov: Move) -> u64 {
