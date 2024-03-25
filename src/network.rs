@@ -64,7 +64,11 @@ impl Accumulator {
         adds: &[usize],
         subs: &[usize],
     ) {
+        #[cfg(not(target_feature = "avx2"))]
+        const REGS: usize = 8;
+        #[cfg(target_feature = "avx2")]
         const REGS: usize = 16;
+
         const PER: usize = REGS * 16;
 
         for i in 0..HIDDEN / PER {
