@@ -186,17 +186,8 @@ impl Position {
     }
 
     pub fn eval_from_scratch(&self) -> i32 {
-        let mut white = Accumulator::default();
-        let mut black = Accumulator::default();
-
-        let mut add_feats = [[0; 32]; 2];
-        let mut sub_feats = [[0; 32]; 2];
-
-        let (adds, subs) = self.fill_diff(&[0; 8], &mut add_feats, &mut sub_feats);
-        white.update_multi(&add_feats[0][..adds], &sub_feats[0][..subs]);
-        black.update_multi(&add_feats[1][..adds], &sub_feats[1][..subs]);
-
-        self.eval_from_accs(&white, &black)
+        let mut table = EvalTable::default();
+        self.eval(&mut table)
     }
 
     fn fill_diff(
