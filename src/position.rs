@@ -162,17 +162,13 @@ impl Position {
 
         let entry = &mut cache.table[wbucket][bbucket];
 
-        let mut add_feats = [[0; 32]; 2];
-        let mut sub_feats = [[0; 32]; 2];
+        let mut addf = [[0; 32]; 2];
+        let mut subf = [[0; 32]; 2];
 
-        let (adds, subs) = self.fill_diff(&entry.bbs, &mut add_feats, &mut sub_feats);
+        let (adds, subs) = self.fill_diff(&entry.bbs, &mut addf, &mut subf);
 
-        entry
-            .white
-            .update_multi(&add_feats[0][..adds], &sub_feats[0][..subs]);
-        entry
-            .black
-            .update_multi(&add_feats[1][..adds], &sub_feats[1][..subs]);
+        entry.white.update_multi(&addf[0][..adds], &subf[0][..subs]);
+        entry.black.update_multi(&addf[1][..adds], &subf[1][..subs]);
 
         entry.bbs = self.bb;
 
