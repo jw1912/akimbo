@@ -177,7 +177,7 @@ impl Position {
 
         self.refresh(&mut accs);
 
-        self.eval_from_accs(&accs[self.stm()], &accs[self.stm() ^ 1])
+        self.eval_from_accs(&accs[0], &accs[1])
     }
 
     fn eval_from_accs(&self, white: &Accumulator, black: &Accumulator) -> i32 {
@@ -249,31 +249,14 @@ impl Position {
         accs[0] = Default::default();
         accs[1] = Default::default();
 
-        let wksq = self.ksq(Side::WHITE);
-        let bksq = self.ksq(Side::BLACK);
+        let mut add_feats = [0; 32];
+        let mut sub_feats = [0; 32];
 
-        for side in [Side::WHITE, Side::BLACK] {
-            for piece in Piece::PAWN..=Piece::KING {
-                let mut bb = self.bb[side] & self.bb[piece];
-                let pc = piece - 2;
+        let (adds, subs) = self.fill_diff::<0>(&[0; 8], &mut add_feats, &mut sub_feats);
+        accs[0].update_multi(&add_feats[..adds], &sub_feats[..subs]);
 
-                bitloop!(|bb, sq| {
-                    let sq = usize::from(sq);
-                    accs[0].update::<true>(Accumulator::get_white_index(
-                        side,
-                        pc,
-                        sq,
-                        wksq,
-                    ));
-                    accs[1].update::<true>(Accumulator::get_black_index(
-                        side,
-                        pc,
-                        sq,
-                        bksq,
-                    ));
-                });
-            }
-        }
+        let (adds, subs) = self.fill_diff::<1>(&[0; 8], &mut add_feats, &mut sub_feats);
+        accs[1].update_multi(&add_feats[..adds], &sub_feats[..subs]);
     }
 
     pub fn key_after(&self, mut curr: u64, mov: Move) -> u64 {

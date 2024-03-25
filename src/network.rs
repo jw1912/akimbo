@@ -59,17 +59,6 @@ pub struct Accumulator {
 }
 
 impl Accumulator {
-    pub fn update<const ADD: bool>(&mut self, idx: usize) {
-        assert!(idx < 768 * NUM_BUCKETS, "{idx}");
-        for (i, d) in self.vals.iter_mut().zip(&NNUE.feature_weights[idx].vals) {
-            if ADD {
-                *i += *d
-            } else {
-                *i -= *d
-            }
-        }
-    }
-
     pub fn update_multi(
         &mut self,
         adds: &[usize],
@@ -103,23 +92,6 @@ impl Accumulator {
                 self.vals[offset + j] += *reg;
             }
         }
-    }
-
-    pub fn get_white_index(side: usize, pc: usize, mut sq: usize, mut ksq: u8) -> usize {
-        if ksq % 8 > 3 {
-            sq ^= 7;
-            ksq ^= 7;
-        }
-        768 * Network::bucket(ksq) + [0, 384][side] + 64 * pc + sq
-    }
-
-    pub fn get_black_index(side: usize, pc: usize, mut sq: usize, mut ksq: u8) -> usize {
-        ksq ^= 56;
-        if ksq % 8 > 3 {
-            sq ^= 7;
-            ksq ^= 7;
-        }
-        768 * Network::bucket(ksq) + [384, 0][side] + 64 * pc + (sq ^ 56)
     }
 
     pub fn get_base_index<const SIDE: usize>(side: usize, pc: usize, mut ksq: u8) -> usize {
