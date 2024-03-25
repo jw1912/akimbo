@@ -1,10 +1,10 @@
 use crate::{
     attacks::Attacks,
     bitloop,
-    consts::{Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, ZVALS},
+    consts::{Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, ZobristVals},
     frc::Castling,
     moves::{Move, MoveList},
-    network::{Accumulator, FeatureBuffer, KimmyTable, Network},
+    network::{Accumulator, EvalTable, Network},
 };
 
 #[derive(Clone, Copy, Default)]
@@ -17,8 +17,6 @@ pub struct Position {
     pub check: bool,
     hash: u64,
     pub phase: i32,
-    feats: FeatureBuffer,
-    ksqs: [u8; 2],
 }
 
 impl Position {
@@ -47,13 +45,17 @@ impl Position {
         let mut hash = self.hash;
 
         if self.enp_sq > 0 {
-            hash ^= ZVALS.enp[self.enp_sq as usize & 7];
+            hash ^= ZobristVals::en_passant(self.enp_sq);
         }
 
-        hash ^ ZVALS.cr[usize::from(self.rights)] ^ ZVALS.c[usize::from(self.c)]
+        hash ^ ZobristVals::castling(self.rights) ^ ZobristVals::side(self.stm())
     }
 
-    fn toggle<const ADD: bool>(&mut self, side: usize, pc: usize, sq: usize) {
+    fn ksq(&self, side: usize) -> u8 {
+        (self.bb[side] & self.bb[Piece::KING]).trailing_zeros() as u8
+    }
+
+    fn toggle(&mut self, side: usize, pc: usize, sq: usize) {
         let bit = 1 << sq;
 
         // toggle bitboards
@@ -61,102 +63,7 @@ impl Position {
         self.bb[side] ^= bit;
 
         // update hash
-        self.hash ^= ZVALS.pcs[side][pc][sq];
-
-        if ADD && pc == Piece::KING {
-            self.ksqs[side] = sq as u8;
-        }
-
-        let wfeat = Accumulator::get_white_index(side, pc - 2, sq, self.ksqs[0]);
-        let bfeat = Accumulator::get_black_index(side, pc - 2, sq, self.ksqs[1]);
-
-        if ADD {
-            self.feats.push_add(wfeat, bfeat);
-        } else {
-            self.feats.push_sub(wfeat, bfeat);
-        }
-    }
-
-    pub fn update_accumulators(&self, accs: &mut [Accumulator; 2], kimmy: &mut KimmyTable) {
-        let wref = self.feats.needs_refresh(Side::WHITE);
-        let bref = self.feats.needs_refresh(Side::BLACK);
-
-        if wref && bref {
-            unreachable!();
-        } else if wref || bref {
-            if wref {
-                self.refresh_side::<0>(&mut accs[0], kimmy);
-                self.feats.update_accumulators::<2>(accs);
-            } else {
-                self.refresh_side::<1>(&mut accs[1], kimmy);
-                self.feats.update_accumulators::<1>(accs);
-            }
-        } else {
-            self.feats.update_accumulators::<3>(accs);
-        }
-    }
-
-    pub fn refresh_side<const SIDE: usize>(&self, acc: &mut Accumulator, kimmy: &mut KimmyTable) {
-        let ksq = self.ksqs[SIDE];
-        let entry = &mut kimmy.table[SIDE][Accumulator::get_bucket::<SIDE>(ksq)];
-        let bbs = entry.bbs;
-
-        for side in [Side::WHITE, Side::BLACK] {
-            let old_boys = bbs[side];
-            let new_boys = self.bb[side];
-            for (piece, &(mut old_bb)) in bbs
-                .iter()
-                .enumerate()
-                .take(Piece::KING + 1)
-                .skip(Piece::PAWN)
-            {
-                old_bb &= old_boys;
-                let new_bb = self.bb[piece] & new_boys;
-                let mut diff = old_bb ^ new_bb;
-                let pc = piece - 2;
-
-                bitloop!(|diff, sq| {
-                    let sq = usize::from(sq);
-                    let idx = Accumulator::get_index::<SIDE>(side, pc, sq, ksq);
-                    if (1 << sq) & new_bb > 0 {
-                        entry.acc.update::<true>(idx);
-                    } else {
-                        entry.acc.update::<false>(idx);
-                    }
-                });
-            }
-        }
-
-        entry.bbs = self.bb;
-        *acc = entry.acc;
-    }
-
-    pub fn refresh(&self, accs: &mut [Accumulator; 2]) {
-        accs[0] = Default::default();
-        accs[1] = Default::default();
-
-        for side in [Side::WHITE, Side::BLACK] {
-            for piece in Piece::PAWN..=Piece::KING {
-                let mut bb = self.bb[side] & self.bb[piece];
-                let pc = piece - 2;
-
-                bitloop!(|bb, sq| {
-                    let sq = usize::from(sq);
-                    accs[0].update::<true>(Accumulator::get_white_index(
-                        side,
-                        pc,
-                        sq,
-                        self.ksqs[0],
-                    ));
-                    accs[1].update::<true>(Accumulator::get_black_index(
-                        side,
-                        pc,
-                        sq,
-                        self.ksqs[1],
-                    ));
-                });
-            }
-        }
+        self.hash ^= ZobristVals::piece(side, pc, sq);
     }
 
     pub fn has_non_pk(&self, side: usize) -> bool {
@@ -185,8 +92,7 @@ impl Position {
     }
 
     pub fn make(&mut self, mov: Move, castling: &Castling) -> bool {
-        self.feats.clear();
-        let side = usize::from(self.c);
+        let side = self.stm();
         let moved = mov.moved_pc();
         let to = mov.to();
         let from = mov.from();
@@ -195,15 +101,6 @@ impl Position {
         } else {
             Piece::EMPTY
         };
-
-        if moved == Piece::KING {
-            let flip = if side == Side::BLACK { 56 } else { 0 };
-            let kfr = from ^ flip;
-            let kto = to ^ flip;
-            if Network::bucket(kfr as u8) != Network::bucket(kto as u8) {
-                self.feats.must_refresh(side);
-            }
-        }
 
         // update state
         self.rights &= castling.mask(to) & castling.mask(from);
@@ -215,14 +112,14 @@ impl Position {
         }
 
         // move piece
-        self.toggle::<false>(side, moved, from);
+        self.toggle(side, moved, from);
         if mov.flag() < Flag::PROMO {
-            self.toggle::<true>(side, moved, to);
+            self.toggle(side, moved, to);
         }
 
         // captures
         if captured != Piece::EMPTY {
-            self.toggle::<false>(side ^ 1, captured, to);
+            self.toggle(side ^ 1, captured, to);
             self.phase -= PHASE_VALS[captured];
         }
 
@@ -234,14 +131,14 @@ impl Position {
                 let sf = 56 * side;
                 let rfr = sf + castling.rook_file(side, ks) as usize;
                 let rto = sf + [3, 5][ks];
-                self.toggle::<false>(side, Piece::ROOK, rfr);
-                self.toggle::<true>(side, Piece::ROOK, rto);
+                self.toggle(side, Piece::ROOK, rfr);
+                self.toggle(side, Piece::ROOK, rto);
             }
-            Flag::ENP => self.toggle::<false>(side ^ 1, Piece::PAWN, to ^ 8),
+            Flag::ENP => self.toggle(side ^ 1, Piece::PAWN, to ^ 8),
             Flag::PROMO.. => {
                 let promo = mov.promo_pc();
                 self.phase += PHASE_VALS[promo];
-                self.toggle::<true>(side, promo, to);
+                self.toggle(side, promo, to);
             }
             _ => {}
         }
@@ -252,16 +149,92 @@ impl Position {
     }
 
     pub fn make_null(&mut self) {
-        self.feats.clear();
         self.c = !self.c;
         self.enp_sq = 0;
     }
 
-    pub fn eval(&self, accs: &[Accumulator; 2]) -> i32 {
-        let boys = &accs[usize::from(self.c)];
-        let opps = &accs[usize::from(!self.c)];
-        let eval = Network::out(boys, opps);
+    pub fn eval(&self, cache: &mut EvalTable) -> i32 {
+        let wksq = self.ksq(Side::WHITE);
+        let bksq = self.ksq(Side::BLACK);
+
+        let wbucket = Network::get_bucket::<0>(wksq);
+        let bbucket = Network::get_bucket::<1>(bksq);
+
+        let entry = &mut cache.table[wbucket][bbucket];
+
+        let mut addf = [[0; 32]; 2];
+        let mut subf = [[0; 32]; 2];
+
+        let (adds, subs) = self.fill_diff(&entry.bbs, &mut addf, &mut subf);
+
+        entry.white.update_multi(&addf[0][..adds], &subf[0][..subs]);
+        entry.black.update_multi(&addf[1][..adds], &subf[1][..subs]);
+
+        entry.bbs = self.bb;
+
+        self.eval_from_accs(&entry.white, &entry.black)
+    }
+
+    fn eval_from_accs(&self, white: &Accumulator, black: &Accumulator) -> i32 {
+        let eval = if self.stm() == Side::WHITE {
+            Network::out(white, black)
+        } else {
+            Network::out(black, white)
+        };
+
         self.scale(eval)
+    }
+
+    pub fn eval_from_scratch(&self) -> i32 {
+        let mut table = EvalTable::default();
+        self.eval(&mut table)
+    }
+
+    fn fill_diff(
+        &self,
+        bbs: &[u64; 8],
+        add_feats: &mut [[u16; 32]; 2],
+        sub_feats: &mut [[u16; 32]; 2],
+    ) -> (usize, usize) {
+        let mut adds = 0;
+        let mut subs = 0;
+
+        let wksq = self.ksq(0);
+        let bksq = self.ksq(1);
+
+        let wflip = if wksq % 8 > 3 { 7 } else { 0 };
+        let bflip = if bksq % 8 > 3 { 7 } else { 0 } ^ 56;
+
+        for side in [Side::WHITE, Side::BLACK] {
+            let old_boys = bbs[side];
+            let new_boys = self.bb[side];
+
+            for (piece, &(mut old_bb)) in bbs[Piece::PAWN..=Piece::KING].iter().enumerate() {
+                old_bb &= old_boys;
+                let new_bb = self.bb[piece + 2] & new_boys;
+
+                let wbase = Network::get_base_index::<0>(side, piece, wksq) as u16;
+                let bbase = Network::get_base_index::<1>(side, piece, bksq) as u16;
+
+                let mut add_diff = new_bb & !old_bb;
+                bitloop!(|add_diff, sq| {
+                    let sq = u16::from(sq);
+                    add_feats[0][adds] = wbase + (sq ^ wflip);
+                    add_feats[1][adds] = bbase + (sq ^ bflip);
+                    adds += 1;
+                });
+
+                let mut sub_diff = old_bb & !new_bb;
+                bitloop!(|sub_diff, sq| {
+                    let sq = u16::from(sq);
+                    sub_feats[0][subs] = wbase + (sq ^ wflip);
+                    sub_feats[1][subs] = bbase + (sq ^ bflip);
+                    subs += 1;
+                });
+            }
+        }
+
+        (adds, subs)
     }
 
     pub fn key_after(&self, mut curr: u64, mov: Move) -> u64 {
@@ -269,12 +242,12 @@ impl Position {
         let opp = side ^ 1;
         let mpc = mov.moved_pc();
 
-        curr ^= ZVALS.c[1];
-        curr ^= ZVALS.pcs[side][mpc][mov.from()];
-        curr ^= ZVALS.pcs[side][mpc][mov.to()];
+        curr ^= ZobristVals::side(1);
+        curr ^= ZobristVals::piece(side, mpc, mov.from());
+        curr ^= ZobristVals::piece(side, mpc, mov.to());
 
         if mov.is_capture() {
-            curr ^= ZVALS.pcs[opp][self.get_pc(mov.bb_to())][mov.to()];
+            curr ^= ZobristVals::piece(opp, self.get_pc(mov.bb_to()), mov.to());
         }
 
         curr
@@ -571,8 +544,7 @@ impl Position {
                 let pc = idx + 2 - 6 * side;
                 let sq = 8 * row + col;
 
-                pos.toggle::<true>(side, pc, sq as usize);
-                pos.feats.clear();
+                pos.toggle(side, pc, sq as usize);
                 pos.phase += PHASE_VALS[pc];
 
                 col += 1;

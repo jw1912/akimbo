@@ -80,9 +80,7 @@ pub fn run_uci() {
             "perft" => run_perft(commands, &pos, &castling),
             "quit" => process::exit(0),
             "eval" => {
-                let mut accs = Default::default();
-                pos.refresh(&mut accs);
-                println!("eval: {}cp", pos.eval(&accs));
+                println!("eval: {}cp", pos.eval_from_scratch());
             }
             #[cfg(feature = "tuning")]
             "params" => print_params_ob(),
@@ -159,9 +157,7 @@ fn run_bench(tt: &HashTable, stack: Vec<u64>, htable: &HistoryTable) {
     let bench_fens = FEN_STRING.split('\n').collect::<Vec<&str>>();
     for fen in bench_fens {
         let pos = Position::from_fen(fen, &mut td.castling);
-        let mut accs = Default::default();
-        pos.refresh(&mut accs);
-        eval = eval.wrapping_add([1, -1][pos.stm()] * pos.eval(&accs));
+        eval = eval.wrapping_add([1, -1][pos.stm()] * pos.eval_from_scratch());
         let timer = Instant::now();
         go(&pos, &mut td, false, 11, 1_000_000.0, u64::MAX);
         total_time += timer.elapsed().as_millis();

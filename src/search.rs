@@ -77,10 +77,6 @@ pub fn go(
     let mut score = 0;
     pos.check = pos.in_check();
 
-    let mut accs = Default::default();
-    pos.refresh(&mut accs);
-    td.plied[0].accumulators = accs;
-
     // iterative deepening loop
     for d in 1..=max_depth {
         eval = if d < 7 {
@@ -184,7 +180,7 @@ fn qs(pos: &Position, td: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     td.seldepth = td.seldepth.max(td.ply);
 
     let hash = pos.hash();
-    let mut eval = pos.eval(&td.plied[td.ply].accumulators);
+    let mut eval = pos.eval(&mut td.eval_cache);
 
     // probe hash table for cutoff
     if let Some(entry) = td.tt.probe(hash, td.ply) {
@@ -238,8 +234,6 @@ fn qs(pos: &Position, td: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
         if new.make(mov, &td.castling) {
             continue;
         }
-
-        td.update_accumulators(&new);
 
         td.qnodes += 1;
 
@@ -321,7 +315,7 @@ fn pvs(
     let s_mov = td.plied[td.ply].singular;
     let singular = s_mov != Move::NULL;
     let pc_beta = beta + 256;
-    let static_eval = pos.eval(&td.plied[td.ply].accumulators);
+    let static_eval = pos.eval(&mut td.eval_cache);
 
     let mut eval = static_eval;
     let mut tt_move = Move::NULL;
@@ -395,7 +389,6 @@ fn pvs(
                 + i32::from(improving);
 
             td.push(hash);
-            td.plied[td.ply].accumulators = td.plied[td.ply - 1].accumulators;
             td.plied[td.ply].played = Move::NULL;
 
             let mut new = *pos;
@@ -448,8 +441,6 @@ fn pvs(
             if new.make(mov, &td.castling) {
                 continue;
             }
-
-            td.update_accumulators(&new);
 
             td.nodes += 1;
 
@@ -548,7 +539,11 @@ fn pvs(
             }
 
             // static exchange eval pruning
-            let margin = if mov.is_capture() { -see_cap_margin() } else { -see_quiet_margin() };
+            let margin = if mov.is_capture() {
+                -see_cap_margin()
+            } else {
+                -see_quiet_margin()
+            };
             if depth < 7 && ms < MoveScore::CAPTURE && !pos.see(mov, margin * depth) {
                 continue;
             }
@@ -563,9 +558,6 @@ fn pvs(
         if new.make(mov, &td.castling) {
             continue;
         }
-
-        // update accumulators based on new position
-        td.update_accumulators(&new);
 
         new.check = new.in_check();
         td.nodes += 1;
@@ -582,7 +574,6 @@ fn pvs(
         if try_singular && mov == tt_move {
             let s_beta = tt_score - depth * se_margin();
 
-            let curr_accs = td.plied[td.ply].accumulators;
             td.pop();
             td.plied[td.ply].singular = mov;
 
@@ -590,7 +581,6 @@ fn pvs(
 
             td.plied[td.ply].singular = Move::NULL;
             td.push(hash);
-            td.plied[td.ply].accumulators = curr_accs;
 
             if s_score < s_beta {
                 // tt move is singular, extend

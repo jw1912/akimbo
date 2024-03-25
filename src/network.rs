@@ -38,63 +38,23 @@ impl Network {
         (sum / QA + i32::from(NNUE.output_bias)) * SCALE / QAB
     }
 
-    #[allow(clippy::modulo_one)]
-    pub fn bucket(sq: u8) -> usize {
-        BUCKETS[usize::from(sq)]
-    }
-}
-
-#[derive(Clone, Copy, Default)]
-pub struct FeatureBuffer {
-    adds: [(u16, u16); 2],
-    subs: [(u16, u16); 2],
-    add_count: usize,
-    sub_count: usize,
-    needs_refresh: [bool; 2],
-}
-
-impl FeatureBuffer {
-    pub fn clear(&mut self) {
-        self.needs_refresh = [false; 2];
-        self.add_count = 0;
-        self.sub_count = 0;
-    }
-
-    pub fn must_refresh(&mut self, side: usize) {
-        self.needs_refresh[side] = true;
-    }
-
-    pub fn needs_refresh(&self, side: usize) -> bool {
-        self.needs_refresh[side]
-    }
-
-    pub fn push_add(&mut self, wfeat: usize, bfeat: usize) {
-        self.adds[self.add_count] = (wfeat as u16, bfeat as u16);
-        self.add_count += 1;
-    }
-
-    pub fn push_sub(&mut self, wfeat: usize, bfeat: usize) {
-        self.subs[self.sub_count] = (wfeat as u16, bfeat as u16);
-        self.sub_count += 1;
-    }
-
-    pub fn update_accumulators<const SIDE: usize>(&self, accs: &mut [Accumulator; 2]) {
-        for &(wfeat, bfeat) in self.adds.iter().take(self.add_count) {
-            if SIDE & 1 > 0 {
-                accs[0].update::<true>(usize::from(wfeat));
-            }
-            if SIDE & 2 > 0 {
-                accs[1].update::<true>(usize::from(bfeat));
-            }
+    pub fn get_bucket<const SIDE: usize>(mut ksq: u8) -> usize {
+        if SIDE == 1 {
+            ksq ^= 56;
         }
 
-        for &(wfeat, bfeat) in self.subs.iter().take(self.sub_count) {
-            if SIDE & 1 > 0 {
-                accs[0].update::<false>(usize::from(wfeat));
-            }
-            if SIDE & 2 > 0 {
-                accs[1].update::<false>(usize::from(bfeat));
-            }
+        BUCKETS[usize::from(ksq)]
+    }
+
+    pub fn get_base_index<const SIDE: usize>(side: usize, pc: usize, mut ksq: u8) -> usize {
+        if ksq % 8 > 3 {
+            ksq ^= 7;
+        }
+
+        if SIDE == 0 {
+            768 * Self::get_bucket::<0>(ksq) + [0, 384][side] + 64 * pc
+        } else {
+            768 * Self::get_bucket::<1>(ksq) + [384, 0][side] + 64 * pc
         }
     }
 }
@@ -106,47 +66,38 @@ pub struct Accumulator {
 }
 
 impl Accumulator {
-    pub fn update<const ADD: bool>(&mut self, idx: usize) {
-        assert!(idx < 768 * NUM_BUCKETS, "{idx}");
-        for (i, d) in self.vals.iter_mut().zip(&NNUE.feature_weights[idx].vals) {
-            if ADD {
-                *i += *d
-            } else {
-                *i -= *d
+    pub fn update_multi(&mut self, adds: &[u16], subs: &[u16]) {
+        const REGS: usize = 8;
+        const PER: usize = REGS * 16;
+
+        let mut regs = [0i16; PER];
+
+        for i in 0..HIDDEN / PER {
+            let offset = PER * i;
+
+            for (j, reg) in regs.iter_mut().enumerate() {
+                *reg = self.vals[offset + j];
             }
-        }
-    }
 
-    pub fn get_white_index(side: usize, pc: usize, mut sq: usize, mut ksq: u8) -> usize {
-        if ksq % 8 > 3 {
-            sq ^= 7;
-            ksq ^= 7;
-        }
-        768 * Network::bucket(ksq) + [0, 384][side] + 64 * pc + sq
-    }
+            for &add in adds {
+                let weights = &NNUE.feature_weights[usize::from(add)];
 
-    pub fn get_black_index(side: usize, pc: usize, mut sq: usize, mut ksq: u8) -> usize {
-        ksq ^= 56;
-        if ksq % 8 > 3 {
-            sq ^= 7;
-            ksq ^= 7;
-        }
-        768 * Network::bucket(ksq) + [384, 0][side] + 64 * pc + (sq ^ 56)
-    }
+                for (j, reg) in regs.iter_mut().enumerate() {
+                    *reg += weights.vals[offset + j];
+                }
+            }
 
-    pub fn get_bucket<const SIDE: usize>(mut ksq: u8) -> usize {
-        if SIDE == 1 {
-            ksq ^= 56;
-        }
+            for &sub in subs {
+                let weights = &NNUE.feature_weights[usize::from(sub)];
 
-        Network::bucket(ksq)
-    }
+                for (j, reg) in regs.iter_mut().enumerate() {
+                    *reg -= weights.vals[offset + j];
+                }
+            }
 
-    pub fn get_index<const SIDE: usize>(side: usize, pc: usize, sq: usize, ksq: u8) -> usize {
-        if SIDE == 0 {
-            Self::get_white_index(side, pc, sq, ksq)
-        } else {
-            Self::get_black_index(side, pc, sq, ksq)
+            for (j, reg) in regs.iter().enumerate() {
+                self.vals[offset + j] = *reg;
+            }
         }
     }
 }
@@ -157,22 +108,24 @@ impl Default for Accumulator {
     }
 }
 
-pub struct KimmyEntry {
+pub struct EvalEntry {
     pub bbs: [u64; 8],
-    pub acc: Accumulator,
+    pub white: Accumulator,
+    pub black: Accumulator,
 }
 
-pub struct KimmyTable {
-    pub table: Box<[[KimmyEntry; 2 * NUM_BUCKETS]; 2]>,
+pub struct EvalTable {
+    pub table: Box<[[EvalEntry; 2 * NUM_BUCKETS]; 2 * NUM_BUCKETS]>,
 }
 
-impl Default for KimmyTable {
+impl Default for EvalTable {
     fn default() -> Self {
-        let mut table: Box<[[KimmyEntry; 2 * NUM_BUCKETS]; 2]> = boxed_and_zeroed();
+        let mut table: Box<[[EvalEntry; 2 * NUM_BUCKETS]; 2 * NUM_BUCKETS]> = boxed_and_zeroed();
 
-        for side in table.iter_mut() {
-            for entry in side.iter_mut() {
-                entry.acc = Accumulator::default();
+        for row in table.iter_mut() {
+            for entry in row.iter_mut() {
+                entry.white = Accumulator::default();
+                entry.black = Accumulator::default();
             }
         }
 

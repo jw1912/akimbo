@@ -21,7 +21,7 @@ fn main() {
     #[cfg(feature = "datagen")]
     {
         let threads = std::env::args().nth(1).unwrap().parse().unwrap();
-        datagen::run_datagen(threads, None, None);
+        datagen::run_datagen(threads, None, Some("dfrc.epd"));
     }
 
     #[cfg(not(feature = "datagen"))]
