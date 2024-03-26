@@ -1,6 +1,6 @@
 use crate::util::boxed_and_zeroed;
 
-const HIDDEN: usize = 768;
+const HIDDEN: usize = 1024;
 const SCALE: i32 = 400;
 const QA: i32 = 255;
 const QB: i32 = 64;
