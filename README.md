@@ -37,6 +37,7 @@ Additionally, akimbo uses its own trainer written in Rust and CUDA, [bullet](htt
 | [0.6.0](https://github.com/jw1912/akimbo/releases/tag/v0.6.0) | 24th September 2023 |  898 | 3336 |  -   |          NNUE            |
 | [0.7.0](https://github.com/jw1912/akimbo/releases/tag/v0.7.0) | 30th   October 2023 |  -   | 3390 | 3476 |    DFRC + SMP Support    |
 | [0.8.0](https://github.com/jw1912/akimbo/releases/tag/v0.8.0) |  2nd   January 2024 |  -   | 3438 | 3540 |            -             |
+| [1.0.0](https://github.com/jw1912/akimbo/releases/tag/v0.8.0) |  26th    March 2024 |  -   | TBD  | TBD  |            -             |
 
 </div>
 
