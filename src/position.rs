@@ -20,11 +20,6 @@ pub struct Position {
 }
 
 impl Position {
-    #[cfg(feature = "datagen")]
-    pub fn bitboards(&self) -> [u64; 8] {
-        self.bb
-    }
-
     pub fn side(&self, side: usize) -> u64 {
         self.bb[side]
     }
@@ -254,21 +249,14 @@ impl Position {
     }
 
     fn scale(&self, eval: i32) -> i32 {
-        #[cfg(not(feature = "datagen"))]
-        {
-            let mut mat = self.bb[Piece::KNIGHT].count_ones() as i32 * SEE_VALS[Piece::KNIGHT]
-                + self.bb[Piece::BISHOP].count_ones() as i32 * SEE_VALS[Piece::BISHOP]
-                + self.bb[Piece::ROOK].count_ones() as i32 * SEE_VALS[Piece::ROOK]
-                + self.bb[Piece::QUEEN].count_ones() as i32 * SEE_VALS[Piece::QUEEN];
+        let mut mat = self.bb[Piece::KNIGHT].count_ones() as i32 * SEE_VALS[Piece::KNIGHT]
+            + self.bb[Piece::BISHOP].count_ones() as i32 * SEE_VALS[Piece::BISHOP]
+            + self.bb[Piece::ROOK].count_ones() as i32 * SEE_VALS[Piece::ROOK]
+            + self.bb[Piece::QUEEN].count_ones() as i32 * SEE_VALS[Piece::QUEEN];
 
-            mat = 700 + mat / 32;
+        mat = 700 + mat / 32;
 
-            eval * mat / 1024
-        }
-        #[cfg(feature = "datagen")]
-        {
-            eval
-        }
+        eval * mat / 1024
     }
 
     pub fn draw(&self) -> bool {

@@ -225,7 +225,6 @@ fn threatened(sq: usize, threats: u64) -> usize {
 }
 
 impl HistoryTable {
-    #[cfg(not(feature = "datagen"))]
     pub fn clear(&mut self) {
         *self = Self::default();
     }

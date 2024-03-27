@@ -498,14 +498,8 @@ fn pvs(
     let can_lmr = depth > 1 && !pos.check;
     let lmr_base = f64::from(lmr_base()) / 100.0;
     let lmr_depth = (depth as f64).ln() / (f64::from(lmr_divisor()) / 100.0);
-
-    #[cfg(not(feature = "datagen"))]
     let can_fp = !singular && depth < 6;
-
-    #[cfg(not(feature = "datagen"))]
     let lmp_margin = 2 + depth * depth / if improving { 1 } else { 2 };
-
-    #[cfg(not(feature = "datagen"))]
     let fp_margin = eval + fp_base() + fp_margin() * depth * depth;
 
     td.push(hash);
@@ -518,7 +512,6 @@ fn pvs(
         }
 
         // pre-move pruning
-        #[cfg(not(feature = "datagen"))]
         if can_prune && best_score.abs() < Score::MATE {
             // late move pruning
             if ms < MoveScore::KILLER {
