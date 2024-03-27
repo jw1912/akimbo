@@ -1,6 +1,6 @@
 [package]
 name = "akimbo"
-version = "1.0.0"
+version = "1.1.0-dev"
 edition = "2021"
 authors = ["Jamie Whiting"]
 
@@ -9,8 +9,4 @@ strip = true
 panic = "abort"
 
 [features]
-datagen = ["bulletformat"]
 tuning = []
-
-[dependencies]
-bulletformat = { version = "0.1.0", optional = true }
