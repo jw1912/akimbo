@@ -10,13 +10,32 @@ const QAB: i32 = QA * QB;
 pub struct Network {
     feature_weights: [Accumulator; 768 * NUM_BUCKETS],
     feature_bias: Accumulator,
-    output_weights: [Accumulator; 2],
-    output_bias: i16,
+    output_weights: [[Accumulator; 2]; 8],
+    output_bias: [i16; 8],
 }
 
-static NNUE: Network =
-    unsafe { std::mem::transmute(*include_bytes!(concat!("../", env!("EVALFILE")))) };
+static NNUE: Network = unsafe {
+    let mut net: Network = std::mem::transmute(
+        *include_bytes!(concat!("../", env!("EVALFILE")))
+    );
 
+    let untrans: [[i16; 8]; 2 * HIDDEN] = std::mem::transmute(net.output_weights);
+    let mut trans = [[0i16; 2 * HIDDEN]; 8];
+
+    let mut i = 0;
+    while i < 8 {
+        let mut j = 0;
+        while j < 2 * HIDDEN {
+            trans[i][j] = untrans[j][i];
+            j += 1;
+        }
+        i += 1;
+    }
+
+    net.output_weights = std::mem::transmute(trans);
+
+    net
+};
 const NUM_BUCKETS: usize = 4;
 
 #[rustfmt::skip]
@@ -32,10 +51,18 @@ static BUCKETS: [usize; 64] = [
 ];
 
 impl Network {
-    pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
-        let weights = &NNUE.output_weights;
-        let sum = flatten(boys, &weights[0]) + flatten(opps, &weights[1]);
-        (sum / QA + i32::from(NNUE.output_bias)) * SCALE / QAB
+    pub fn out(boys: &Accumulator, opps: &Accumulator, occ: u64) -> i32 {
+        let bucket = (occ.count_ones() - 2) / 4;
+
+        let weights = &NNUE.output_weights[bucket as usize];
+        let bias = i32::from(NNUE.output_bias[bucket as usize]);
+
+        let boys_out = flatten(boys, &weights[0]);
+        let opps_out = flatten(opps, &weights[1]);
+
+        let sum = boys_out + opps_out;
+
+        (bias + sum / QA) * SCALE / QAB
     }
 
     pub fn get_bucket<const SIDE: usize>(mut ksq: u8) -> usize {

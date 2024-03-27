@@ -171,10 +171,11 @@ impl Position {
     }
 
     fn eval_from_accs(&self, white: &Accumulator, black: &Accumulator) -> i32 {
+        let occ = self.bb[0] | self.bb[1];
         let eval = if self.stm() == Side::WHITE {
-            Network::out(white, black)
+            Network::out(white, black, occ)
         } else {
-            Network::out(black, white)
+            Network::out(black, white, occ)
         };
 
         self.scale(eval)
