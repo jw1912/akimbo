@@ -16,34 +16,34 @@ use super::{
 };
 
 tunable_params! {
-    nmp_base_reduction = 4, 1, 5, 1;
+    nmp_base_reduction = 5, 1, 5, 1;
     nmp_depth_divisor = 5, 1, 8, 1;
-    nmp_eval_divisor = 166, 50, 800, 100;
-    nmp_eval_max = 5, 0, 8, 1;
+    nmp_eval_divisor = 198, 50, 800, 100;
+    nmp_eval_max = 6, 0, 8, 1;
     nmp_min_verif_depth = 17, 8, 20, 4;
-    nmp_verif_frac = 11, 1, 16, 4;
-    rfp_margin = 91, 20, 200, 40;
-    razor_margin = 276, 200, 800, 100;
-    lmr_base = 40, 0, 512, 32;
-    lmr_divisor = 256, 128, 512, 64;
-    fp_base = 151, 80, 400, 40;
-    fp_margin = 34, 20, 200, 40;
-    hist_bonus_max = 1703, 800, 4000, 200;
-    hist_bonus_mul = 472, 100, 500, 100;
-    hist_bonus_offset = 180, 0, 1000, 100;
-    hist_malus_max = 1322, 800, 4000, 200;
-    hist_malus_mul = 499, 100, 500, 100;
-    hist_malus_offset = 32, 0, 1000, 100;
-    rfp_depth = 7, 4, 16, 2;
-    razor_depth = 1, 0, 10, 2;
-    nmp_depth = 1, 1, 8, 2;
+    nmp_verif_frac = 12, 1, 16, 4;
+    rfp_margin = 94, 20, 200, 40;
+    razor_margin = 407, 200, 800, 100;
+    lmr_base = 48, 0, 512, 32;
+    lmr_divisor = 248, 128, 512, 64;
+    fp_base = 188, 80, 400, 40;
+    fp_margin = 35, 20, 200, 40;
+    hist_bonus_max = 1827, 800, 4000, 200;
+    hist_bonus_mul = 375, 100, 500, 100;
+    hist_bonus_offset = 141, 0, 1000, 100;
+    hist_malus_max = 1192, 800, 4000, 200;
+    hist_malus_mul = 396, 100, 500, 100;
+    hist_malus_offset = 8, 0, 1000, 100;
+    rfp_depth = 8, 4, 16, 2;
+    razor_depth = 0, 0, 10, 2;
+    nmp_depth = 2, 1, 8, 2;
     iir_depth = 4, 1, 12, 2;
-    pc_depth = 6, 1, 12, 2;
-    see_cap_margin = 139, 30, 150, 30;
-    see_quiet_margin = 66, 10, 150, 30;
+    pc_depth = 5, 1, 12, 2;
+    see_cap_margin = 148, 30, 150, 30;
+    see_quiet_margin = 64, 10, 150, 30;
     se_margin = 1, 0, 6, 1;
-    hist_prune_depth = 5, 0, 8, 1;
-    hist_prune_margin = 1419, 512, 2048, 256;
+    hist_prune_depth = 6, 0, 8, 1;
+    hist_prune_margin = 1682, 512, 2048, 256;
 }
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
