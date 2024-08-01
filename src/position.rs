@@ -1,7 +1,8 @@
 use crate::{
     attacks::Attacks,
     bitloop,
-    consts::{Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, ZobristVals},
+    consts::{Flag, Piece, Rank, Rights, Side, ZobristVals, PHASE_VALS, SEE_VALS},
+    eval::{S, PST},
     frc::Castling,
     moves::{Move, MoveList},
 };
@@ -16,6 +17,7 @@ pub struct Position {
     pub check: bool,
     hash: u64,
     pub phase: i32,
+    pst: S,
 }
 
 impl Position {
@@ -35,6 +37,10 @@ impl Position {
         usize::from(self.c)
     }
 
+    pub fn pst(&self) -> S {
+        self.pst
+    }
+
     pub fn hash(&self) -> u64 {
         let mut hash = self.hash;
 
@@ -45,7 +51,7 @@ impl Position {
         hash ^ ZobristVals::castling(self.rights) ^ ZobristVals::side(self.stm())
     }
 
-    fn toggle(&mut self, side: usize, pc: usize, sq: usize) {
+    fn toggle<const ADD: bool>(&mut self, side: usize, pc: usize, sq: usize) {
         let bit = 1 << sq;
 
         // toggle bitboards
@@ -54,6 +60,14 @@ impl Position {
 
         // update hash
         self.hash ^= ZobristVals::piece(side, pc, sq);
+
+        // update PST score
+        let val = PST[side][pc][sq];
+        if ADD {
+            self.pst += val;
+        } else {
+            self.pst -= val;
+        }
     }
 
     pub fn has_non_pk(&self, side: usize) -> bool {
@@ -102,14 +116,14 @@ impl Position {
         }
 
         // move piece
-        self.toggle(side, moved, from);
+        self.toggle::<false>(side, moved, from);
         if mov.flag() < Flag::PROMO {
-            self.toggle(side, moved, to);
+            self.toggle::<true>(side, moved, to);
         }
 
         // captures
         if captured != Piece::EMPTY {
-            self.toggle(side ^ 1, captured, to);
+            self.toggle::<false>(side ^ 1, captured, to);
             self.phase -= PHASE_VALS[captured];
         }
 
@@ -121,14 +135,14 @@ impl Position {
                 let sf = 56 * side;
                 let rfr = sf + castling.rook_file(side, ks) as usize;
                 let rto = sf + [3, 5][ks];
-                self.toggle(side, Piece::ROOK, rfr);
-                self.toggle(side, Piece::ROOK, rto);
+                self.toggle::<false>(side, Piece::ROOK, rfr);
+                self.toggle::<true>(side, Piece::ROOK, rto);
             }
-            Flag::ENP => self.toggle(side ^ 1, Piece::PAWN, to ^ 8),
+            Flag::ENP => self.toggle::<false>(side ^ 1, Piece::PAWN, to ^ 8),
             Flag::PROMO.. => {
                 let promo = mov.promo_pc();
                 self.phase += PHASE_VALS[promo];
-                self.toggle(side, promo, to);
+                self.toggle::<true>(side, promo, to);
             }
             _ => {}
         }
@@ -432,7 +446,7 @@ impl Position {
                 let pc = idx + 2 - 6 * side;
                 let sq = 8 * row + col;
 
-                pos.toggle(side, pc, sq as usize);
+                pos.toggle::<true>(side, pc, sq as usize);
                 pos.phase += PHASE_VALS[pc];
 
                 col += 1;
