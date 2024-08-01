@@ -8,6 +8,7 @@ static DISPLAY_NODES: AtomicU64 = AtomicU64::new(0);
 
 use super::{
     consts::{Bound, MoveScore, Score},
+    eval::eval,
     moves::{Move, MoveList},
     position::Position,
     tables::NodeTable,
@@ -180,7 +181,7 @@ fn qs(pos: &Position, td: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     td.seldepth = td.seldepth.max(td.ply);
 
     let hash = pos.hash();
-    let mut eval = pos.eval(&mut td.eval_cache);
+    let mut eval = eval(pos);
 
     // probe hash table for cutoff
     if let Some(entry) = td.tt.probe(hash, td.ply) {
@@ -315,7 +316,7 @@ fn pvs(
     let s_mov = td.plied[td.ply].singular;
     let singular = s_mov != Move::NULL;
     let pc_beta = beta + 256;
-    let static_eval = pos.eval(&mut td.eval_cache);
+    let static_eval = eval(pos);
 
     let mut eval = static_eval;
     let mut tt_move = Move::NULL;

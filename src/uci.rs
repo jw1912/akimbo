@@ -1,3 +1,4 @@
+use crate::eval::eval;
 use crate::frc::Castling;
 use crate::position::Position;
 use crate::search::go;
@@ -80,7 +81,7 @@ pub fn run_uci() {
             "perft" => run_perft(commands, &pos, &castling),
             "quit" => process::exit(0),
             "eval" => {
-                println!("eval: {}cp", pos.eval_from_scratch());
+                println!("eval: {}cp", eval(&pos));
             }
             #[cfg(feature = "tuning")]
             "params" => print_params_ob(),
@@ -152,19 +153,19 @@ fn run_bench(tt: &HashTable, stack: Vec<u64>, htable: &HistoryTable) {
     let mut td = ThreadData::new(&abort, tt, stack, htable.clone(), Castling::default());
     let mut total_nodes = 0;
     let mut total_time = 0;
-    let mut eval = 0i32;
+    let mut eval_sum = 0i32;
     td.max_time = 30000;
     let bench_fens = FEN_STRING.split('\n').collect::<Vec<&str>>();
     for fen in bench_fens {
         let pos = Position::from_fen(fen, &mut td.castling);
-        eval = eval.wrapping_add([1, -1][pos.stm()] * pos.eval_from_scratch());
+        eval_sum = eval_sum.wrapping_add([1, -1][pos.stm()] * eval(&pos));
         let timer = Instant::now();
         go(&pos, &mut td, false, 11, 1_000_000.0, u64::MAX);
         total_time += timer.elapsed().as_millis();
         total_nodes += td.nodes();
         tt.age_up();
     }
-    println!("Summed Eval: {eval}");
+    println!("Summed Eval: {eval_sum}");
     println!(
         "Bench: {total_nodes} nodes {} nps",
         total_nodes * 1000 / (total_time as u64).max(1)

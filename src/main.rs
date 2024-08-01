@@ -1,8 +1,8 @@
 mod attacks;
 mod consts;
+mod eval;
 mod frc;
 mod moves;
-mod network;
 mod position;
 mod search;
 mod tables;
