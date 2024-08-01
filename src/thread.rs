@@ -7,7 +7,7 @@ use crate::{
     frc::Castling,
     moves::Move,
     position::Position,
-    tables::{HashTable, HashView, HistoryTable, NodeTable, PlyTable},
+    tables::{CorrectionHistoryTable, HashTable, HashView, HistoryTable, NodeTable, PlyTable},
 };
 
 pub struct ThreadData<'a> {
@@ -21,6 +21,7 @@ pub struct ThreadData<'a> {
     // tables
     pub tt: HashView<'a>,
     pub htable: HistoryTable,
+    pub chtable: Box<CorrectionHistoryTable>,
     pub plied: PlyTable,
     pub ntable: NodeTable,
     pub stack: Vec<u64>,
@@ -40,6 +41,7 @@ impl<'a> ThreadData<'a> {
         tt: &'a HashTable,
         stack: Vec<u64>,
         htable: HistoryTable,
+        chtable: Box<CorrectionHistoryTable>,
         castling: Castling,
     ) -> Self {
         Self {
@@ -49,6 +51,7 @@ impl<'a> ThreadData<'a> {
             min_nmp_ply: 0,
             tt: HashView::new(tt),
             htable,
+            chtable,
             plied: PlyTable::default(),
             ntable: NodeTable::default(),
             stack,

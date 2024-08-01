@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicU64, AtomicU8, Ordering::Relaxed};
 
 use crate::{
-    consts::{MoveScore, Score},
+    consts::{CorrectionHistory, MoveScore, Score},
     moves::{Move, MoveList},
     position::Position,
     util::boxed_and_zeroed,
@@ -336,5 +336,41 @@ impl PlyTable {
         } else {
             Move::NULL
         }
+    }
+}
+
+const CHSIZE: usize = 16384;
+
+#[derive(Clone)]
+pub struct CorrectionHistoryTable {
+    table: [[i32; CHSIZE]; 2],
+}
+
+impl CorrectionHistoryTable {
+    pub fn boxed() -> Box<Self> {
+        boxed_and_zeroed()
+    }
+
+    pub fn age_entries(&mut self) {
+        self.table.iter_mut().flatten().for_each(|x| *x /= 2);
+    }
+
+    pub fn clear(&mut self) {
+        self.table.iter_mut().for_each(|t| t.fill(0));
+    }
+
+    pub fn update_correction_history(&mut self, pos: &Position, depth: i32, diff: i32) {
+        let entry = &mut self.table[pos.stm()][(pos.pawnhash() % CHSIZE as u64) as usize];
+        let scaled_diff = diff * CorrectionHistory::GRAIN;
+        let new_weight = 16.min(depth + 1);
+
+        let update = *entry * (CorrectionHistory::SCALE - new_weight) + scaled_diff * new_weight;
+        *entry = i32::clamp(update / CorrectionHistory::SCALE, -CorrectionHistory::MAX, CorrectionHistory::MAX);
+    }
+
+    pub fn correct_evaluation(&self, pos: &Position, raw_eval: i32) -> i32 {
+        let entry = self.table[pos.stm()][(pos.pawnhash() % CHSIZE as u64) as usize];
+
+        raw_eval + entry / CorrectionHistory::GRAIN
     }
 }
