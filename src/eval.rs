@@ -1,21 +1,9 @@
-use std::ops::AddAssign;
+use std::ops::{AddAssign, SubAssign};
 
-use crate::{bitloop, consts::{Piece, Side}, init, position::Position};
+use crate::{init, position::Position};
 
 pub fn eval(pos: &Position) -> i32 {
-    let mut score = S(0, 0);
-
-    for side in [Side::WHITE, Side::BLACK] {
-        let side_bb = pos.side(side);
-
-        for pc in Piece::PAWN..=Piece::KING {
-            let pc_bb = pos.piece(pc);
-
-            let mut bb = side_bb & pc_bb;
-
-            bitloop!(|bb, sq| score += PST[side][pc][usize::from(sq)]);
-        }
-    }
+    let score = pos.pst();
 
     [1, -1][pos.stm()] * score.taper(pos.phase)
 }
@@ -27,6 +15,13 @@ impl AddAssign<S> for S {
     fn add_assign(&mut self, rhs: S) {
         self.0 += rhs.0;
         self.1 += rhs.1;
+    }
+}
+
+impl SubAssign<S> for S {
+    fn sub_assign(&mut self, rhs: S) {
+        self.0 -= rhs.0;
+        self.1 -= rhs.1;
     }
 }
 
