@@ -316,8 +316,7 @@ fn pvs(
     let s_mov = td.plied[td.ply].singular;
     let singular = s_mov != Move::NULL;
     let pc_beta = beta + 256;
-
-    let static_eval = td.chtable.correct_evaluation(pos, eval(pos));
+    let mut static_eval = eval(pos);
 
     let mut eval = static_eval;
     let mut tt_move = Move::NULL;
@@ -354,6 +353,11 @@ fn pvs(
         {
             eval = tt_score;
         }
+    }
+
+    if !singular {
+        static_eval = td.chtable.correct_evaluation(pos, static_eval);
+        eval = td.chtable.correct_evaluation(pos, eval);
     }
 
     // improving heuristic
