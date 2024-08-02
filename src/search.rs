@@ -17,18 +17,18 @@ use super::{
 };
 
 tunable_params! {
-    nmp_base_reduction = 5, 1, 5, 1;
+    nmp_base_reduction = 3, 1, 5, 1;
     nmp_depth_divisor = 5, 1, 8, 1;
     nmp_eval_divisor = 198, 50, 800, 100;
     nmp_eval_max = 6, 0, 8, 1;
     nmp_min_verif_depth = 17, 8, 20, 4;
     nmp_verif_frac = 12, 1, 16, 4;
-    rfp_margin = 94, 20, 200, 40;
+    rfp_margin = 120, 20, 200, 40;
     razor_margin = 407, 200, 800, 100;
     lmr_base = 48, 0, 512, 32;
     lmr_divisor = 248, 128, 512, 64;
-    fp_base = 188, 80, 400, 40;
-    fp_margin = 35, 20, 200, 40;
+    fp_base = 120, 80, 400, 40;
+    fp_margin = 80, 20, 200, 40;
     hist_bonus_max = 1827, 800, 4000, 200;
     hist_bonus_mul = 375, 100, 500, 100;
     hist_bonus_offset = 141, 0, 1000, 100;
@@ -37,7 +37,7 @@ tunable_params! {
     hist_malus_offset = 8, 0, 1000, 100;
     rfp_depth = 8, 4, 16, 2;
     razor_depth = 0, 0, 10, 2;
-    nmp_depth = 2, 1, 8, 2;
+    nmp_depth = 3, 1, 8, 2;
     iir_depth = 4, 1, 12, 2;
     pc_depth = 5, 1, 12, 2;
     see_cap_margin = 148, 30, 150, 30;
