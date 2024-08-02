@@ -58,6 +58,13 @@ c_enum!(
 
 c_enum!(File: u64, A = 0x101010101010101, H = Self::A << 7);
 
+c_enum!(
+    CorrectionHistory: i32,
+    GRAIN = 256,
+    SCALE = 256,
+    MAX = CorrectionHistory::GRAIN * 32
+);
+
 const fn rand(mut seed: u64) -> u64 {
     seed ^= seed << 13;
     seed ^= seed >> 7;
