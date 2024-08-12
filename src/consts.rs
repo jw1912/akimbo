@@ -135,3 +135,16 @@ static ZVALS: ZobristVals = {
 pub const SEE_VALS: [i32; 8] = [0, 0, 100, 450, 450, 650, 1250, 0];
 
 pub const PHASE_VALS: [i32; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
+
+pub const RAILS: [u64; 8] = init!(|i, 8| {
+    let mut rail = 0;
+    if i > 0 {
+        rail |= File::A << (i - 1);
+    }
+    
+    if i < 7 {
+        rail |= File::A << (i + 1);
+    }
+
+    rail
+});
