@@ -148,3 +148,16 @@ pub const RAILS: [u64; 8] = init!(|i, 8| {
 
     rail
 });
+
+const FRONT_SPANS: [u64; 64] = init!(|i, 64| {
+    let mut bb = (1 << i) << 8;
+    bb |= bb << 8;
+    bb |= bb << 16;
+    bb |= bb << 32;
+    bb | (bb & !File::H) << 1 | (bb & !File::A) >> 1
+});
+
+pub const SPANS: [[u64; 64]; 2] = [
+    FRONT_SPANS,
+    init!(|i, 64| FRONT_SPANS[i ^ 56].swap_bytes()),
+];
