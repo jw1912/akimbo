@@ -181,7 +181,7 @@ fn qs(pos: &Position, td: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     td.seldepth = td.seldepth.max(td.ply);
 
     let hash = pos.hash();
-    let mut eval = eval(pos);
+    let mut eval = td.chtable.correct_evaluation(pos, eval(pos));
 
     // probe hash table for cutoff
     if let Some(entry) = td.tt.probe(hash, td.ply) {

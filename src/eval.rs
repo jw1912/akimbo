@@ -18,12 +18,12 @@ fn eval_side(pos: &Position, side: usize) -> S {
 
     let pawns_bb = pos.piece(Piece::PAWN);
 
-    for piece in Piece::PAWN..=Piece::KING {
+    for (piece, pst) in PST.iter().enumerate().take(Piece::KING + 1).skip(Piece::PAWN) {
         let mut bb = pos.piece(piece) & side_bb;
 
         bitloop!(|bb, sq| {
             let fsq = usize::from(sq) ^ flip;
-            score += PST[piece][fsq];
+            score += pst[fsq];
 
             match piece {
                 Piece::PAWN => {
