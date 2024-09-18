@@ -180,7 +180,7 @@ fn qs(pos: &Position, td: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     td.seldepth = td.seldepth.max(td.ply);
 
     let hash = pos.hash();
-    let mut eval = pos.eval(&mut td.eval_cache);
+    let mut eval = td.chtable.correct_evaluation(pos, pos.eval(&mut td.eval_cache));
 
     // probe hash table for cutoff
     if let Some(entry) = td.tt.probe(hash, td.ply) {
@@ -315,7 +315,11 @@ fn pvs(
     let s_mov = td.plied[td.ply].singular;
     let singular = s_mov != Move::NULL;
     let pc_beta = beta + 256;
-    let static_eval = pos.eval(&mut td.eval_cache);
+    let mut static_eval = pos.eval(&mut td.eval_cache);
+
+    if !singular {
+        static_eval = td.chtable.correct_evaluation(pos, static_eval);
+    }
 
     let mut eval = static_eval;
     let mut tt_move = Move::NULL;
@@ -695,6 +699,17 @@ fn pvs(
     // checkmate / stalemate
     if legal == 0 {
         return i32::from(pos.check) * (td.ply - Score::MAX);
+    }
+
+    // update corrhist table
+    if !(
+        singular
+        || pos.check
+        || best_move.is_noisy()
+        || bound == Bound::LOWER && best_score <= static_eval
+        || bound == Bound::UPPER && best_score >= static_eval
+    ) {
+        td.chtable.update_correction_history(pos, depth, best_score - static_eval);
     }
 
     // push new entry to hash table
