@@ -317,6 +317,10 @@ fn pvs(
     let pc_beta = beta + 256;
     let mut static_eval = pos.eval(&mut td.eval_cache);
 
+    if !singular {
+        static_eval = td.chtable.correct_evaluation(pos, static_eval);
+    }
+
     let mut eval = static_eval;
     let mut tt_move = Move::NULL;
     let mut tt_score = -Score::MAX;
@@ -350,13 +354,8 @@ fn pvs(
         if !((eval > tt_score && bound == Bound::LOWER)
             || (eval < tt_score && bound == Bound::UPPER))
         {
-            eval = tt_score;
+            eval = td.chtable.correct_evaluation(pos, tt_score);
         }
-    }
-
-    if !singular {
-        static_eval = td.chtable.correct_evaluation(pos, static_eval);
-        eval = td.chtable.correct_evaluation(pos, eval);
     }
 
     // improving heuristic
@@ -703,7 +702,8 @@ fn pvs(
     }
 
     // update corrhist table
-    if !(singular
+    if !(
+        singular
         || pos.check
         || best_move.is_noisy()
         || bound == Bound::LOWER && best_score <= static_eval
