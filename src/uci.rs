@@ -1,7 +1,7 @@
 use crate::frc::Castling;
 use crate::position::Position;
 use crate::search::go;
-use crate::tables::{HashTable, HistoryTable};
+use crate::tables::{CorrectionHistoryTable, HashTable, HistoryTable};
 use crate::thread::ThreadData;
 use crate::util::STARTPOS;
 
@@ -19,12 +19,13 @@ pub fn run_uci() {
     let mut stack = Vec::new();
     let mut tt = HashTable::default();
     let mut htable = HistoryTable::default();
+    let mut chtable = CorrectionHistoryTable::boxed();
     let mut threads = 1;
     tt.resize(16, 1);
 
     // bench for OpenBench
     if let Some("bench") = std::env::args().nth(1).as_deref() {
-        run_bench(&tt, stack, &htable);
+        run_bench(&tt, stack, &htable, chtable);
         return;
     }
 
@@ -57,6 +58,7 @@ pub fn run_uci() {
                 pos = Position::from_fen(STARTPOS, &mut castling);
                 tt.clear(threads);
                 htable.clear();
+                chtable.clear();
             }
             "setoption" => match commands[..] {
                 ["setoption", "name", "Hash", "value", x] => tt.resize(x.parse().unwrap(), threads),
@@ -72,6 +74,7 @@ pub fn run_uci() {
                 &castling,
                 stack.clone(),
                 &mut htable,
+                &mut chtable,
                 &mut stored_message,
                 &tt,
                 threads,
@@ -147,9 +150,9 @@ fn run_perft(commands: Vec<&str>, pos: &Position, castling: &Castling) {
     );
 }
 
-fn run_bench(tt: &HashTable, stack: Vec<u64>, htable: &HistoryTable) {
+fn run_bench(tt: &HashTable, stack: Vec<u64>, htable: &HistoryTable, chtable: Box<CorrectionHistoryTable>) {
     let abort = AtomicBool::new(false);
-    let mut td = ThreadData::new(&abort, tt, stack, htable.clone(), Castling::default());
+    let mut td = ThreadData::new(&abort, tt, stack, htable.clone(), chtable, Castling::default());
     let mut total_nodes = 0;
     let mut total_time = 0;
     let mut eval = 0i32;
@@ -229,6 +232,7 @@ fn handle_go(
     castling: &Castling,
     stack: Vec<u64>,
     htable: &mut HistoryTable,
+    chtable: &mut Box<CorrectionHistoryTable>,
     stored_message: &mut Option<String>,
     tt: &HashTable,
     threads: usize,
@@ -287,7 +291,7 @@ fn handle_go(
     let soft_bound = if mtg == 1 { alloc } else { alloc * 6 / 10 };
 
     // main search thread
-    let mut td = ThreadData::new(&abort, tt, stack.clone(), htable.clone(), *castling);
+    let mut td = ThreadData::new(&abort, tt, stack.clone(), htable.clone(), chtable.clone(), *castling);
     td.max_time = hard_bound;
     td.max_nodes = nodes;
 
@@ -299,7 +303,7 @@ fn handle_go(
         });
 
         for _ in 0..(threads - 1) {
-            let mut sub = ThreadData::new(&abort, tt, stack.clone(), htable.clone(), *castling);
+            let mut sub = ThreadData::new(&abort, tt, stack.clone(), htable.clone(), chtable.clone(), *castling);
             sub.max_time = hard_bound;
             s.spawn(move || go(pos, &mut sub, false, depth, soft_bound as f64, u64::MAX));
         }
@@ -308,5 +312,7 @@ fn handle_go(
     });
 
     *htable = td.htable;
+    *chtable = td.chtable;
+    chtable.age_entries();
     tt.age_up();
 }

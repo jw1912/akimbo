@@ -16,6 +16,7 @@ pub struct Position {
     rights: u8,
     pub check: bool,
     hash: u64,
+    pawnhash: u64,
     pub phase: i32,
 }
 
@@ -46,6 +47,10 @@ impl Position {
         hash ^ ZobristVals::castling(self.rights) ^ ZobristVals::side(self.stm())
     }
 
+    pub fn pawnhash(&self) -> u64 {
+        self.pawnhash
+    }
+
     fn ksq(&self, side: usize) -> u8 {
         (self.bb[side] & self.bb[Piece::KING]).trailing_zeros() as u8
     }
@@ -58,7 +63,12 @@ impl Position {
         self.bb[side] ^= bit;
 
         // update hash
-        self.hash ^= ZobristVals::piece(side, pc, sq);
+        let hash_val = ZobristVals::piece(side, pc, sq);
+        self.hash ^= hash_val;
+
+        if pc == Piece::PAWN {
+            self.pawnhash ^= hash_val;
+        }
     }
 
     pub fn has_non_pk(&self, side: usize) -> bool {
