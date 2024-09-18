@@ -19,13 +19,13 @@ pub fn run_uci() {
     let mut stack = Vec::new();
     let mut tt = HashTable::default();
     let mut htable = HistoryTable::default();
-    let mut chtable = CorrectionHistoryTable::boxed();
+    let mut chtable = CorrectionHistoryTable::default();
     let mut threads = 1;
     tt.resize(16, 1);
 
     // bench for OpenBench
     if let Some("bench") = std::env::args().nth(1).as_deref() {
-        run_bench(&tt, stack, &htable, chtable);
+        run_bench(&tt, stack, &htable, &chtable);
         return;
     }
 
@@ -150,9 +150,9 @@ fn run_perft(commands: Vec<&str>, pos: &Position, castling: &Castling) {
     );
 }
 
-fn run_bench(tt: &HashTable, stack: Vec<u64>, htable: &HistoryTable, chtable: Box<CorrectionHistoryTable>) {
+fn run_bench(tt: &HashTable, stack: Vec<u64>, htable: &HistoryTable, chtable: &CorrectionHistoryTable) {
     let abort = AtomicBool::new(false);
-    let mut td = ThreadData::new(&abort, tt, stack, htable.clone(), chtable, Castling::default());
+    let mut td = ThreadData::new(&abort, tt, stack, htable.clone(), chtable.clone(), Castling::default());
     let mut total_nodes = 0;
     let mut total_time = 0;
     let mut eval = 0i32;
@@ -232,7 +232,7 @@ fn handle_go(
     castling: &Castling,
     stack: Vec<u64>,
     htable: &mut HistoryTable,
-    chtable: &mut Box<CorrectionHistoryTable>,
+    chtable: &mut CorrectionHistoryTable,
     stored_message: &mut Option<String>,
     tt: &HashTable,
     threads: usize,

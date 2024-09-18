@@ -22,7 +22,7 @@ pub struct ThreadData<'a> {
     // tables
     pub tt: HashView<'a>,
     pub htable: HistoryTable,
-    pub chtable: Box<CorrectionHistoryTable>,
+    pub chtable: CorrectionHistoryTable,
     pub plied: PlyTable,
     pub ntable: NodeTable,
     pub stack: Vec<u64>,
@@ -43,7 +43,7 @@ impl<'a> ThreadData<'a> {
         tt: &'a HashTable,
         stack: Vec<u64>,
         htable: HistoryTable,
-        chtable: Box<CorrectionHistoryTable>,
+        chtable: CorrectionHistoryTable,
         castling: Castling,
     ) -> Self {
         Self {

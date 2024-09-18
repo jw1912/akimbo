@@ -343,14 +343,18 @@ const CHSIZE: usize = 16384;
 
 #[derive(Clone)]
 pub struct CorrectionHistoryTable {
-    table: [[i32; CHSIZE]; 2],
+    table: Box<[[i32; CHSIZE]; 2]>,
+}
+
+impl Default for CorrectionHistoryTable {
+    fn default() -> Self {
+        Self {
+            table: boxed_and_zeroed(),
+        }
+    }
 }
 
 impl CorrectionHistoryTable {
-    pub fn boxed() -> Box<Self> {
-        boxed_and_zeroed()
-    }
-
     pub fn age_entries(&mut self) {
         self.table.iter_mut().flatten().for_each(|x| *x /= 2);
     }
