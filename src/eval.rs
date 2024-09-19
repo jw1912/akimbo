@@ -1,6 +1,6 @@
 use std::ops::{AddAssign, Sub};
 
-use crate::{attacks::Attacks, bitloop, consts::{File, Piece, Side, RAILS, SPANS}, position::Position};
+use crate::{attacks::Attacks, bitloop, consts::{File, Piece, Side, MOBILITY_OFFSET, RAILS, SPANS}, position::Position};
 
 pub fn eval(pos: &Position) -> i32 {
     let score = eval_side(pos, Side::WHITE) - eval_side(pos, Side::BLACK);
@@ -37,10 +37,19 @@ fn eval_side(pos: &Position, side: usize) -> S {
     for (piece, pst) in PST.iter().enumerate().take(Piece::KING + 1).skip(Piece::PAWN) {
         let mut bb = pos.piece(piece) & side_bb;
 
+        let mobility_offset = MOBILITY_OFFSET[piece];
+
         bitloop!(|bb, sq| {
             let sq = usize::from(sq);
             let fsq = sq ^ flip;
+
             score += pst[fsq];
+
+            if mobility_offset != usize::MAX {
+                let attacks = Attacks::for_piece(piece, side, sq, occ);
+                let mobility = (attacks & safe).count_ones() as usize;
+                score += MOBILITY[mobility_offset + mobility];
+            }
 
             match piece {
                 Piece::PAWN => {
@@ -52,8 +61,6 @@ fn eval_side(pos: &Position, side: usize) -> S {
                         score += PASSED_PAWN_PST[fsq];
                     }
                 }
-                Piece::KNIGHT => score += KNIGHT_MOBILITY[(Attacks::knight(sq) & safe).count_ones() as usize],
-                Piece::BISHOP => score += BISHOP_MOBILITY[(Attacks::bishop(sq, occ) & safe).count_ones() as usize],
                 Piece::ROOK => {
                     let file_bb = File::A << (sq % 8);
                     
@@ -64,10 +71,7 @@ fn eval_side(pos: &Position, side: usize) -> S {
                     if file_bb & pawns_bb == 0 {
                         score += ROOK_FULL_OPEN_FILE[fsq % 8];
                     }
-
-                    score += ROOK_MOBILITY[(Attacks::rook(sq, occ) & safe).count_ones() as usize];
                 }
-                Piece::QUEEN => score += QUEEN_MOBILITY[(Attacks::queen(sq, occ) & safe).count_ones() as usize],
                 _ => {}
             }
         });
@@ -183,28 +187,18 @@ static PASSED_PAWN_PST: [S; 64] = [
     S(  0,   0), S(  0,   0), S(  0,   0), S(  0,   0), S(  0,   0), S(  0,   0), S(  0,   0), S(  0,   0),
 ];
 
-static KNIGHT_MOBILITY: [S; 9] = [
-    S(-77, -57), S(-28, -52), S( -3, -17),
-    S( 16,  10), S( 31,  20), S( 34,  34),
-    S( 49,  34), S( 61,  36), S( 76,  28),
-];
-
-static BISHOP_MOBILITY: [S; 14] = [
-    S(-70, -106), S(-36, -52), S( -1, -26), S(  9,   4), S( 24,  11), S( 38,  19), S( 46,  26),
-    S( 52,  31), S( 56,  35), S( 60,  37), S( 65,  40), S( 76,  36), S( 92,  31), S(109,  33),
-];
-
-static ROOK_MOBILITY: [S; 15] = [
-    S(-48, -37), S(-30, -16), S(-37,  10), S(-35,  39), S(-28,  47),
-    S(-23,  53), S(-18,  60), S(-14,  66), S( -9,  68), S( -2,  71),
-    S(  1,  74), S(  6,  75), S( 13,  77), S( 22,  72), S( 18,  76),
-];
-
-static QUEEN_MOBILITY: [S; 28] = [
-    S(  0,   0), S(  0,   0), S(-11,  -7), S(  6, -26), S(  3,   3), S( 34,  16), S( 36,  53),
-    S( 37,  85), S( 42,  98), S( 47, 115), S( 53, 126), S( 60, 127), S( 67, 128), S( 71, 137),
-    S( 75, 137), S( 75, 146), S( 78, 151), S( 78, 156), S( 84, 154), S( 90, 154), S( 93, 157),
-    S(101, 154), S(117, 145), S(131, 137), S(138, 128), S(123, 137), S( 87, 110), S( 66,  85),
+static MOBILITY: [S; 66] = [
+    S(-77, -57), S(-28, -52), S( -3, -17), S( 16,  10), S( 31,  20), S( 34,  34),
+    S( 49,  34), S( 61,  36), S( 76,  28), S(-70, -106), S(-36, -52), S( -1, -26),
+    S(  9,   4), S( 24,  11), S( 38,  19), S( 46,  26), S( 52,  31), S( 56,  35),
+    S( 60,  37), S( 65,  40), S( 76,  36), S( 92,  31), S(109,  33), S(-48, -37),
+    S(-30, -16), S(-37,  10), S(-35,  39), S(-28,  47), S(-23,  53), S(-18,  60),
+    S(-14,  66), S( -9,  68), S( -2,  71), S(  1,  74), S(  6,  75), S( 13,  77),
+    S( 22,  72), S( 18,  76), S(  0,   0), S(  0,   0), S(-11,  -7), S(  6, -26),
+    S(  3,   3), S( 34,  16), S( 36,  53), S( 37,  85), S( 42,  98), S( 47, 115),
+    S( 53, 126), S( 60, 127), S( 67, 128), S( 71, 137), S( 75, 137), S( 75, 146),
+    S( 78, 151), S( 78, 156), S( 84, 154), S( 90, 154), S( 93, 157), S(101, 154),
+    S(117, 145), S(131, 137), S(138, 128), S(123, 137), S( 87, 110), S( 66,  85),
 ];
 
 const BISHOP_PAIR: S = S( 34,  58);

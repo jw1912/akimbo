@@ -1,7 +1,19 @@
-use crate::{consts::File, init};
+use crate::{consts::{File, Piece}, init};
 
 pub struct Attacks;
 impl Attacks {
+    pub fn for_piece(piece: usize, side: usize, sq: usize, occ: u64) -> u64 {
+        match piece {
+            Piece::PAWN => Attacks::pawn(side, sq),
+            Piece::KNIGHT => Attacks::knight(sq),
+            Piece::BISHOP => Attacks::bishop(sq, occ),
+            Piece::ROOK => Attacks::rook(sq, occ),
+            Piece::QUEEN => Attacks::queen(sq, occ),
+            Piece::KING => Attacks::king(sq),
+            _ => panic!("not a valid piece!")
+        }
+    }
+
     pub fn pawn(side: usize, sq: usize) -> u64 {
         PAWN[side][sq]
     }

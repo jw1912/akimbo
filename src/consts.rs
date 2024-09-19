@@ -161,3 +161,5 @@ pub const SPANS: [[u64; 64]; 2] = [
     FRONT_SPANS,
     init!(|i, 64| FRONT_SPANS[i ^ 56].swap_bytes()),
 ];
+
+pub const MOBILITY_OFFSET: [usize; 8] = [usize::MAX, usize::MAX, usize::MAX, 0, 9, 23, 38, usize::MAX];
