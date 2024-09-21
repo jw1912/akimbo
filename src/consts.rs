@@ -135,31 +135,3 @@ static ZVALS: ZobristVals = {
 pub const SEE_VALS: [i32; 8] = [0, 0, 100, 450, 450, 650, 1250, 0];
 
 pub const PHASE_VALS: [i32; 8] = [0, 0, 0, 1, 1, 2, 4, 0];
-
-pub const RAILS: [u64; 8] = init!(|i, 8| {
-    let mut rail = 0;
-    if i > 0 {
-        rail |= File::A << (i - 1);
-    }
-    
-    if i < 7 {
-        rail |= File::A << (i + 1);
-    }
-
-    rail
-});
-
-const FRONT_SPANS: [u64; 64] = init!(|i, 64| {
-    let mut bb = (1 << i) << 8;
-    bb |= bb << 8;
-    bb |= bb << 16;
-    bb |= bb << 32;
-    bb | (bb & !File::H) << 1 | (bb & !File::A) >> 1
-});
-
-pub const SPANS: [[u64; 64]; 2] = [
-    FRONT_SPANS,
-    init!(|i, 64| FRONT_SPANS[i ^ 56].swap_bytes()),
-];
-
-pub const MOBILITY_OFFSET: [usize; 8] = [usize::MAX, usize::MAX, usize::MAX, 0, 9, 23, 38, usize::MAX];

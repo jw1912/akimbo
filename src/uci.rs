@@ -163,7 +163,7 @@ fn run_bench(tt: &HashTable, stack: Vec<u64>, htable: &HistoryTable, chtable: Bo
         let pos = Position::from_fen(fen, &mut td.castling);
         eval_sum = eval_sum.wrapping_add([1, -1][pos.stm()] * eval(&pos));
         let timer = Instant::now();
-        go(&pos, &mut td, false, 11, 1_000_000.0, u64::MAX);
+        go(&pos, &mut td, false, 5, 1_000_000.0, u64::MAX);
         total_time += timer.elapsed().as_millis();
         total_nodes += td.nodes();
         tt.age_up();
