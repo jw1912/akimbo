@@ -7,7 +7,7 @@ const DV: usize = 8;
 const D1: usize = 16;
 
 static NETWORK: Network = unsafe {
-    std::mem::transmute(*include_bytes!("../resources/network-11.bin"))
+    std::mem::transmute(*include_bytes!("../resources/network-15.bin"))
 };
 
 #[repr(C)]
@@ -15,7 +15,8 @@ static NETWORK: Network = unsafe {
 pub struct Network {
     wq: [[[f32; DK]; DI]; 64],
     wk: [[[f32; DK]; DI]; 64],
-    wv: [[[f32; DV]; DI]; 64],
+    wv: [[f32; DV]; DI],
+    av: [[[f32; DV]; 64]; 64],
     l1w: [[[f32; D1]; DV]; 64],
     l1b: [f32; D1],
     l2w: [f32; D1],
@@ -67,11 +68,12 @@ pub fn eval(pos: &Position) -> i32 {
         for j in 0..num_pieces {
             temps[j] /= total;
 
-            let value = &NETWORK.wv[squares[j]][pieces[j]];
             let weight = temps[j];
+            let value = &NETWORK.wv[pieces[j]];
+            let offset = &NETWORK.av[squares[i]][squares[j]];
     
             for (k, &val) in value.iter().enumerate() {
-                hl[i][k] += weight * val;
+                hl[i][k] += weight * (val + offset[k]);
             }
         }
     }
