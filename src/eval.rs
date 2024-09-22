@@ -4,7 +4,7 @@ const EMBED: usize = 32;
 const TYPES: usize = 12;
 
 static NETWORK: Network = unsafe {
-    std::mem::transmute(*include_bytes!("../resources/network-4.bin"))
+    std::mem::transmute(*include_bytes!("../resources/network-5.bin"))
 };
 
 #[repr(C)]
