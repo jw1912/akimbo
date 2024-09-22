@@ -50,7 +50,7 @@ pub fn eval(pos: &Position) -> i32 {
 
     for i in 0..num_pieces {
         let mut temps = [0.0; 32];
-        let mut total = (64 - num_pieces) as f32;
+        let mut max = 0f32;
 
         for j in 0..num_pieces {
             let query = &NETWORK.wq[squares[i]][pieces[i]];
@@ -60,8 +60,14 @@ pub fn eval(pos: &Position) -> i32 {
                 temps[j] += query[k] * key[k]
             }
 
-            temps[j] = temps[j].exp();
-            total += temps[j];
+            max = max.max(temps[j]);
+        }
+
+        let mut total = (64 - num_pieces) as f32 * (-max).exp();
+
+        for t in &mut temps {
+            *t = (*t - max).exp();
+            total += *t;
         }
 
         for j in 0..num_pieces {
