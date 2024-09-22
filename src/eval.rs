@@ -1,10 +1,10 @@
 use crate::{consts::Piece, position::Position};
 
-const EMBED: usize = 64;
+const EMBED: usize = 32;
 const TYPES: usize = 12;
 
 static NETWORK: Network = unsafe {
-    std::mem::transmute(*include_bytes!("../resources/network-10.bin"))
+    std::mem::transmute(*include_bytes!("../resources/network-4.bin"))
 };
 
 #[repr(C)]
