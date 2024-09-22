@@ -1,20 +1,25 @@
 use crate::{consts::Piece, position::Position};
 
-const EMBED: usize = 32;
-const TYPES: usize = 12;
+const DI: usize = 12;
+const DK: usize = 32;
+const DV: usize = 8;
+
+const D1: usize = 16;
 
 static NETWORK: Network = unsafe {
-    std::mem::transmute(*include_bytes!("../resources/network-5.bin"))
+    std::mem::transmute(*include_bytes!("../resources/network-11.bin"))
 };
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Network {
-    wq: [[[f32; EMBED]; TYPES]; 64],
-    wv: [[[f32; EMBED]; TYPES]; 64],
-    wk: [[[f32; EMBED]; TYPES]; 64],
-    outw: [f32; EMBED],
-    outb: f32,
+    wq: [[[f32; DK]; DI]; 64],
+    wk: [[[f32; DK]; DI]; 64],
+    wv: [[[f32; DV]; DI]; 64],
+    l1w: [[[f32; D1]; DV]; 64],
+    l1b: [f32; D1],
+    l2w: [f32; D1],
+    l2b: f32,
 }
 
 pub fn eval(pos: &Position) -> i32 {
@@ -41,7 +46,7 @@ pub fn eval(pos: &Position) -> i32 {
         }
     }
 
-    let mut logit_sums = [0.0; 32];
+    let mut hl = [[0.0; DV]; 32];
 
     for i in 0..num_pieces {
         let mut temps = [0.0f32; 32];
@@ -51,7 +56,7 @@ pub fn eval(pos: &Position) -> i32 {
             let query = &NETWORK.wq[squares[i]][pieces[i]];
             let key = &NETWORK.wk[squares[j]][pieces[j]];
 
-            for k in 0..EMBED {
+            for k in 0..DK {
                 temps[j] += query[k] * key[k]
             }
 
@@ -60,26 +65,38 @@ pub fn eval(pos: &Position) -> i32 {
         }
 
         for j in 0..num_pieces {
-            logit_sums[j] += temps[j] / total;
+            temps[j] /= total;
+
+            let value = &NETWORK.wv[squares[j]][pieces[j]];
+            let weight = temps[j];
+    
+            for (k, &val) in value.iter().enumerate() {
+                hl[i][k] += weight * val;
+            }
         }
     }
 
-    let mut hl = [0.0; EMBED];
+    let mut l1 = NETWORK.l1b;
 
     for i in 0..num_pieces {
-        let value = &NETWORK.wv[squares[i]][pieces[i]];
-        let weight = logit_sums[i];
+        let weights = &NETWORK.l1w[squares[i]];
 
-        for j in 0..EMBED {
-            hl[j] += weight * value[j];
+        for j in 0..DV {
+            hl[i][j] = hl[i][j].max(0.0);
+        }
+
+        for (j, w) in weights.iter().enumerate() {
+            for k in 0..D1 {
+                l1[k] += hl[i][j].max(0.0) * w[k];
+            }
         }
     }
 
-    let mut out = NETWORK.outb;
+    let mut l2 = NETWORK.l2b;
 
-    for (&n, &w) in hl.iter().zip(NETWORK.outw.iter()) {
-        out += w * n.max(0.0);
+    for (&w, &n) in NETWORK.l2w.iter().zip(l1.iter()) {
+        l2 += w * n.max(0.0);
     }
 
-    (out * 400.0) as i32
+    (l2 * 400.0) as i32
 }
