@@ -65,7 +65,7 @@ pub fn eval(pos: &Position) -> i32 {
 
         let mut total = (64 - num_pieces) as f32 * (-max).exp();
 
-        for t in &mut temps {
+        for t in temps.iter_mut().take(num_pieces) {
             *t = (*t - max).exp();
             total += *t;
         }
