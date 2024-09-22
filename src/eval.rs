@@ -7,7 +7,7 @@ const DV: usize = 8;
 const D1: usize = 16;
 
 static NETWORK: Network = unsafe {
-    std::mem::transmute(*include_bytes!("../resources/network-16.bin"))
+    std::mem::transmute(*include_bytes!("../resources/network-17.bin"))
 };
 
 #[repr(C)]
@@ -28,7 +28,11 @@ pub fn eval(pos: &Position) -> i32 {
     let mut squares = [0; 32];
     let mut pieces = [0; 32];
 
-    let flip = if pos.stm() > 0 { 56 } else { 0 };
+    let mut flip = if pos.stm() > 0 { 56 } else { 0 };
+
+    if (pos.side(pos.stm()) & pos.piece(Piece::KING)).trailing_zeros() % 8 > 3 {
+        flip ^= 7;
+    }
 
     for (stm, &side) in [pos.stm(), 1 - pos.stm()].iter().enumerate() {
         for piece in Piece::PAWN..=Piece::KING {
