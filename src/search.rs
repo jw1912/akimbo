@@ -6,6 +6,8 @@ use std::{
 // used for displaying accurate node counts when multithreading
 static DISPLAY_NODES: AtomicU64 = AtomicU64::new(0);
 
+use crate::consts::Piece;
+
 use super::{
     consts::{Bound, MoveScore, Score},
     moves::{Move, MoveList},
@@ -47,7 +49,9 @@ tunable_params! {
 }
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
-    8 * pos.get_pc(mov.bb_to()) as i32 - mov.moved_pc() as i32
+    let moved = mov.moved_pc();
+    let moved_val = if moved != Piece::KING { moved } else { 1 };
+    8 * pos.get_pc(mov.bb_to()) as i32 - moved_val as i32
 }
 
 pub fn go(
