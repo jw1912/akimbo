@@ -11,6 +11,7 @@ else
 endif
 
 rule:
+	cargo clean
 	cargo rustc --release -- -C target-cpu=native --emit link=$(NAME)
 
 release:
