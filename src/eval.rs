@@ -3,97 +3,136 @@ use std::ops::{AddAssign, Sub};
 use crate::{attacks::Attacks, bitloop, consts::{File, Piece, Side, MOBILITY_OFFSET, RAILS, SPANS}, position::Position};
 
 pub fn eval(pos: &Position) -> i32 {
-    let score = eval_side(pos, Side::WHITE) - eval_side(pos, Side::BLACK);
+    let white = SideEvalState::new(pos, Side::WHITE);
+    let black = SideEvalState::new(pos, Side::BLACK);
+
+    let score = white.eval() - black.eval();
 
     [1, -1][pos.stm()] * score.taper(pos.phase)
 }
 
-fn eval_side(pos: &Position, side: usize) -> S {
-    let mut score = S(0, 0);
+pub struct SideEvalState<'a> {
+    side: usize,
+    pos: &'a Position,
+    flip: usize,
+    safe: u64,
+    occ: u64,
+}
 
-    let side_bb = pos.side(side);
-    let ksq = (pos.piece(Piece::KING) & side_bb).trailing_zeros();
+impl<'a> SideEvalState<'a> {
+    fn new(pos: &'a Position, side: usize) -> Self {
+        let ksq = (pos.piece(Piece::KING) & pos.side(side)).trailing_zeros();
+        let flip = [56, 0][side] ^ if ksq % 8 > 3 { 7 } else { 0 };
 
-    let flip = [56, 0][side] ^ if ksq % 8 > 3 { 7 } else { 0 };
+        let pawn_threats = if side == Side::WHITE {
+            Attacks::black_pawn_setwise(pos.side(side ^ 1) & pos.piece(Piece::PAWN))
+        } else {
+            Attacks::white_pawn_setwise(pos.side(side ^ 1) & pos.piece(Piece::PAWN))
+        };
+    
+        let safe = !pawn_threats;
+        let occ = pos.side(side) ^ pos.side(side ^ 1);
 
-    let pawns_bb = pos.piece(Piece::PAWN);
-
-    let our_pawns = side_bb & pawns_bb;
-
-    let pawn_defends = if side == Side::WHITE {
-        Attacks::white_pawn_setwise(our_pawns)
-    } else {
-        Attacks::black_pawn_setwise(our_pawns)
-    } & side_bb;
-
-    for piece in Piece::PAWN..=Piece::KING {
-        let defended = (pawn_defends & pos.piece(piece)).count_ones();
-        score += PAWN_DEFENDS[8 * (piece - 2) + defended as usize];
+        Self { side, pos, flip, safe, occ }
     }
 
-    let mut phalanx = our_pawns & ((our_pawns & !File::A) >> 1);
-    bitloop!(|phalanx, sq| score += PHALANX_PAWNS[(usize::from(sq) ^ flip) / 8]);
-
-    let opp_pawns = pos.side(side ^ 1) & pawns_bb;
-
-    let pawn_threats = if side == Side::WHITE {
-        Attacks::black_pawn_setwise(opp_pawns)
-    } else {
-        Attacks::white_pawn_setwise(opp_pawns)
-    };
-
-    let safe = !pawn_threats;
-
-    let occ = pos.side(side) ^ pos.side(side ^ 1);
-
-    if (side_bb & pos.piece(Piece::BISHOP)).count_ones() > 1 {
-        score += BISHOP_PAIR;
+    fn piece(&self, side: usize, piece: usize) -> u64 {
+        self.pos.side(side) & self.pos.piece(piece)
     }
 
-    for (piece, pst) in PST.iter().enumerate().take(Piece::KING + 1).skip(Piece::PAWN) {
-        let mut bb = pos.piece(piece) & side_bb;
+    fn eval(&self) -> S {
+        let mut score = S(0, 0);
+        
+        score += self.pawn_structure();
+        score += self.pawn_defends();
+    
+        if self.piece(self.side, Piece::BISHOP).count_ones() > 1 {
+            score += BISHOP_PAIR;
+        }
+    
+        for piece in Piece::KNIGHT..=Piece::KING {
+            score += self.piece_eval(piece);
+        }
+    
+        score
+    }
 
+    fn pawn_structure(&self) -> S {
+        let mut score = S(0, 0);
+
+        let mut pawns = self.pos.side(self.side) & self.pos.piece(Piece::PAWN);
+        let mut phalanx = pawns & ((pawns & !File::A) >> 1);
+
+        bitloop!(|phalanx, sq| score += PHALANX_PAWNS[(usize::from(sq) ^ self.flip) / 8]);
+
+        bitloop!(|pawns, sq| {
+            let sq = usize::from(sq);
+            let fsq = sq ^ self.flip;
+
+            score += PST[Piece::PAWN][fsq];
+
+            if RAILS[sq % 8] & self.piece(self.side, Piece::PAWN) == 0 {
+                score += ISOLATED_PAWN_FILE[fsq % 8];
+            }
+
+            if SPANS[self.side][sq] & self.piece(self.side ^ 1, Piece::PAWN) == 0 {
+                score += PASSED_PAWN_PST[fsq];
+            }
+        });
+
+        score
+    }
+
+    fn pawn_defends(&self) -> S {
+        let mut score = S(0, 0);
+
+        let pawn_defends = if self.side == Side::WHITE {
+            Attacks::white_pawn_setwise(self.piece(Side::WHITE, Piece::PAWN))
+        } else {
+            Attacks::black_pawn_setwise(self.piece(Side::BLACK, Piece::PAWN))
+        };
+    
+        for piece in Piece::PAWN..=Piece::KING {
+            let defended = (pawn_defends & self.piece(self.side, piece)).count_ones();
+            score += PAWN_DEFENDS[8 * (piece - 2) + defended as usize];
+        }
+
+        score
+    }
+
+    fn piece_eval(&self, piece: usize) -> S {
+        let mut score = S(0, 0);
+        let mut bb = self.piece(self.side, piece);
+    
         let mobility_offset = MOBILITY_OFFSET[piece];
 
         bitloop!(|bb, sq| {
             let sq = usize::from(sq);
-            let fsq = sq ^ flip;
+            let fsq = sq ^ self.flip;
 
-            score += pst[fsq];
+            score += PST[piece][fsq];
 
             if mobility_offset != usize::MAX {
-                let attacks = Attacks::for_piece(piece, side, sq, occ);
-                let mobility = (attacks & safe).count_ones() as usize;
+                let attacks = Attacks::for_piece(piece, self.side, sq, self.occ);
+                let mobility = (attacks & self.safe).count_ones() as usize;
                 score += MOBILITY[mobility_offset + mobility];
             }
-
-            match piece {
-                Piece::PAWN => {
-                    if RAILS[sq % 8] & pawns_bb & side_bb == 0 {
-                        score += ISOLATED_PAWN_FILE[fsq % 8];
-                    }
-
-                    if SPANS[side][sq] & pawns_bb & pos.side(side ^ 1) == 0 {
-                        score += PASSED_PAWN_PST[fsq];
-                    }
-                }
-                Piece::ROOK => {
-                    let file_bb = File::A << (sq % 8);
+            
+            if piece == Piece::ROOK {
+                let file_bb = File::A << (sq % 8);
                     
-                    if file_bb & pawns_bb & side_bb == 0 {
-                        score += ROOK_SEMI_OPEN_FILE[fsq % 8];
-                    }
-    
-                    if file_bb & pawns_bb == 0 {
-                        score += ROOK_FULL_OPEN_FILE[fsq % 8];
-                    }
+                if file_bb & self.piece(self.side, Piece::PAWN) == 0 {
+                    score += ROOK_SEMI_OPEN_FILE[fsq % 8];
                 }
-                _ => {}
+    
+                if file_bb & self.pos.piece(Piece::PAWN) == 0 {
+                    score += ROOK_FULL_OPEN_FILE[fsq % 8];
+                }
             }
         });
-    }
 
-    score
+        score
+    }
 }
 
 #[derive(Clone, Copy, Default)]
