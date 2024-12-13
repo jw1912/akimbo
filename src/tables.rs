@@ -11,7 +11,7 @@ pub struct HashView<'a> {
     table: &'a HashTable,
 }
 
-impl<'a> std::ops::Deref for HashView<'a> {
+impl std::ops::Deref for HashView<'_> {
     type Target = HashTable;
     fn deref(&self) -> &Self::Target {
         self.table
