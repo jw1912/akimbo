@@ -45,12 +45,11 @@ impl<'a> SideEvalState<'a> {
         
         score += self.pawn_structure();
         score += self.pawn_defends();
+
+        score += self.bishop_eval();
+        score += self.rook_eval();
     
-        if self.piece(self.side, Piece::BISHOP).count_ones() > 1 {
-            score += BISHOP_PAIR;
-        }
-    
-        for piece in Piece::KNIGHT..=Piece::KING {
+        for piece in [Piece::KNIGHT, Piece::QUEEN, Piece::KING] {
             score += self.piece_eval(piece);
         }
     
@@ -60,7 +59,7 @@ impl<'a> SideEvalState<'a> {
     fn pawn_structure(&self) -> S {
         let mut score = S(0, 0);
 
-        let mut pawns = self.pos.side(self.side) & self.pos.piece(Piece::PAWN);
+        let mut pawns = self.piece(self.side, Piece::PAWN);
         let mut phalanx = pawns & ((pawns & !File::A) >> 1);
 
         bitloop!(|phalanx, sq| score += PHALANX_PAWNS[(usize::from(sq) ^ self.flip) / 8]);
@@ -100,11 +99,59 @@ impl<'a> SideEvalState<'a> {
         score
     }
 
+    fn mobility(&self, piece: usize, sq: usize) -> S {
+        let attacks = Attacks::for_piece(piece, self.side, sq, self.occ);
+        let mobility = (attacks & self.safe).count_ones() as usize;
+        MOBILITY[MOBILITY_OFFSET[piece] + mobility]
+    }
+
+    fn bishop_eval(&self) -> S {
+        let mut score = S(0, 0);
+        let mut bishops = self.piece(self.side, Piece::BISHOP);
+
+        if bishops.count_ones() > 1 {
+            score += BISHOP_PAIR;
+        }
+
+        bitloop!(|bishops, sq| {
+            let sq = usize::from(sq);
+            let fsq = sq ^ self.flip;
+
+            score += PST[Piece::BISHOP][fsq];
+            score += self.mobility(Piece::BISHOP, sq);
+        });
+
+        score
+    }
+
+    fn rook_eval(&self) -> S {
+        let mut score = S(0, 0);
+        let mut rooks = self.piece(self.side, Piece::ROOK);
+    
+        bitloop!(|rooks, sq| {
+            let sq = usize::from(sq);
+            let fsq = sq ^ self.flip;
+
+            score += PST[Piece::ROOK][fsq];
+            score += self.mobility(Piece::ROOK, sq);
+
+            let file_bb = File::A << (sq % 8);
+                    
+            if file_bb & self.piece(self.side, Piece::PAWN) == 0 {
+                score += ROOK_SEMI_OPEN_FILE[fsq % 8];
+            }
+
+            if file_bb & self.pos.piece(Piece::PAWN) == 0 {
+                score += ROOK_FULL_OPEN_FILE[fsq % 8];
+            }
+        });
+
+        score
+    }
+
     fn piece_eval(&self, piece: usize) -> S {
         let mut score = S(0, 0);
         let mut bb = self.piece(self.side, piece);
-    
-        let mobility_offset = MOBILITY_OFFSET[piece];
 
         bitloop!(|bb, sq| {
             let sq = usize::from(sq);
@@ -112,22 +159,8 @@ impl<'a> SideEvalState<'a> {
 
             score += PST[piece][fsq];
 
-            if mobility_offset != usize::MAX {
-                let attacks = Attacks::for_piece(piece, self.side, sq, self.occ);
-                let mobility = (attacks & self.safe).count_ones() as usize;
-                score += MOBILITY[mobility_offset + mobility];
-            }
-            
-            if piece == Piece::ROOK {
-                let file_bb = File::A << (sq % 8);
-                    
-                if file_bb & self.piece(self.side, Piece::PAWN) == 0 {
-                    score += ROOK_SEMI_OPEN_FILE[fsq % 8];
-                }
-    
-                if file_bb & self.pos.piece(Piece::PAWN) == 0 {
-                    score += ROOK_FULL_OPEN_FILE[fsq % 8];
-                }
+            if MOBILITY_OFFSET[piece] != usize::MAX {
+                score += self.mobility(piece, sq);
             }
         });
 
