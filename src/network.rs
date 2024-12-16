@@ -15,7 +15,7 @@ pub struct Network {
 }
 
 static NNUE: Network =
-    unsafe { std::mem::transmute(*include_bytes!(concat!("../", env!("EVALFILE")))) };
+    unsafe { std::mem::transmute(*include_bytes!(concat!("../resources/net.bin"))) };
 
 const NUM_BUCKETS: usize = 4;
 
