@@ -1,41 +1,83 @@
 use crate::util::boxed_and_zeroed;
 
 const HIDDEN: usize = 1024;
-const SCALE: i32 = 400;
-const QA: i32 = 255;
-const QB: i32 = 64;
-const QAB: i32 = QA * QB;
+const QA: i16 = 255;
+
+const L2: usize = 16;
+const L3: usize = 32;
+const OB: usize = 8;
 
 #[repr(C)]
 pub struct Network {
     feature_weights: [Accumulator; 768 * NUM_BUCKETS],
     feature_bias: Accumulator,
-    output_weights: [Accumulator; 2],
-    output_bias: i16,
+    l2w: [[[f32; HIDDEN]; L2]; OB],
+    l2b: [[f32; L2]; OB],
+    l3w: [[[f32; L2]; L3]; OB],
+    l3b: [[f32; L3]; OB],
+    l4w: [[f32; L3]; OB],
+    l4b: [f32; OB],
 }
 
 static NNUE: Network =
-    unsafe { std::mem::transmute(*include_bytes!(concat!("../resources/net.bin"))) };
+    unsafe { std::mem::transmute(*include_bytes!(concat!("../resources/quantised.bin"))) };
 
-const NUM_BUCKETS: usize = 4;
+const NUM_BUCKETS: usize = 13;
 
 #[rustfmt::skip]
 static BUCKETS: [usize; 64] = [
-    0, 0, 1, 1, 5, 5, 4, 4,
-    2, 2, 2, 2, 6, 6, 6, 6,
-    3, 3, 3, 3, 7, 7, 7, 7,
-    3, 3, 3, 3, 7, 7, 7, 7,
-    3, 3, 3, 3, 7, 7, 7, 7,
-    3, 3, 3, 3, 7, 7, 7, 7,
-    3, 3, 3, 3, 7, 7, 7, 7,
-    3, 3, 3, 3, 7, 7, 7, 7,
+     0,  1,  2,  3, 16, 15, 14, 13,
+     4,  5,  6,  7, 20, 19, 18, 17,
+     8,  8,  9,  9, 22, 22, 21, 21,
+    10, 10, 10, 10, 23, 23, 23, 23,
+    10, 10, 10, 10, 23, 23, 23, 23,
+    12, 12, 12, 12, 25, 25, 25, 25,
+    12, 12, 12, 12, 25, 25, 25, 25,
+    12, 12, 12, 12, 25, 25, 25, 25,
 ];
 
+fn screlu(x: f32) -> f32 {
+    x.clamp(0.0, 1.0).powi(2)
+}
+
+fn pairwise(acc: &Accumulator, i: usize) -> f32 {
+    f32::from(acc.vals[i]) * f32::from(acc.vals[i + HIDDEN / 2]) / f32::from(QA).powi(2)
+}
+
 impl Network {
-    pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
-        let weights = &NNUE.output_weights;
-        let sum = flatten(boys, &weights[0]) + flatten(opps, &weights[1]);
-        (sum / QA + i32::from(NNUE.output_bias)) * SCALE / QAB
+    pub fn out(boys: &Accumulator, opps: &Accumulator, bucket: usize) -> i32 {
+        let mut l1 = [0.0; HIDDEN];
+
+        for i in 0..HIDDEN / 2 {
+            l1[i] = pairwise(boys, i).clamp(0.0, 1.0);
+            l1[i + HIDDEN / 2] = pairwise(opps, i).clamp(0.0, 1.0);
+        }
+
+        let mut l2 = NNUE.l2b[bucket];
+
+        for (i, out) in l2.iter_mut().enumerate() {
+            for (j, &inp) in l1.iter().enumerate() {
+                *out += inp * NNUE.l2w[bucket][i][j];
+            }
+
+            *out = screlu(*out);
+        }
+
+        let mut l3 = NNUE.l3b[bucket];
+
+        for (i, out) in l3.iter_mut().enumerate() {
+            for (j, &inp) in l2.iter().enumerate() {
+                *out += inp * NNUE.l3w[bucket][i][j];
+            }
+        }
+
+        let mut eval = NNUE.l4b[bucket];
+
+        for (&i, &j) in NNUE.l4w[bucket].iter().zip(l3.iter()) {
+            eval += i * screlu(j);
+        }
+
+        (eval * 400.0) as i32
     }
 
     pub fn get_bucket<const SIDE: usize>(mut ksq: u8) -> usize {
@@ -130,81 +172,5 @@ impl Default for EvalTable {
         }
 
         Self { table }
-    }
-}
-
-fn flatten(acc: &Accumulator, weights: &Accumulator) -> i32 {
-    #[cfg(not(target_feature = "avx2"))]
-    {
-        fallback::flatten(acc, weights)
-    }
-    #[cfg(target_feature = "avx2")]
-    unsafe {
-        avx2::flatten(acc, weights)
-    }
-}
-
-#[cfg(not(target_feature = "avx2"))]
-mod fallback {
-    use super::{Accumulator, QA};
-
-    #[inline]
-    pub fn screlu(x: i16) -> i32 {
-        i32::from(x.clamp(0, QA as i16)).pow(2)
-    }
-
-    #[inline]
-    pub fn flatten(acc: &Accumulator, weights: &Accumulator) -> i32 {
-        let mut sum = 0;
-
-        for (&x, &w) in acc.vals.iter().zip(&weights.vals) {
-            sum += screlu(x) * i32::from(w);
-        }
-
-        sum
-    }
-}
-
-#[cfg(target_feature = "avx2")]
-mod avx2 {
-    use super::{Accumulator, HIDDEN, QA};
-    use std::arch::x86_64::*;
-
-    pub unsafe fn flatten(acc: &Accumulator, weights: &Accumulator) -> i32 {
-        use std::arch::x86_64::*;
-
-        const CHUNK: usize = 16;
-
-        let mut sum = _mm256_setzero_si256();
-        let min = _mm256_setzero_si256();
-        let max = _mm256_set1_epi16(QA as i16);
-
-        for i in 0..HIDDEN / CHUNK {
-            let mut v = load_i16s(acc, i * CHUNK);
-            v = _mm256_min_epi16(_mm256_max_epi16(v, min), max);
-            let w = load_i16s(weights, i * CHUNK);
-            let product = _mm256_madd_epi16(v, _mm256_mullo_epi16(v, w));
-            sum = _mm256_add_epi32(sum, product);
-        }
-
-        horizontal_sum_i32(sum)
-    }
-
-    #[inline]
-    unsafe fn load_i16s(acc: &Accumulator, start_idx: usize) -> __m256i {
-        _mm256_load_si256(acc.vals.as_ptr().add(start_idx).cast())
-    }
-
-    #[inline]
-    unsafe fn horizontal_sum_i32(sum: __m256i) -> i32 {
-        let upper_128 = _mm256_extracti128_si256::<1>(sum);
-        let lower_128 = _mm256_castsi256_si128(sum);
-        let sum_128 = _mm_add_epi32(upper_128, lower_128);
-        let upper_64 = _mm_unpackhi_epi64(sum_128, sum_128);
-        let sum_64 = _mm_add_epi32(upper_64, sum_128);
-        let upper_32 = _mm_shuffle_epi32::<0b00_00_00_01>(sum_64);
-        let sum_32 = _mm_add_epi32(upper_32, sum_64);
-
-        _mm_cvtsi128_si32(sum_32)
     }
 }

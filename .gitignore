@@ -7,3 +7,5 @@ Cargo.lock
 *.epd
 *.data
 /akimbo*
+
+resources/quantised.bin
