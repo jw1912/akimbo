@@ -1,23 +1,40 @@
 use crate::util::boxed_and_zeroed;
 
-const HIDDEN: usize = 1024;
+const HIDDEN: usize = 1536;
 const SCALE: i32 = 400;
 const QA: i32 = 255;
 const QB: i32 = 64;
 const QAB: i32 = QA * QB;
+const OB: usize = 8;
 
 #[repr(C)]
 pub struct Network {
     feature_weights: [Accumulator; 768 * NUM_BUCKETS],
     feature_bias: Accumulator,
-    output_weights: [Accumulator; 2],
-    output_bias: i16,
+    output_weights: [[Accumulator; 2]; OB],
+    output_bias: [i16; OB],
 }
 
-static NNUE: Network =
-    unsafe { std::mem::transmute(*include_bytes!(concat!("../resources/net.bin"))) };
+static NNUE: Network = unsafe {
+    let mut net: Network = std::mem::transmute(*include_bytes!(concat!("../resources/net.bin")));
 
-const NUM_BUCKETS: usize = 4;
+    let ow: [[i16; OB]; 2 * HIDDEN] = std::mem::transmute(net.output_weights);
+
+    let mut i = 0;
+    while i < OB {
+        let mut j = 0;
+        while j < HIDDEN {
+            net.output_weights[i][0].vals[j] = ow[j][i];
+            net.output_weights[i][1].vals[j] = ow[j + HIDDEN][i];
+            j += 1;
+        }
+        i += 1;
+    }
+
+    net
+};
+
+const NUM_BUCKETS: usize = 9;
 
 #[rustfmt::skip]
 static BUCKETS: [usize; 64] = [
@@ -32,10 +49,10 @@ static BUCKETS: [usize; 64] = [
 ];
 
 impl Network {
-    pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
-        let weights = &NNUE.output_weights;
+    pub fn out(boys: &Accumulator, opps: &Accumulator, bucket: usize) -> i32 {
+        let weights = &NNUE.output_weights[bucket];
         let sum = flatten(boys, &weights[0]) + flatten(opps, &weights[1]);
-        (sum / QA + i32::from(NNUE.output_bias)) * SCALE / QAB
+        (sum / QA + i32::from(NNUE.output_bias[bucket])) * SCALE / QAB
     }
 
     pub fn get_bucket<const SIDE: usize>(mut ksq: u8) -> usize {

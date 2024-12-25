@@ -181,10 +181,13 @@ impl Position {
     }
 
     fn eval_from_accs(&self, white: &Accumulator, black: &Accumulator) -> i32 {
+        let cnt = (self.bb[0] ^ self.bb[1]).count_ones() as usize;
+        let bucket = (cnt - 2) / 4;
+
         let eval = if self.stm() == Side::WHITE {
-            Network::out(white, black)
+            Network::out(white, black, bucket)
         } else {
-            Network::out(black, white)
+            Network::out(black, white, bucket)
         };
 
         self.scale(eval)
