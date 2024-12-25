@@ -77,7 +77,7 @@ impl Network {
             eval += i * screlu(j);
         }
 
-        (eval * 400.0) as i32
+        (eval * 200.0) as i32
     }
 
     pub fn get_bucket<const SIDE: usize>(mut ksq: u8) -> usize {
