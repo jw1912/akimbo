@@ -1,7 +1,7 @@
 use crate::util::boxed_and_zeroed;
 
 const HIDDEN: usize = 1536;
-const SCALE: i32 = 400;
+const SCALE: i32 = 200;
 const QA: i32 = 255;
 const QB: i32 = 64;
 const QAB: i32 = QA * QB;
