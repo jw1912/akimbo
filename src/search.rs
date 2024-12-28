@@ -438,9 +438,6 @@ fn pvs(
 
         td.push(hash);
 
-        // not correct, try removing?
-        td.plied[td.ply].in_check = false;
-
         while let Some((mov, _)) = caps.pick(&mut scores) {
             // static exchange eval pruning
             if !pos.see(mov, 1) {
@@ -453,6 +450,7 @@ fn pvs(
             }
 
             td.nodes += 1;
+            td.plied[td.ply].in_check = new.in_check();
 
             let mut pc_score = -qs(&new, td, -pc_beta, -pc_beta + 1);
 
