@@ -38,15 +38,15 @@ impl Network {
         (sum / QA + i32::from(NNUE.output_bias)) * SCALE / QAB
     }
 
-    pub fn get_bucket<const SIDE: usize>(mut ksq: u8) -> usize {
+    pub fn get_bucket<const SIDE: usize>(mut ksq: usize) -> usize {
         if SIDE == 1 {
             ksq ^= 56;
         }
 
-        BUCKETS[usize::from(ksq)]
+        BUCKETS[ksq]
     }
 
-    pub fn get_base_index<const SIDE: usize>(side: usize, pc: usize, mut ksq: u8) -> usize {
+    pub fn get_base_index<const SIDE: usize>(side: usize, pc: usize, mut ksq: usize) -> usize {
         if ksq % 8 > 3 {
             ksq ^= 7;
         }

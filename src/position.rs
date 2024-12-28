@@ -1,7 +1,7 @@
 use crate::{
     attacks::Attacks,
     bitloop,
-    consts::{Flag, Piece, Rank, Rights, Side, PHASE_VALS, SEE_VALS, ZobristVals},
+    consts::{Flag, Piece, Rank, Rights, Side, ZobristVals, SEE_VALS},
     frc::Castling,
     moves::{Move, MoveList},
     network::{Accumulator, EvalTable, Network},
@@ -14,10 +14,8 @@ pub struct Position {
     halfm: u8,
     enp_sq: u8,
     rights: u8,
-    pub check: bool,
     hash: u64,
     pawnhash: u64,
-    pub phase: i32,
 }
 
 impl Position {
@@ -51,8 +49,8 @@ impl Position {
         self.pawnhash
     }
 
-    fn ksq(&self, side: usize) -> u8 {
-        (self.bb[side] & self.bb[Piece::KING]).trailing_zeros() as u8
+    fn ksq(&self, side: usize) -> usize {
+        (self.bb[side] & self.bb[Piece::KING]).trailing_zeros() as usize
     }
 
     fn toggle(&mut self, side: usize, pc: usize, sq: usize) {
@@ -125,7 +123,6 @@ impl Position {
         // captures
         if captured != Piece::EMPTY {
             self.toggle(side ^ 1, captured, to);
-            self.phase -= PHASE_VALS[captured];
         }
 
         // more complex moves
@@ -140,17 +137,39 @@ impl Position {
                 self.toggle(side, Piece::ROOK, rto);
             }
             Flag::ENP => self.toggle(side ^ 1, Piece::PAWN, to ^ 8),
-            Flag::PROMO.. => {
-                let promo = mov.promo_pc();
-                self.phase += PHASE_VALS[promo];
-                self.toggle(side, promo, to);
-            }
+            Flag::PROMO.. => self.toggle(side, mov.promo_pc(), to),
             _ => {}
         }
 
         // validating move
         let kidx = (self.bb[Piece::KING] & self.bb[side]).trailing_zeros() as usize;
         self.sq_attacked(kidx, side, self.bb[0] | self.bb[1])
+    }
+
+    pub fn is_draw(&self) -> bool {
+        if self.halfm >= 100 {
+            return true;
+        }
+
+        if self.bb[Piece::PAWN] | self.bb[Piece::ROOK] | self.bb[Piece::QUEEN] == 0 {
+            if (self.bb[Side::WHITE] | self.bb[Side::BLACK]).count_ones() <= 3 {
+                return true;
+            }
+
+            if self.bb[Piece::KNIGHT] > 0 {
+                return false;
+            }
+
+            let b = self.bb[Piece::BISHOP];
+            return b & 0x55AA55AA55AA55AA == b || b & 0xAA55AA55AA55AA55 == b;
+        }
+
+        false
+    }
+
+    pub fn in_check(&self) -> bool {
+        let stm = self.stm();
+        self.sq_attacked(self.ksq(stm), stm, self.bb[0] | self.bb[1])
     }
 
     pub fn make_null(&mut self) {
@@ -252,7 +271,7 @@ impl Position {
         curr ^= ZobristVals::piece(side, mpc, mov.to());
 
         if mov.is_capture() {
-            curr ^= ZobristVals::piece(opp, self.get_pc(mov.bb_to()), mov.to());
+            curr ^= ZobristVals::piece(opp, self.get_pc(1 << mov.to()), mov.to());
         }
 
         curr
@@ -267,26 +286,6 @@ impl Position {
         mat = 700 + mat / 32;
 
         eval * mat / 1024
-    }
-
-    pub fn draw(&self) -> bool {
-        if self.halfm >= 100 {
-            return true;
-        }
-
-        let ph = self.phase;
-        let b = self.bb[Piece::BISHOP];
-        ph <= 2
-            && self.bb[Piece::PAWN] == 0
-            && ((ph != 2)
-                || (b & self.bb[Side::WHITE] != b
-                    && b & self.bb[Side::BLACK] != b
-                    && (b & 0x55AA55AA55AA55AA == b || b & 0xAA55AA55AA55AA55 == b)))
-    }
-
-    pub fn in_check(&self) -> bool {
-        let kidx = (self.bb[Piece::KING] & self.bb[usize::from(self.c)]).trailing_zeros() as usize;
-        self.sq_attacked(kidx, usize::from(self.c), self.bb[0] | self.bb[1])
     }
 
     pub fn threats(&self) -> u64 {
@@ -323,7 +322,7 @@ impl Position {
         if mov.is_en_passant() {
             return SEE_VALS[Piece::PAWN];
         }
-        let mut score = SEE_VALS[self.get_pc(mov.bb_to())];
+        let mut score = SEE_VALS[self.get_pc(1 << mov.to())];
         if mov.is_promo() {
             score += SEE_VALS[mov.promo_pc()] - SEE_VALS[Piece::PAWN];
         }
@@ -343,7 +342,7 @@ impl Position {
             return true;
         }
 
-        let mut occ = (self.bb[Side::WHITE] | self.bb[Side::BLACK]) ^ mov.bb_from() ^ (1 << sq);
+        let mut occ = (self.bb[Side::WHITE] | self.bb[Side::BLACK]) ^ (1 << mov.from()) ^ (1 << sq);
         if mov.is_en_passant() {
             occ ^= 1 << (sq ^ 8);
         }
@@ -543,7 +542,6 @@ impl Position {
                 let sq = 8 * row + col;
 
                 pos.toggle(side, pc, sq as usize);
-                pos.phase += PHASE_VALS[pc];
 
                 col += 1;
             }

@@ -289,6 +289,7 @@ pub struct PlyEntry {
     pub cutoffs: i32,
     pub dbl_exts: i32,
     pub played: Move,
+    pub in_check: bool,
 }
 
 pub struct PlyTable {
@@ -369,7 +370,11 @@ impl CorrectionHistoryTable {
         let new_weight = 16.min(depth + 1);
 
         let update = *entry * (CorrectionHistory::SCALE - new_weight) + scaled_diff * new_weight;
-        *entry = i32::clamp(update / CorrectionHistory::SCALE, -CorrectionHistory::MAX, CorrectionHistory::MAX);
+        *entry = i32::clamp(
+            update / CorrectionHistory::SCALE,
+            -CorrectionHistory::MAX,
+            CorrectionHistory::MAX,
+        );
     }
 
     pub fn correct_evaluation(&self, pos: &Position, raw_eval: i32) -> i32 {

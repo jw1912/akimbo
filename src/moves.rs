@@ -2,26 +2,26 @@ use crate::{consts::Flag, frc::Castling, position::Position};
 
 #[derive(Copy, Clone, Default, PartialEq, Eq)]
 pub struct Move {
-    from: u8,
-    to: u8,
+    src: u8,
+    dst: u8,
     flag: u8,
     pc: u8,
 }
 
 impl Move {
     pub const NULL: Self = Self {
-        from: 0,
-        to: 0,
+        src: 0,
+        dst: 0,
         flag: 0,
         pc: 0,
     };
 
     pub fn from(&self) -> usize {
-        usize::from(self.from)
+        usize::from(self.src)
     }
 
     pub fn to(&self) -> usize {
-        usize::from(self.to)
+        usize::from(self.dst)
     }
 
     pub fn moved_pc(&self) -> usize {
@@ -30,14 +30,6 @@ impl Move {
 
     pub fn flag(&self) -> u8 {
         self.flag
-    }
-
-    pub fn bb_to(&self) -> u64 {
-        1 << self.to
-    }
-
-    pub fn bb_from(&self) -> u64 {
-        1 << self.from
     }
 
     pub fn is_capture(&self) -> bool {
@@ -61,17 +53,17 @@ impl Move {
     }
 
     pub fn from_short(m: u16, pos: &Position) -> Self {
-        let from = ((m >> 6) & 63) as u8;
+        let src = ((m >> 6) & 63) as u8;
         Self {
-            from,
-            to: (m & 63) as u8,
+            src,
+            dst: (m & 63) as u8,
             flag: (m >> 12) as u8,
-            pc: pos.get_pc(1 << from) as u8,
+            pc: pos.get_pc(1 << src) as u8,
         }
     }
 
     pub fn to_short(self) -> u16 {
-        u16::from(self.from) << 6 | u16::from(self.to) | u16::from(self.flag) << 12
+        u16::from(self.src) << 6 | u16::from(self.dst) | u16::from(self.flag) << 12
     }
 
     pub fn to_uci(self, castling: &Castling) -> String {
@@ -83,13 +75,13 @@ impl Move {
         };
 
         let to = if castling.is_chess960() && [Flag::QS, Flag::KS].contains(&self.flag) {
-            let sf = 56 * (self.to / 56);
+            let sf = 56 * (self.dst / 56);
             sf + castling.rook_file(usize::from(sf > 0), usize::from(self.flag == Flag::KS))
         } else {
-            self.to
+            self.dst
         };
 
-        format!("{}{}{}", idx_to_sq(self.from), idx_to_sq(to), promo)
+        format!("{}{}{}", idx_to_sq(self.src), idx_to_sq(to), promo)
     }
 }
 
@@ -127,10 +119,10 @@ impl MoveList {
         self.len += 1;
     }
 
-    pub fn push(&mut self, from: u8, to: u8, flag: u8, mpc: usize) {
+    pub fn push(&mut self, src: u8, dst: u8, flag: u8, mpc: usize) {
         self.list[self.len] = Move {
-            from,
-            to,
+            src,
+            dst,
             flag,
             pc: mpc as u8,
         };

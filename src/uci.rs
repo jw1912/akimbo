@@ -150,9 +150,21 @@ fn run_perft(commands: Vec<&str>, pos: &Position, castling: &Castling) {
     );
 }
 
-fn run_bench(tt: &HashTable, stack: Vec<u64>, htable: &HistoryTable, chtable: &CorrectionHistoryTable) {
+fn run_bench(
+    tt: &HashTable,
+    stack: Vec<u64>,
+    htable: &HistoryTable,
+    chtable: &CorrectionHistoryTable,
+) {
     let abort = AtomicBool::new(false);
-    let mut td = ThreadData::new(&abort, tt, stack, htable.clone(), chtable.clone(), Castling::default());
+    let mut td = ThreadData::new(
+        &abort,
+        tt,
+        stack,
+        htable.clone(),
+        chtable.clone(),
+        Castling::default(),
+    );
     let mut total_nodes = 0;
     let mut total_time = 0;
     let mut eval = 0i32;
@@ -291,7 +303,14 @@ fn handle_go(
     let soft_bound = if mtg == 1 { alloc } else { alloc * 6 / 10 };
 
     // main search thread
-    let mut td = ThreadData::new(&abort, tt, stack.clone(), htable.clone(), chtable.clone(), *castling);
+    let mut td = ThreadData::new(
+        &abort,
+        tt,
+        stack.clone(),
+        htable.clone(),
+        chtable.clone(),
+        *castling,
+    );
     td.max_time = hard_bound;
     td.max_nodes = nodes;
 
@@ -303,7 +322,14 @@ fn handle_go(
         });
 
         for _ in 0..(threads - 1) {
-            let mut sub = ThreadData::new(&abort, tt, stack.clone(), htable.clone(), chtable.clone(), *castling);
+            let mut sub = ThreadData::new(
+                &abort,
+                tt,
+                stack.clone(),
+                htable.clone(),
+                chtable.clone(),
+                *castling,
+            );
             sub.max_time = hard_bound;
             s.spawn(move || go(pos, &mut sub, false, depth, soft_bound as f64, u64::MAX));
         }

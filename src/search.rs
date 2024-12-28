@@ -47,7 +47,7 @@ tunable_params! {
 }
 
 fn mvv_lva(mov: Move, pos: &Position) -> i32 {
-    8 * pos.get_pc(mov.bb_to()) as i32 - mov.moved_pc() as i32
+    8 * pos.get_pc(1 << mov.to()) as i32 - mov.moved_pc() as i32
 }
 
 pub fn go(
@@ -72,17 +72,16 @@ pub fn go(
     td.seldepth = 0;
 
     let mut best_move = Move::NULL;
-    let mut pos = *start;
     let mut eval = 0;
     let mut score = 0;
-    pos.check = pos.in_check();
+    td.plied[0].in_check = start.in_check();
 
     // iterative deepening loop
     for d in 1..=max_depth {
         eval = if d < 7 {
-            pvs(&pos, td, -Score::MAX, Score::MAX, d, false)
+            pvs(start, td, -Score::MAX, Score::MAX, d, false)
         } else {
-            aspiration(&pos, td, eval, d, &mut best_move)
+            aspiration(start, td, eval, d, &mut best_move)
         };
 
         if td.stop_is_set() {
@@ -180,7 +179,9 @@ fn qs(pos: &Position, td: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     td.seldepth = td.seldepth.max(td.ply);
 
     let hash = pos.hash();
-    let mut eval = td.chtable.correct_evaluation(pos, pos.eval(&mut td.eval_cache));
+    let mut eval = td
+        .chtable
+        .correct_evaluation(pos, pos.eval(&mut td.eval_cache));
 
     // probe hash table for cutoff
     if let Some(entry) = td.tt.probe(hash, td.ply) {
@@ -285,13 +286,14 @@ fn pvs(
 
     let hash = pos.hash();
     let is_root = td.ply == 0;
+    let in_check = td.plied[td.ply].in_check;
 
     // clear pv line
     td.plied[td.ply].pv_line.clear();
 
     if !is_root {
         // draw detection
-        if pos.draw() || td.repetition(pos, hash, false) {
+        if pos.is_draw() || td.repetition(pos, hash, false) {
             return Score::DRAW;
         }
 
@@ -303,7 +305,7 @@ fn pvs(
         }
 
         // check extensions
-        depth += i32::from(pos.check);
+        depth += i32::from(in_check);
     }
 
     // drop into quiescence search
@@ -363,7 +365,7 @@ fn pvs(
     let improving = td.ply > 1 && static_eval > td.plied[td.ply - 2].eval;
 
     // pruning
-    let can_prune = !pv_node && !pos.check;
+    let can_prune = !pv_node && !in_check;
     if can_prune && beta.abs() < Score::MATE {
         // reverse futility pruning
         let improving_divisor = if improving { 2 } else { 1 };
@@ -394,6 +396,7 @@ fn pvs(
 
             td.push(hash);
             td.plied[td.ply].played = Move::NULL;
+            td.plied[td.ply].in_check = false;
 
             let mut new = *pos;
             new.make_null();
@@ -434,6 +437,9 @@ fn pvs(
             .for_each(|(i, &cap)| scores[i] = mvv_lva(cap, pos));
 
         td.push(hash);
+
+        // not correct, try removing?
+        td.plied[td.ply].in_check = false;
 
         while let Some((mov, _)) = caps.pick(&mut scores) {
             // static exchange eval pruning
@@ -499,7 +505,7 @@ fn pvs(
     let mut best_move = tt_move;
     let mut quiets_tried = MoveList::ZEROED;
 
-    let can_lmr = depth > 1 && !pos.check;
+    let can_lmr = depth > 1 && !in_check;
     let lmr_base = f64::from(lmr_base()) / 100.0;
     let lmr_depth = (depth as f64).ln() / (f64::from(lmr_divisor()) / 100.0);
     let can_fp = !singular && depth < 6;
@@ -556,7 +562,6 @@ fn pvs(
             continue;
         }
 
-        new.check = new.in_check();
         td.nodes += 1;
         legal += 1;
 
@@ -594,6 +599,8 @@ fn pvs(
             }
         }
 
+        let new_in_check = new.in_check();
+
         // reductions
         if can_lmr && ms < MoveScore::KILLER {
             // late move reductions - Viridithas values used
@@ -603,7 +610,7 @@ fn pvs(
             reduce -= i32::from(pv_node);
 
             // reduce checks less
-            reduce -= i32::from(new.check);
+            reduce -= i32::from(new_in_check);
 
             // reduce less if next ply had few fail highs
             reduce -= i32::from(td.plied[td.ply].cutoffs < 4);
@@ -619,6 +626,7 @@ fn pvs(
 
         let pre_nodes = td.nodes();
         td.plied[td.ply].played = mov;
+        td.plied[td.ply].in_check = new_in_check;
 
         // pvs
         let score = if legal == 1 {
@@ -698,18 +706,18 @@ fn pvs(
 
     // checkmate / stalemate
     if legal == 0 {
-        return i32::from(pos.check) * (td.ply - Score::MAX);
+        return i32::from(in_check) * (td.ply - Score::MAX);
     }
 
     // update corrhist table
-    if !(
-        singular
-        || pos.check
+    if !(singular
+        || in_check
         || best_move.is_noisy()
         || bound == Bound::LOWER && best_score <= static_eval
-        || bound == Bound::UPPER && best_score >= static_eval
-    ) {
-        td.chtable.update_correction_history(pos, depth, best_score - static_eval);
+        || bound == Bound::UPPER && best_score >= static_eval)
+    {
+        td.chtable
+            .update_correction_history(pos, depth, best_score - static_eval);
     }
 
     // push new entry to hash table
