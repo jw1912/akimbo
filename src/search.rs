@@ -318,6 +318,10 @@ fn pvs(
     let pc_beta = beta + 256;
     let mut static_eval = eval(pos);
 
+    if !singular {
+        static_eval = td.chtable.correct_evaluation(pos, static_eval);
+    }
+
     let mut eval = static_eval;
     let mut tt_move = Move::NULL;
     let mut tt_score = -Score::MAX;
@@ -353,11 +357,6 @@ fn pvs(
         {
             eval = tt_score;
         }
-    }
-
-    if !singular {
-        static_eval = td.chtable.correct_evaluation(pos, static_eval);
-        eval = td.chtable.correct_evaluation(pos, eval);
     }
 
     // improving heuristic
