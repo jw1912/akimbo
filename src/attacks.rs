@@ -111,7 +111,7 @@ static MASKS: [Mask; 64] = init!(|sq, 64|
 
 const RANK_SHIFT: [usize; 64] = init!(|sq, 64| sq - (sq & 7) + 1);
 
-const RANK: [[u64; 64]; 64] = init!(|sq, 64| init!(|i, 64| {
+static RANK: [[u64; 64]; 64] = init!(|sq, 64| init!(|i, 64| {
     let f = sq & 7;
     let occ = (i << 1) as u64;
     let east = EAST[f] ^ EAST[((EAST[f] & occ) | (1 << 63)).trailing_zeros() as usize];
@@ -119,7 +119,7 @@ const RANK: [[u64; 64]; 64] = init!(|sq, 64| init!(|i, 64| {
     (east | west) << (sq - f)
 }));
 
-const FILE: [[u64; 64]; 64] = init!(|sq, 64| init!(|occ, 64| (RANK[7 - sq / 8][occ]
+static FILE: [[u64; 64]; 64] = init!(|sq, 64| init!(|occ, 64| (RANK[7 - sq / 8][occ]
     .wrapping_mul(DIAG)
     & File::H)
     >> (7 - (sq & 7))));
