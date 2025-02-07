@@ -102,13 +102,11 @@ macro_rules! tunable_params {
     };
 }
 
-pub fn boxed_and_zeroed<T>() -> Box<T> {
-    unsafe {
-        let layout = std::alloc::Layout::new::<T>();
-        let ptr = std::alloc::alloc_zeroed(layout);
-        if ptr.is_null() {
-            std::alloc::handle_alloc_error(layout);
-        }
-        Box::from_raw(ptr.cast())
+pub unsafe fn boxed_and_zeroed<T>() -> Box<T> {
+    let layout = std::alloc::Layout::new::<T>();
+    let ptr = std::alloc::alloc_zeroed(layout);
+    if ptr.is_null() {
+        std::alloc::handle_alloc_error(layout);
     }
+    Box::from_raw(ptr.cast())
 }

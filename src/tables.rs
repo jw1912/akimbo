@@ -215,7 +215,7 @@ pub struct HistoryTable {
 impl Default for HistoryTable {
     fn default() -> Self {
         Self {
-            table: boxed_and_zeroed(),
+            table: unsafe { boxed_and_zeroed() },
         }
     }
 }
@@ -265,7 +265,7 @@ pub struct NodeTable {
 impl Default for NodeTable {
     fn default() -> Self {
         Self {
-            table: boxed_and_zeroed(),
+            table: unsafe { boxed_and_zeroed() },
         }
     }
 }
@@ -299,7 +299,7 @@ pub struct PlyTable {
 impl Default for PlyTable {
     fn default() -> Self {
         Self {
-            table: boxed_and_zeroed(),
+            table: unsafe { boxed_and_zeroed() },
         }
     }
 }
@@ -350,7 +350,7 @@ pub struct CorrectionHistoryTable {
 impl Default for CorrectionHistoryTable {
     fn default() -> Self {
         Self {
-            table: boxed_and_zeroed(),
+            table: unsafe { boxed_and_zeroed() },
         }
     }
 }

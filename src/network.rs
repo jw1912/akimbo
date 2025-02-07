@@ -120,7 +120,7 @@ pub struct EvalTable {
 
 impl Default for EvalTable {
     fn default() -> Self {
-        let mut table: Box<[[EvalEntry; 2 * NUM_BUCKETS]; 2 * NUM_BUCKETS]> = boxed_and_zeroed();
+        let mut table: Box<[[EvalEntry; 2 * NUM_BUCKETS]; 2 * NUM_BUCKETS]> = unsafe { boxed_and_zeroed() };
 
         for row in table.iter_mut() {
             for entry in row.iter_mut() {
