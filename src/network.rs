@@ -1,6 +1,6 @@
 use crate::util::boxed_and_zeroed;
 
-const HIDDEN: usize = 1024;
+const HIDDEN: usize = 2048;
 const SCALE: i32 = 400;
 const QA: i32 = 255;
 const QB: i32 = 64;
@@ -17,18 +17,18 @@ pub struct Network {
 static NNUE: Network =
     unsafe { std::mem::transmute(*include_bytes!(concat!("../resources/net.bin"))) };
 
-const NUM_BUCKETS: usize = 4;
+const NUM_BUCKETS: usize = 32;
 
 #[rustfmt::skip]
 static BUCKETS: [usize; 64] = [
-    0, 0, 1, 1, 5, 5, 4, 4,
-    2, 2, 2, 2, 6, 6, 6, 6,
-    3, 3, 3, 3, 7, 7, 7, 7,
-    3, 3, 3, 3, 7, 7, 7, 7,
-    3, 3, 3, 3, 7, 7, 7, 7,
-    3, 3, 3, 3, 7, 7, 7, 7,
-    3, 3, 3, 3, 7, 7, 7, 7,
-    3, 3, 3, 3, 7, 7, 7, 7,
+    0, 1, 2, 3, 35, 34, 33, 32,
+    4, 5, 6, 7, 39, 38, 37, 36,
+    8, 9, 10, 11, 43, 42, 41, 40,
+    12, 13, 14, 15, 47, 46, 45, 44,
+    16, 17, 18, 19, 51, 50, 49, 48,
+    20, 21, 22, 23, 55, 54, 53, 52,
+    24, 25, 26, 27, 59, 58, 57, 56,
+    28, 29, 30, 31, 63, 62, 61, 60,
 ];
 
 impl Network {
