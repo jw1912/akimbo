@@ -4,7 +4,7 @@ use crate::{
     consts::{Flag, Piece, Rank, Rights, Side, ZobristVals, SEE_VALS},
     frc::Castling,
     moves::{Move, MoveList},
-    network::{Accumulator, EvalTable, Network},
+    network::Network,
 };
 
 #[derive(Clone, Copy, Default)]
@@ -19,6 +19,10 @@ pub struct Position {
 }
 
 impl Position {
+    pub fn bbs(&self) -> [u64; 8] {
+        self.bb
+    }
+
     pub fn side(&self, side: usize) -> u64 {
         self.bb[side]
     }
@@ -177,88 +181,12 @@ impl Position {
         self.enp_sq = 0;
     }
 
-    pub fn eval(&self, cache: &mut EvalTable) -> i32 {
-        let wksq = self.ksq(Side::WHITE);
-        let bksq = self.ksq(Side::BLACK);
-
-        let wbucket = Network::get_bucket::<0>(wksq);
-        let bbucket = Network::get_bucket::<1>(bksq);
-
-        let entry = &mut cache.table[wbucket][bbucket];
-
-        let mut addf = [[0; 32]; 2];
-        let mut subf = [[0; 32]; 2];
-
-        let (adds, subs) = self.fill_diff(&entry.bbs, &mut addf, &mut subf);
-
-        entry.white.update_multi(&addf[0][..adds], &subf[0][..subs]);
-        entry.black.update_multi(&addf[1][..adds], &subf[1][..subs]);
-
-        entry.bbs = self.bb;
-
-        self.eval_from_accs(&entry.white, &entry.black)
-    }
-
-    fn eval_from_accs(&self, white: &Accumulator, black: &Accumulator) -> i32 {
-        let eval = if self.stm() == Side::WHITE {
-            Network::out(white, black)
-        } else {
-            Network::out(black, white)
-        };
-
-        self.scale(eval)
+    pub fn eval(&self) -> i32 {
+        self.scale(Network::out(self))
     }
 
     pub fn eval_from_scratch(&self) -> i32 {
-        let mut table = EvalTable::default();
-        self.eval(&mut table)
-    }
-
-    fn fill_diff(
-        &self,
-        bbs: &[u64; 8],
-        add_feats: &mut [[u16; 32]; 2],
-        sub_feats: &mut [[u16; 32]; 2],
-    ) -> (usize, usize) {
-        let mut adds = 0;
-        let mut subs = 0;
-
-        let wksq = self.ksq(0);
-        let bksq = self.ksq(1);
-
-        let wflip = if wksq % 8 > 3 { 7 } else { 0 };
-        let bflip = if bksq % 8 > 3 { 7 } else { 0 } ^ 56;
-
-        for side in [Side::WHITE, Side::BLACK] {
-            let old_boys = bbs[side];
-            let new_boys = self.bb[side];
-
-            for (piece, &(mut old_bb)) in bbs[Piece::PAWN..=Piece::KING].iter().enumerate() {
-                old_bb &= old_boys;
-                let new_bb = self.bb[piece + 2] & new_boys;
-
-                let wbase = Network::get_base_index::<0>(side, piece, wksq) as u16;
-                let bbase = Network::get_base_index::<1>(side, piece, bksq) as u16;
-
-                let mut add_diff = new_bb & !old_bb;
-                bitloop!(|add_diff, sq| {
-                    let sq = u16::from(sq);
-                    add_feats[0][adds] = wbase + (sq ^ wflip);
-                    add_feats[1][adds] = bbase + (sq ^ bflip);
-                    adds += 1;
-                });
-
-                let mut sub_diff = old_bb & !new_bb;
-                bitloop!(|sub_diff, sq| {
-                    let sq = u16::from(sq);
-                    sub_feats[0][subs] = wbase + (sq ^ wflip);
-                    sub_feats[1][subs] = bbase + (sq ^ bflip);
-                    subs += 1;
-                });
-            }
-        }
-
-        (adds, subs)
+        self.scale(Network::out(self))
     }
 
     pub fn key_after(&self, mut curr: u64, mov: Move) -> u64 {

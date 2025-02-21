@@ -1,4 +1,10 @@
-use crate::util::boxed_and_zeroed;
+mod attacks;
+mod indices;
+mod input;
+mod offsets;
+mod threats;
+
+use crate::position::Position;
 
 const HIDDEN: usize = 2048;
 const SCALE: i32 = 400;
@@ -8,7 +14,7 @@ const QAB: i32 = QA * QB;
 
 #[repr(C)]
 pub struct Network {
-    feature_weights: [Accumulator; 768 * NUM_BUCKETS],
+    feature_weights: [Accumulator; input::TOTAL],
     feature_bias: Accumulator,
     output_weights: [Accumulator; 2],
     output_bias: i16,
@@ -17,45 +23,30 @@ pub struct Network {
 static NNUE: Network =
     unsafe { std::mem::transmute(*include_bytes!(concat!("../resources/net.bin"))) };
 
-const NUM_BUCKETS: usize = 32;
-
-#[rustfmt::skip]
-static BUCKETS: [usize; 64] = [
-    0, 1, 2, 3, 35, 34, 33, 32,
-    4, 5, 6, 7, 39, 38, 37, 36,
-    8, 9, 10, 11, 43, 42, 41, 40,
-    12, 13, 14, 15, 47, 46, 45, 44,
-    16, 17, 18, 19, 51, 50, 49, 48,
-    20, 21, 22, 23, 55, 54, 53, 52,
-    24, 25, 26, 27, 59, 58, 57, 56,
-    28, 29, 30, 31, 63, 62, 61, 60,
-];
-
 impl Network {
-    pub fn out(boys: &Accumulator, opps: &Accumulator) -> i32 {
+    pub fn out(pos: &Position) -> i32 {
+        let mut white = Accumulator::default();
+        let mut black = Accumulator::default();
+
+        let mut bbs = pos.bbs();
+
+        let mut count = 0;
+        let mut feats = [0; 128];
+        input::map_features_single(bbs, |stm| {feats[count] = stm as u32; count += 1;});
+        white.update_multi(&feats[..count]);
+    
+        bbs.swap(0, 1);
+        for bb in &mut bbs {
+            *bb = bb.swap_bytes();
+        }
+    
+        count = 0;
+        input::map_features_single(bbs, |ntm| {feats[count] = ntm as u32; count += 1;});
+        black.update_multi(&feats[..count]);
+
         let weights = &NNUE.output_weights;
-        let sum = flatten(boys, &weights[0]) + flatten(opps, &weights[1]);
+        let sum = flatten(&white, &weights[pos.stm()]) + flatten(&black, &weights[1 - pos.stm()]);
         (sum / QA + i32::from(NNUE.output_bias)) * SCALE / QAB
-    }
-
-    pub fn get_bucket<const SIDE: usize>(mut ksq: usize) -> usize {
-        if SIDE == 1 {
-            ksq ^= 56;
-        }
-
-        BUCKETS[ksq]
-    }
-
-    pub fn get_base_index<const SIDE: usize>(side: usize, pc: usize, mut ksq: usize) -> usize {
-        if ksq % 8 > 3 {
-            ksq ^= 7;
-        }
-
-        if SIDE == 0 {
-            768 * Self::get_bucket::<0>(ksq) + [0, 384][side] + 64 * pc
-        } else {
-            768 * Self::get_bucket::<1>(ksq) + [384, 0][side] + 64 * pc
-        }
     }
 }
 
@@ -66,7 +57,7 @@ pub struct Accumulator {
 }
 
 impl Accumulator {
-    pub fn update_multi(&mut self, adds: &[u16], subs: &[u16]) {
+    pub fn update_multi(&mut self, adds: &[u32]) {
         const REGS: usize = 8;
         const PER: usize = REGS * 16;
 
@@ -80,18 +71,10 @@ impl Accumulator {
             }
 
             for &add in adds {
-                let weights = &NNUE.feature_weights[usize::from(add)];
+                let weights = &NNUE.feature_weights[add as usize];
 
                 for (j, reg) in regs.iter_mut().enumerate() {
                     *reg += weights.vals[offset + j];
-                }
-            }
-
-            for &sub in subs {
-                let weights = &NNUE.feature_weights[usize::from(sub)];
-
-                for (j, reg) in regs.iter_mut().enumerate() {
-                    *reg -= weights.vals[offset + j];
                 }
             }
 
@@ -105,31 +88,6 @@ impl Accumulator {
 impl Default for Accumulator {
     fn default() -> Self {
         NNUE.feature_bias
-    }
-}
-
-pub struct EvalEntry {
-    pub bbs: [u64; 8],
-    pub white: Accumulator,
-    pub black: Accumulator,
-}
-
-pub struct EvalTable {
-    pub table: Box<[[EvalEntry; 2 * NUM_BUCKETS]; 2 * NUM_BUCKETS]>,
-}
-
-impl Default for EvalTable {
-    fn default() -> Self {
-        let mut table: Box<[[EvalEntry; 2 * NUM_BUCKETS]; 2 * NUM_BUCKETS]> = unsafe { boxed_and_zeroed() };
-
-        for row in table.iter_mut() {
-            for entry in row.iter_mut() {
-                entry.white = Accumulator::default();
-                entry.black = Accumulator::default();
-            }
-        }
-
-        Self { table }
     }
 }
 

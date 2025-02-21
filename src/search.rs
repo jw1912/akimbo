@@ -181,7 +181,7 @@ fn qs(pos: &Position, td: &mut ThreadData, mut alpha: i32, beta: i32) -> i32 {
     let hash = pos.hash();
     let mut eval = td
         .chtable
-        .correct_evaluation(pos, pos.eval(&mut td.eval_cache));
+        .correct_evaluation(pos, pos.eval());
 
     // probe hash table for cutoff
     if let Some(entry) = td.tt.probe(hash, td.ply) {
@@ -317,7 +317,7 @@ fn pvs(
     let s_mov = td.plied[td.ply].singular;
     let singular = s_mov != Move::NULL;
     let pc_beta = beta + 256;
-    let mut static_eval = pos.eval(&mut td.eval_cache);
+    let mut static_eval = pos.eval();
 
     if !singular {
         static_eval = td.chtable.correct_evaluation(pos, static_eval);

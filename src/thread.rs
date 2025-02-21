@@ -6,7 +6,6 @@ use std::{
 use crate::{
     frc::Castling,
     moves::Move,
-    network::EvalTable,
     position::Position,
     tables::{CorrectionHistoryTable, HashTable, HashView, HistoryTable, NodeTable, PlyTable},
 };
@@ -27,7 +26,6 @@ pub struct ThreadData<'a> {
     pub ntable: NodeTable,
     pub stack: Vec<u64>,
     pub castling: Castling,
-    pub eval_cache: EvalTable,
 
     // uci output
     pub nodes: u64,
@@ -62,7 +60,6 @@ impl<'a> ThreadData<'a> {
             qnodes: 0,
             ply: 0,
             best_move: Move::NULL,
-            eval_cache: Default::default(),
             seldepth: 0,
             abort,
         }
